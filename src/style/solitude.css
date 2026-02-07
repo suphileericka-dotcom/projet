@@ -1,0 +1,284 @@
+/* =====================
+   BASE
+===================== */
+
+.chat-root.solitude {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  background: linear-gradient(180deg, #0f172a, #020617);
+  color: #e5e7eb;
+}
+
+/* =====================
+   HEADER
+===================== */
+
+.chat-root.solitude .chat-header {
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  text-align: center;
+  padding: 14px;
+}
+
+.chat-root.solitude .chat-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
+.chat-root.solitude .sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.chat-root.solitude .online {
+  font-size: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chat-root.solitude .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+}
+
+/* =====================
+   STREAM
+===================== */
+
+.chat-root.solitude .chat-stream {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* =====================
+   SECURITY BANNER
+===================== */
+
+.chat-root.solitude .secure-banner {
+  font-size: 12px;
+  text-align: center;
+  padding: 10px;
+  background: rgba(56, 189, 248, 0.12);
+  border-radius: 12px;
+  color: #e0f2fe;
+}
+
+/* =====================
+   PINNED NOTE
+===================== */
+
+.chat-root.solitude .pinned-note {
+  background: rgba(56, 189, 248, 0.12);
+  border-left: 4px solid #38bdf8;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+/* =====================
+   MESSAGE
+===================== */
+
+.message-row {
+  display: flex;
+}
+
+.bubble-wrapper {
+  max-width: 78%;
+  position: relative;
+}
+
+.chat-root.solitude .bubble {
+  background: rgba(30, 41, 59, 0.95);
+  color: #e5e7eb;
+  padding: 12px 14px;
+  border-radius: 18px;
+  font-size: 14px;
+}
+
+/* =====================
+   TRANSLATED MESSAGE
+===================== */
+
+.chat-root.solitude .bubble.translated {
+  margin-top: 6px;
+  background: rgba(226, 232, 240, 0.12);
+  border-left: 3px solid #38bdf8;
+  color: #e0f2fe;
+  font-size: 13px;
+}
+
+/* =====================
+   META
+===================== */
+
+.chat-root.solitude .meta {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+}
+
+/* =====================
+   ACTIONS
+===================== */
+
+.chat-root.solitude .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.chat-root.solitude .actions button {
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.chat-root.solitude .actions button:hover {
+  background: #38bdf8;
+  color: #020617;
+}
+
+.chat-root.solitude .actions button.danger {
+  color: #ffd6d6;
+  border-color: rgba(255, 180, 180, 0.4);
+}
+
+/* =====================
+   AUDIO
+===================== */
+
+.chat-root.solitude audio {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* =====================
+   FOOTER
+===================== */
+
+.chat-root.solitude .chat-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* INPUT */
+
+.chat-root.solitude .chat-footer input {
+  flex: 1;
+  border-radius: 999px;
+  padding: 12px 16px;
+  border: none;
+  background: rgba(30, 41, 59, 0.9);
+  color: #e5e7eb;
+  font-size: 14px;
+}
+
+.chat-root.solitude .chat-footer input::placeholder {
+  color: #94a3b8;
+}
+
+.chat-root.solitude .chat-footer input:focus {
+  outline: none;
+  background: rgba(30, 41, 59, 1);
+}
+
+/* =====================
+   MICROPHONE
+===================== */
+
+.chat-root.solitude .mic-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.18);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-root.solitude .mic-btn:hover {
+  background: rgba(56, 189, 248, 0.3);
+}
+
+.chat-root.solitude .mic-svg {
+  width: 14px;
+  height: 22px;
+  border-radius: 7px;
+  background: #38bdf8;
+  position: relative;
+}
+
+.chat-root.solitude .mic-svg::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #38bdf8;
+  border-radius: 50%;
+}
+
+/* =====================
+   SEND ICON
+===================== */
+
+.chat-root.solitude .send-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #38bdf8;
+  color: #020617;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.chat-root.solitude .send-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* =====================
+   BACK BUTTON
+===================== */
+
+.back-button-global.solitude {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+}
