@@ -9,10 +9,22 @@ import "../style/changement.css";
 import { socket } from "../lib/socket";
 import { useTranslation } from "react-i18next";
 
-// =====================
-// TYPES
-// =====================
+/* =====================
+   API BASE
+===================== */
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
 
+const UPLOADS =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/uploads`
+    : "http://localhost:8000/uploads";
+
+/* =====================
+   TYPES
+===================== */
 type Message = {
   id: string;
   type: "text" | "voice";
@@ -28,21 +40,17 @@ type ChangementProps = {
   isAuth: boolean;
 };
 
-// =====================
-// CONSTANTES
-// =====================
-
+/* =====================
+   CONSTANTES
+===================== */
 const ROOM = "changement";
 const EDIT_WINDOW = 20 * 60 * 1000;
 
-// =====================
-// COMPONENT
-// =====================
-
+/* =====================
+   COMPONENT
+===================== */
 export default function Changement({ isAuth }: ChangementProps) {
   const navigate = useNavigate();
-
-  // ✅ TS6133 FIX
   useTranslation();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,10 +62,9 @@ export default function Changement({ isAuth }: ChangementProps) {
   const userId = isAuth ? localStorage.getItem("userId") : null;
   const streamRef = useRef<HTMLDivElement>(null);
 
-  // =====================
-  // SOCKET
-  // =====================
-
+  /* =====================
+     SOCKET
+  ===================== */
   useEffect(() => {
     if (!isAuth || !userId) return;
 
@@ -76,12 +83,11 @@ export default function Changement({ isAuth }: ChangementProps) {
     };
   }, [isAuth, userId]);
 
-  // =====================
-  // LOAD MESSAGES
-  // =====================
-
+  /* =====================
+     LOAD MESSAGES
+  ===================== */
   useEffect(() => {
-    fetch(`http://localhost:8000/api/messages?room=${ROOM}`)
+    fetch(`${API}/messages?room=${ROOM}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(
@@ -90,7 +96,7 @@ export default function Changement({ isAuth }: ChangementProps) {
             type: m.audio_path ? "voice" : "text",
             text: m.content ?? "",
             audioUrl: m.audio_path
-              ? `http://localhost:8000/uploads/audio/${m.audio_path}`
+              ? `${UPLOADS}/audio/${m.audio_path}`
               : undefined,
             createdAt: m.created_at,
           }))
@@ -98,10 +104,9 @@ export default function Changement({ isAuth }: ChangementProps) {
       });
   }, []);
 
-  // =====================
-  // AUTOSCROLL
-  // =====================
-
+  /* =====================
+     AUTOSCROLL
+  ===================== */
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
@@ -109,10 +114,9 @@ export default function Changement({ isAuth }: ChangementProps) {
     });
   }, [messages]);
 
-  // =====================
-  // HELPERS
-  // =====================
-
+  /* =====================
+     HELPERS
+  ===================== */
   function canEdit(m: Message) {
     return (
       isAuth &&
@@ -128,10 +132,9 @@ export default function Changement({ isAuth }: ChangementProps) {
     });
   }
 
-  // =====================
-  // ACTIONS
-  // =====================
-
+  /* =====================
+     SEND TEXT
+  ===================== */
   async function handleSend() {
     if (!isAuth || !userId || !input.trim()) return;
 
@@ -148,7 +151,7 @@ export default function Changement({ isAuth }: ChangementProps) {
       return;
     }
 
-    const res = await fetch("http://localhost:8000/api/messages", {
+    const res = await fetch(`${API}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ room: ROOM, userId, content: input }),
@@ -169,52 +172,52 @@ export default function Changement({ isAuth }: ChangementProps) {
     setInput("");
   }
 
+  /* =====================
+     DELETE MESSAGE
+  ===================== */
   async function handleDelete(id: string) {
     if (!userId) return;
 
-    await fetch(
-      `http://localhost:8000/api/messages/${id}?userId=${userId}`,
-      { method: "DELETE" }
-    );
+    await fetch(`${API}/messages/${id}?userId=${userId}`, {
+      method: "DELETE",
+    });
 
     setMessages((msgs) => msgs.filter((m) => m.id !== id));
   }
 
+  /* =====================
+     TRANSLATION
+  ===================== */
   async function translateMessage(m: Message) {
     if (!m.text || m.translatedText) return;
 
-    try {
-      const lang = localStorage.getItem("lang") || "fr";
+    const lang = localStorage.getItem("language") || "fr";
 
-      const res = await fetch("http://localhost:8000/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: m.text,
-          target: lang,
-        }),
-      });
+    const res = await fetch(`${API}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: m.text,
+        target: lang,
+      }),
+    });
 
-      if (!res.ok) throw new Error("Backend translation failed");
+    if (!res.ok) return;
 
-      const data = await res.json();
+    const data = await res.json();
 
-      setMessages((msgs) =>
-        msgs.map((msg) =>
-          msg.id === m.id
-            ? { ...msg, translatedText: data.translatedText }
-            : msg
-        )
-      );
-    } catch (err) {
-      console.error("TRANSLATION ERROR:", err);
-    }
+    setMessages((msgs) =>
+      msgs.map((msg) =>
+        msg.id === m.id
+          ? { ...msg, translatedText: data.translatedText }
+          : msg
+      )
+    );
   }
 
-  // =====================
-  // VOICE
-  // =====================
-
+  /* =====================
+     VOICE RECORDING
+  ===================== */
   function onVoiceRecorded(audioUrl: string) {
     if (!isAuth) return;
 
@@ -244,7 +247,7 @@ export default function Changement({ isAuth }: ChangementProps) {
     formData.append("room", ROOM);
     formData.append("userId", userId);
 
-    const res = await fetch("http://localhost:8000/api/messages/audio", {
+    const res = await fetch(`${API}/messages/audio`, {
       method: "POST",
       body: formData,
     });
@@ -266,13 +269,15 @@ export default function Changement({ isAuth }: ChangementProps) {
     );
   }
 
-  // =====================
-  // RENDER
-  // =====================
-
+  /* =====================
+     RENDER
+  ===================== */
   return (
     <div className="chat-root changement">
-      <button className="back-button-global" onClick={() => navigate("/")}>
+      <button
+        className="back-button-global"
+        onClick={() => navigate("/")}
+      >
         ←
       </button>
 
@@ -312,7 +317,9 @@ export default function Changement({ isAuth }: ChangementProps) {
                   <audio controls src={m.audioUrl} />
                   {m.pending && (
                     <div className="actions">
-                      <button onClick={() => sendVoice(m)}>Envoyer</button>
+                      <button onClick={() => sendVoice(m)}>
+                        Envoyer
+                      </button>
                       <button onClick={() => deleteLocalVoice(m.id)}>
                         Supprimer
                       </button>
@@ -336,8 +343,12 @@ export default function Changement({ isAuth }: ChangementProps) {
                   >
                     ✏️
                   </button>
-                  <button onClick={() => handleDelete(m.id)}>🗑</button>
-                  <button onClick={() => translateMessage(m)}>🌍</button>
+                  <button onClick={() => handleDelete(m.id)}>
+                    🗑
+                  </button>
+                  <button onClick={() => translateMessage(m)}>
+                    🌍
+                  </button>
                 </div>
               )}
             </div>
@@ -351,6 +362,7 @@ export default function Changement({ isAuth }: ChangementProps) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder={
             isAuth ? "Exprime ton changement…" : "Connexion requise"
           }
