@@ -19,7 +19,7 @@ type Draft = {
   tags: Tag[];
 };
 
-const API = "http://localhost:8000/api/Mystory";
+const API = "http://localhost:8000/api/mystory";
 
 export default function MyStory() {
   const navigate = useNavigate();
