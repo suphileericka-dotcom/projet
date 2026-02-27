@@ -4,25 +4,24 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-// Hooks
 import { useLang } from "../hooks/useLang";
-
-// Styles
 import "../style/register.css";
 
-// =====================
-// TYPES
-// =====================
+/* =====================
+   API BASE
+===================== */
+const API = import.meta.env.VITE_API_URL;
 
+/* =====================
+   TYPES
+===================== */
 type RegisterProps = {
   setIsAuth: (value: boolean) => void;
 };
 
-// =====================
-// COMPONENT
-// =====================
-
+/* =====================
+   COMPONENT
+===================== */
 export default function Register({ setIsAuth }: RegisterProps) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -42,10 +41,9 @@ export default function Register({ setIsAuth }: RegisterProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // =====================
-  // HANDLERS
-  // =====================
-
+  /* =====================
+     UPDATE FORM
+  ===================== */
   function update(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
@@ -60,7 +58,9 @@ export default function Register({ setIsAuth }: RegisterProps) {
     }));
   }
 
-  // 🔥 changement de langue EN LIVE
+  /* =====================
+     CHANGE LANGUAGE LIVE
+  ===================== */
   function changeLanguage(e: React.ChangeEvent<HTMLSelectElement>) {
     const lang = e.target.value;
 
@@ -69,13 +69,13 @@ export default function Register({ setIsAuth }: RegisterProps) {
       language: lang,
     }));
 
-    // langue globale immédiate
     localStorage.setItem("language", lang);
-
-    // force React à re-render (simple & efficace)
     window.dispatchEvent(new Event("storage"));
   }
 
+  /* =====================
+     SUBMIT
+  ===================== */
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -93,7 +93,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
     try {
       setLoading(true);
 
-      const res = await fetch("http://localhost:8000/api/auth/register", {
+      const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -120,10 +120,9 @@ export default function Register({ setIsAuth }: RegisterProps) {
     }
   }
 
-  // =====================
-  // RENDER
-  // =====================
-
+  /* =====================
+     RENDER
+  ===================== */
   return (
     <div className="register-page">
       <div className="register-container">
@@ -137,9 +136,10 @@ export default function Register({ setIsAuth }: RegisterProps) {
         {error && <div className="register-error">{error}</div>}
 
         <form onSubmit={submit}>
+          {/*  NOM D’UTILISATEUR CLAIR */}
           <input
             name="username"
-            placeholder={t("emailOrUsername")}
+            placeholder="Nom d’utilisateur"
             value={form.username}
             onChange={update}
             required
@@ -166,7 +166,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
           <input
             name="confirmPassword"
             type="password"
-            placeholder={t("password")}
+            placeholder="Confirmer le mot de passe"
             value={form.confirmPassword}
             onChange={update}
             required
@@ -186,7 +186,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
             <option value="CA">Canada</option>
           </select>
 
-          {/* 🌍 LANGUE (LIVE) */}
+          {/* LANGUE LIVE */}
           <select
             name="language"
             value={form.language}
@@ -205,7 +205,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
             onChange={update}
             required
           >
-            <option value="">{t("welcome")}</option>
+            <option value="">Choisir une situation</option>
             <option value="burnout">{t("burnoutTitle")}</option>
             <option value="rupture">{t("ruptureTitle")}</option>
             <option value="solitude">{t("solitudeTitle")}</option>
