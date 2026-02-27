@@ -3,6 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import "../style/mySpace.css";
 
+/* =====================
+   API BASE (SAFE)
+===================== */
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
+
+/* =====================
+   TYPES
+===================== */
 type Story = {
   id: string;
   title: string;
@@ -35,21 +46,17 @@ type Me = {
   created_at: number | null;
 };
 
-const API = "http://localhost:8000/api";
-
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
   const { i18n } = useTranslation();
 
   const [me, setMe] = useState<Me | null>(null);
-
   const [myStory, setMyStory] = useState<Story | null>(null);
   const [matches, setMatches] = useState<MatchProfile[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // form profil
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [language, setLanguage] = useState("fr");
@@ -57,34 +64,42 @@ export default function MySpace() {
 
   const [saving, setSaving] = useState(false);
 
-  // password modal
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
-  // =====================
-  // Apply theme globally
-  // =====================
+  /* =====================
+     APPLY THEME
+  ===================== */
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
-  // =====================
-  // Load all data
-  // =====================
+  /* =====================
+     LOAD DATA
+  ===================== */
   useEffect(() => {
     if (!token) return;
 
     async function load() {
       try {
-        const [meRes, storyRes, matchRes, recoRes] = await Promise.all([
-          fetch(`${API}/user/me`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API}/story/me`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API}/match`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API}/recommendations`, { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
+        const [meRes, storyRes, matchRes, recoRes] =
+          await Promise.all([
+            fetch(`${API}/user/me`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch(`${API}/stories/me`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch(`${API}/match`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch(`${API}/recommendations`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+          ]);
 
         if (meRes.ok) {
           const data: Me = await meRes.json();
@@ -95,8 +110,9 @@ export default function MySpace() {
           setLanguage(data.language ?? "fr");
           setDarkMode(Boolean(data.dark_mode));
 
-          // applique langue automatiquement
-          if (data.language) i18n.changeLanguage(data.language);
+          if (data.language) {
+            i18n.changeLanguage(data.language);
+          }
         }
 
         if (storyRes.ok) setMyStory(await storyRes.json());
@@ -115,14 +131,16 @@ export default function MySpace() {
     return new Date(me.created_at).toLocaleDateString();
   }, [me?.created_at]);
 
-  if (loading) return <div className="page myspace-page">Chargement…</div>;
+  if (loading)
+    return <div className="page myspace-page">Chargement…</div>;
 
-  // =====================
-  // Save profile (username/email)
-  // =====================
+  /* =====================
+     SAVE PROFILE
+  ===================== */
   async function saveProfile() {
     if (!token) return;
     setSaving(true);
+
     try {
       const res = await fetch(`${API}/user/me`, {
         method: "PUT",
@@ -134,21 +152,22 @@ export default function MySpace() {
       });
 
       const data = await res.json().catch(() => null);
+
       if (!res.ok) {
         alert(data?.error || "Erreur sauvegarde profil");
         return;
       }
 
       setMe(data);
-      alert("Profil mis à jour ✅");
+      alert("Profil mis à jour ");
     } finally {
       setSaving(false);
     }
   }
 
-  // =====================
-  // Save language
-  // =====================
+  /* =====================
+     SAVE LANGUAGE
+  ===================== */
   async function saveLanguage(next: string) {
     if (!token) return;
 
@@ -161,26 +180,24 @@ export default function MySpace() {
       body: JSON.stringify({ language: next }),
     });
 
-    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      alert(data?.error || "Erreur langue");
+      alert("Erreur langue");
       return;
     }
 
     setLanguage(next);
     i18n.changeLanguage(next);
-    alert("Langue mise à jour ✅");
   }
 
-  // =====================
-  // Save theme
-  // =====================
+  /* =====================
+     SAVE THEME
+  ===================== */
   async function saveTheme(nextDark: boolean) {
     if (!token) return;
 
     setDarkMode(nextDark);
 
-    const res = await fetch(`${API}/user/me/theme`, {
+    await fetch(`${API}/user/me/theme`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -188,44 +205,14 @@ export default function MySpace() {
       },
       body: JSON.stringify({ dark_mode: nextDark }),
     });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      alert(data?.error || "Erreur thème");
-      return;
-    }
   }
 
-  // =====================
-  // Upload avatar
-  // =====================
-  async function onPickAvatar(file: File | null) {
-    if (!token || !file) return;
-
-    const fd = new FormData();
-    fd.append("avatar", file);
-
-    const res = await fetch(`${API}/user/me/avatar`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      alert(data?.error || "Erreur upload avatar");
-      return;
-    }
-
-    setMe((prev) => (prev ? { ...prev, avatar: data.avatar } : prev));
-    alert("Photo mise à jour ✅");
-  }
-
-  // =====================
-  // Change password (modal)
-  // =====================
+  /* =====================
+     CHANGE PASSWORD
+  ===================== */
   async function submitPassword() {
     if (!token) return;
+
     setPwSaving(true);
     setPwError(null);
 
@@ -240,6 +227,7 @@ export default function MySpace() {
       });
 
       const data = await res.json().catch(() => null);
+
       if (!res.ok) {
         setPwError(data?.error || "Erreur mot de passe");
         return;
@@ -248,7 +236,7 @@ export default function MySpace() {
       setPwOpen(false);
       setOldPassword("");
       setNewPassword("");
-      alert("Mot de passe modifié ✅");
+      alert("Mot de passe modifié ");
     } finally {
       setPwSaving(false);
     }
@@ -256,216 +244,160 @@ export default function MySpace() {
 
   return (
     <div className="page myspace-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
+      <button
+        className="back-button-global"
+        onClick={() => navigate("/")}
+      >
+        ←
+      </button>
 
       <header className="page-header">
         <h1>Mon espace</h1>
-        <p>Profil, préférences, ton vécu et tes connexions.</p>
+        <p>Profil, préférences et connexions.</p>
       </header>
 
-      {/* =====================
-          PROFIL
-      ===================== */}
+      {/* PROFIL */}
+      {/* PROFIL */}
+<section className="block">
+  <div className="block-head">
+    <h2>Profil</h2>
+
+    <button
+      className="btn ghost"
+      onClick={saveProfile}
+      disabled={saving}
+    >
+      {saving ? "Sauvegarde..." : "Sauvegarder"}
+    </button>
+  </div>
+
+  <div className="muted small">
+    Inscrit le : {createdLabel}
+  </div>
+
+  <div className="field">
+    <label>Nom d’utilisateur</label>
+    <input
+      value={username}
+      onChange={(e) => setUsername(e.target.value)}
+    />
+  </div>
+
+  <div className="field">
+    <label>Email</label>
+    <input
+      value={email}
+      onChange={(e) => setEmail(e.target.value)}
+    />
+  </div>
+
+  <button
+    className="btn primary"
+    onClick={() => setPwOpen(true)}
+  >
+    Modifier le mot de passe
+  </button>
+</section>
+
+      {/* PRÉFÉRENCES */}
       <section className="block">
-        <div className="block-head">
-          <h2>Profil</h2>
-          <button className="btn ghost" onClick={saveProfile} disabled={saving}>
-            {saving ? "Sauvegarde..." : "Sauvegarder"}
-          </button>
-        </div>
+        <h2>⚙️ Préférences</h2>
 
-        <div className="profile-row">
-          <div className="avatar-col">
-            <img
-              className="avatar-xl"
-              src={me?.avatar || "/avatar.png"}
-              alt=""
-            />
-            <label className="btn tiny">
-              Changer photo
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                style={{ display: "none" }}
-                onChange={(e) => onPickAvatar(e.target.files?.[0] || null)}
-              />
-            </label>
-            <div className="muted small">Inscrit le : {createdLabel}</div>
-          </div>
+        <select
+          value={language}
+          onChange={(e) => saveLanguage(e.target.value)}
+        >
+            <option value="fr">FR</option>
+  <option value="en">EN</option>
+  <option value="es">ES</option>
+  <option value="de">DE</option>
+  <option value="it">IT</option>
+        </select>
 
-          <div className="form-col">
-            <div className="field">
-              <label>Nom d’utilisateur</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} />
-            </div>
-
-            <div className="field">
-              <label>Email</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-
-            <div className="row-actions">
-              <button className="btn primary" onClick={() => setPwOpen(true)}>
-                Modifier le mot de passe
-              </button>
-            </div>
-          </div>
-        </div>
+        <label>
+          <input
+            type="checkbox"
+            checked={darkMode}
+            onChange={(e) => saveTheme(e.target.checked)}
+          />
+          {darkMode ? "Mode sombre" : "Mode clair"}
+        </label>
       </section>
 
-      {/* =====================
-          PRÉFÉRENCES
-      ===================== */}
+      {/* TON VÉCU */}
       <section className="block">
-        <div className="block-head">
-          <h2>⚙️ Préférences</h2>
-        </div>
-
-        <div className="prefs-grid">
-          <div className="pref-card">
-            <div className="pref-title">Langue</div>
-            <select value={language} onChange={(e) => saveLanguage(e.target.value)}>
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="it">Italiano</option>
-              <option value="de">Deutsch</option>
-            </select>
-            <div className="muted small">Modifiable à tout moment.</div>
-          </div>
-
-          <div className="pref-card">
-            <div className="pref-title">Thème</div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={darkMode}
-                onChange={(e) => saveTheme(e.target.checked)}
-              />
-              <span className="slider" />
-              <span className="switch-label">{darkMode ? "Sombre" : "Clair"}</span>
-            </label>
-            <div className="muted small">Appliqué globalement.</div>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================
-          TON VÉCU
-      ===================== */}
-      <section className="block">
-        <h2> Ton vécu</h2>
+        <h2>Ton vécu</h2>
 
         {!myStory ? (
-          <div className="empty">
-            <p>Tu n’as pas encore écrit ton histoire.</p>
-            <button className="btn primary" onClick={() => navigate("/story")}>
-              Écrire mon histoire
-            </button>
-          </div>
+          <button
+            className="btn primary"
+            onClick={() => navigate("/story")}
+          >
+            Écrire mon histoire
+          </button>
         ) : (
-          <div className="story-card">
+          <>
             <h3>{myStory.title}</h3>
-            <p className="story-body">{myStory.body}</p>
-            <div className="tags">
-              {myStory.tags.map((t) => (
-                <span key={t} className="tag on">{t}</span>
-              ))}
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <button className="btn ghost" onClick={() => navigate("/story")}>
-                Ouvrir MyStory
-              </button>
-            </div>
-          </div>
+            <p>{myStory.body}</p>
+          </>
         )}
       </section>
 
-      {/* =====================
-          PERSONNES SIMILAIRES
-      ===================== */}
+      {/* MATCHS */}
       <section className="block">
-        <h2> Personnes similaires</h2>
-
-        {matches.length === 0 ? (
-          <p className="muted">Aucune correspondance pour le moment.</p>
-        ) : (
-          <div className="grid">
-            {matches.map((m) => (
-              <div key={m.story_id} className="mini-card">
-                <strong>{m.title}</strong>
-                <p>Points communs : {m.common_tags.join(", ")}</p>
-                <button className="btn tiny" onClick={() => navigate(`/stories?open=${m.story_id}`)}>
-                  Lire
-                </button>
-              </div>
-            ))}
+        <h2>Personnes similaires</h2>
+        {matches.map((m) => (
+          <div key={m.story_id}>
+            <strong>{m.title}</strong>
+            <p>{m.common_tags.join(", ")}</p>
           </div>
-        )}
+        ))}
       </section>
 
-      {/* =====================
-          DISCUSSIONS
-      ===================== */}
+      {/* RECOMMANDATIONS */}
       <section className="block">
-        <h2>💬 Discussions recommandées</h2>
-
-        <div className="grid">
-          {recommendations.map((r) => (
-            <div key={r.tag} className="mini-card">
-              <strong>{r.tag}</strong>
-              <p>{r.reason}</p>
-              <button className="btn tiny" onClick={() => navigate(`/chat/${r.tag}`)}>
-                Entrer
-              </button>
-            </div>
-          ))}
-        </div>
-
-       
+        <h2>Discussions recommandées</h2>
+        {recommendations.map((r) => (
+          <div key={r.tag}>
+            <strong>{r.tag}</strong>
+            <p>{r.reason}</p>
+          </div>
+        ))}
       </section>
 
-      {/* =====================
-          MODAL MOT DE PASSE
-      ===================== */}
+      {/* PASSWORD MODAL */}
       {pwOpen && (
-        <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop">
+          <div className="modal">
             <h3>Modifier le mot de passe</h3>
 
-            {pwError && <div className="pay-error">{pwError}</div>}
+            {pwError && <div>{pwError}</div>}
 
-            <div className="field">
-              <label>Ancien mot de passe</label>
-              <input
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-              />
-            </div>
+            <input
+              type="password"
+              placeholder="Ancien mot de passe"
+              value={oldPassword}
+              onChange={(e) =>
+                setOldPassword(e.target.value)
+              }
+            />
 
-            <div className="field">
-              <label>Nouveau mot de passe</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-            </div>
+            <input
+              type="password"
+              placeholder="Nouveau mot de passe"
+              value={newPassword}
+              onChange={(e) =>
+                setNewPassword(e.target.value)
+              }
+            />
 
-            <div className="mini-actions">
-              <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>
-                {pwSaving ? "..." : "Sauvegarder"}
-              </button>
-              <button className="btn ghost" onClick={() => setPwOpen(false)}>
-                Annuler
-              </button>
-            </div>
+            <button onClick={submitPassword}>
+              Sauvegarder
+            </button>
 
-            {/* Reset email/SMS: on le fera ensuite (Étape bonus) */}
-            <div className="muted small" style={{ marginTop: 10 }}>
-              “Mot de passe oublié” (email/SMS) : prochaine étape.
-            </div>
+            <button onClick={() => setPwOpen(false)}>
+              Annuler
+            </button>
           </div>
         </div>
       )}
