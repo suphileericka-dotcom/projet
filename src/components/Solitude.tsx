@@ -12,6 +12,20 @@ import "../index.css";
 import "../style/solitude.css";
 
 /* =====================
+   API BASE
+===================== */
+
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
+
+const UPLOADS =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/uploads`
+    : "http://localhost:8000/uploads";
+
+/* =====================
    TYPES
 ===================== */
 
@@ -51,8 +65,6 @@ const NOTE_KEY = "solitude_note";
 
 export default function Solitude({ isAuth }: SolitudeProps) {
   const navigate = useNavigate();
-
-  // ✅ TS6133 FIX
   useTranslation();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -73,6 +85,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
     if (!isAuth || !userId) return;
 
     if (!socket.connected) socket.connect();
+
     socket.emit("join-room", { room: ROOM, userId });
 
     socket.on("online-count", ({ room, count }) => {
@@ -91,7 +104,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
   ===================== */
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/messages?room=${ROOM}`)
+    fetch(`${API}/messages?room=${ROOM}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(
@@ -100,12 +113,13 @@ export default function Solitude({ isAuth }: SolitudeProps) {
             type: m.audio_path ? "voice" : "text",
             text: m.content ?? "",
             audioUrl: m.audio_path
-              ? `http://localhost:8000/uploads/audio/${m.audio_path}`
+              ? `${UPLOADS}/audio/${m.audio_path}`
               : undefined,
             createdAt: m.created_at,
           }))
         );
-      });
+      })
+      .catch(() => {});
   }, []);
 
   /* =====================
@@ -117,6 +131,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
     if (!saved) return;
 
     const parsed: Note = JSON.parse(saved);
+
     if (Date.now() - parsed.createdAt < NOTE_DURATION) {
       setNote(parsed);
     } else {
@@ -155,7 +170,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
   }
 
   /* =====================
-     ACTIONS
+     SEND TEXT
   ===================== */
 
   async function handleSend() {
@@ -174,7 +189,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
       return;
     }
 
-    const res = await fetch("http://localhost:8000/api/messages", {
+    const res = await fetch(`${API}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ room: ROOM, userId, content: input }),
@@ -195,46 +210,44 @@ export default function Solitude({ isAuth }: SolitudeProps) {
     setInput("");
   }
 
+  /* =====================
+     DELETE
+  ===================== */
+
   async function handleDelete(id: string) {
     if (!userId) return;
 
-    await fetch(
-      `http://localhost:8000/api/messages/${id}?userId=${userId}`,
-      { method: "DELETE" }
-    );
+    await fetch(`${API}/messages/${id}?userId=${userId}`, {
+      method: "DELETE",
+    });
 
     setMessages((msgs) => msgs.filter((m) => m.id !== id));
   }
 
+  /* =====================
+     TRANSLATION
+  ===================== */
+
   async function translateMessage(m: Message) {
     if (!m.text || m.translatedText) return;
 
-    try {
-      const lang = localStorage.getItem("lang") || "fr";
+    const lang = localStorage.getItem("language") || "fr";
 
-      const res = await fetch("http://localhost:8000/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: m.text,
-          target: lang,
-        }),
-      });
+    const res = await fetch(`${API}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: m.text, target: lang }),
+    });
 
-      if (!res.ok) throw new Error("Backend translation failed");
+    const data = await res.json();
 
-      const data = await res.json();
-
-      setMessages((msgs) =>
-        msgs.map((msg) =>
-          msg.id === m.id
-            ? { ...msg, translatedText: data.translatedText }
-            : msg
-        )
-      );
-    } catch (err) {
-      console.error("TRANSLATION ERROR:", err);
-    }
+    setMessages((msgs) =>
+      msgs.map((msg) =>
+        msg.id === m.id
+          ? { ...msg, translatedText: data.translatedText }
+          : msg
+      )
+    );
   }
 
   /* =====================
@@ -270,7 +283,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
     formData.append("room", ROOM);
     formData.append("userId", userId);
 
-    const res = await fetch("http://localhost:8000/api/messages/audio", {
+    const res = await fetch(`${API}/messages/audio`, {
       method: "POST",
       body: formData,
     });
@@ -347,7 +360,6 @@ export default function Solitude({ isAuth }: SolitudeProps) {
               {m.type === "voice" && (
                 <div className="bubble">
                   <audio controls src={m.audioUrl} />
-
                   {m.pending && (
                     <div className="actions">
                       <button onClick={() => sendVoice(m)}>Envoyer</button>
@@ -399,6 +411,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder={
             isAuth
               ? "Exprimez ce que vous ressentez…"
