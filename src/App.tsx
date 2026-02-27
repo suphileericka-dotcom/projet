@@ -4,9 +4,8 @@ import "./style/app.css";
 import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { useState } from "react";
 
-// i18n
+// ✅ On garde uniquement ton hook custom
 import { useLang } from "./hooks/useLang";
-import { useTranslation } from "react-i18next";
 
 /* =====================
    PAGES
@@ -32,7 +31,6 @@ import MySpace from "./pages/MySpace";
 import Stories from "./pages/Stories";
 import Match from "./pages/Match";
 
-
 /* =====================
    AUTH UTILS
 ===================== */
@@ -45,13 +43,13 @@ function isValidAuthToken(): boolean {
 
 export default function App() {
   const navigate = useNavigate();
-  const { t } = useLang();
-  const { i18n } = useTranslation();
 
-  // langue cible utilisée par l'app (API, IA, etc.)
-  const targetLang: string = i18n.resolvedLanguage ?? "fr";
+  // ✅ Ton système custom
+  const { t, lang } = useLang();
 
-  //  AUTH 
+  // Langue actuelle (utile si API/IA en a besoin)
+  const targetLang = lang;
+
   const [isAuth, setIsAuth] = useState<boolean>(isValidAuthToken);
 
   function logout() {
@@ -81,7 +79,9 @@ export default function App() {
             )}
 
             {isAuth && (
-              <button onClick={logout}>{t("logout")}</button>
+              <button onClick={logout}>
+                {t("logout")}
+              </button>
             )}
           </div>
         </header>
@@ -154,12 +154,10 @@ export default function App() {
               variant="match"
               onClick={() => navigate("/match")}
             />
-
-           
           </section>
         )}
 
-        {/* debug invisible */}
+        {/* Debug invisible */}
         <span style={{ display: "none" }}>{targetLang}</span>
       </div>
     );
@@ -188,7 +186,6 @@ export default function App() {
         path="/match"
         element={isAuth ? <Match /> : <Navigate to="/login" />}
       />
-      
 
       {/* CHATS */}
       <Route path="/chat/burnout" element={<Burnout isAuth={isAuth} />} />
