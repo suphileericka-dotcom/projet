@@ -21,24 +21,23 @@ export default function Stories() {
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const API = import.meta.env.VITE_API_URL;
 
   /* =====================
      LOAD STORIES (SEARCH + TAG)
   ===================== */
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (search) params.append("q", search);
-    if (tagFilter) params.append("tag", tagFilter);
+  const params = new URLSearchParams();
+  if (search) params.append("q", search);
+  if (tagFilter) params.append("tag", tagFilter);
 
-    fetch(`http://localhost:8000/api/stories?${params}`)
-      .then((r) => r.json())
-      .then(setStories);
-  }, [search, tagFilter]);
-
+  fetch(`${API}/api/stories?${params}`)
+    .then(r => r.json())
+    .then(setStories);
+}, [search, tagFilter, API]);
   function likeStory(id: string) {
     if (!token) return;
     fetch(`http://localhost:8000/api/stories/${id}/like`, {
-      method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
   }
