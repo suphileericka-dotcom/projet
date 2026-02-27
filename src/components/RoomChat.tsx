@@ -2,6 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import MicButton from "./MicButton";
 import { useVoiceAnonymizer } from "../hooks/useVoiceAnonymizer";
 
+/* =====================
+   API BASE
+===================== */
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
+
+const UPLOADS =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/uploads`
+    : "http://localhost:8000/uploads";
+
+/* =====================
+   TYPES
+===================== */
 type Message = {
   id: string;
   type: "text" | "voice";
@@ -20,7 +36,15 @@ type RoomChatProps = {
   isAuth: boolean;
 };
 
-export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProps) {
+/* =====================
+   COMPONENT
+===================== */
+export default function RoomChat({
+  room,
+  title,
+  subtitle,
+  isAuth,
+}: RoomChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const streamRef = useRef<HTMLDivElement>(null);
@@ -28,9 +52,11 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
 
   const userId = isAuth ? localStorage.getItem("userId") : null;
 
+  /* =====================
+     LOAD MESSAGES
+  ===================== */
   useEffect(() => {
-    // charge messages text si tu veux garder ton endpoint existant
-    fetch(`http://localhost:8000/api/messages?room=${room}`)
+    fetch(`${API}/messages?room=${room}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(
@@ -39,7 +65,7 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
             type: m.audio_path ? "voice" : "text",
             text: m.content ?? "",
             audioUrl: m.audio_path
-              ? `http://localhost:8000/uploads/audio/${m.audio_path}`
+              ? `${UPLOADS}/audio/${m.audio_path}`
               : undefined,
             createdAt: m.created_at,
           }))
@@ -48,6 +74,9 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
       .catch(() => {});
   }, [room]);
 
+  /* =====================
+     AUTOSCROLL
+  ===================== */
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
@@ -55,36 +84,47 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
     });
   }, [messages]);
 
+  /* =====================
+     SEND TEXT
+  ===================== */
   async function handleSendText() {
     if (!isAuth || !userId || !input.trim()) return;
 
-    const res = await fetch("http://localhost:8000/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room, userId, content: input }),
-    });
+    try {
+      const res = await fetch(`${API}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room, userId, content: input }),
+      });
 
-    const saved = await res.json();
+      if (!res.ok) throw new Error("Erreur envoi");
 
-    setMessages((msgs) => [
-      ...msgs,
-      {
-        id: saved.id,
-        type: "text",
-        text: saved.content,
-        createdAt: saved.createdAt ?? Date.now(),
-      },
-    ]);
+      const saved = await res.json();
 
-    setInput("");
+      setMessages((msgs) => [
+        ...msgs,
+        {
+          id: saved.id,
+          type: "text",
+          text: saved.content,
+          createdAt: saved.createdAt ?? Date.now(),
+        },
+      ]);
+
+      setInput("");
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  // ✅ VOICE: ANONYMISATION OBLIGATOIRE
+  /* =====================
+     VOICE (ANONYMISATION)
+  ===================== */
   async function onVoiceRecorded(audioUrlLocal: string) {
     if (!isAuth) return;
 
-    // message pending (aucune lecture de voix humaine)
     const tempId = `pending-${Date.now()}`;
+
     setMessages((msgs) => [
       ...msgs,
       {
@@ -100,7 +140,6 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
     try {
       const data = await anonymize(audioUrlLocal);
 
-      // libère l’URL local du navigateur
       URL.revokeObjectURL(audioUrlLocal);
 
       setMessages((msgs) =>
@@ -116,10 +155,22 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
         )
       );
 
-      // (Optionnel) ici tu peux appeler TON backend /api/messages/audio-ai
-      // pour sauvegarder transcript + audioPath en DB si tu veux
+      // 🔥 OPTIONNEL : sauvegarde backend
+      /*
+      await fetch(`${API}/messages/audio-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room,
+          userId,
+          transcript: data.transcript,
+          audioUrl: data.audioUrl,
+        }),
+      });
+      */
     } catch (e) {
       console.error(e);
+
       setMessages((msgs) =>
         msgs.map((m) =>
           m.id === tempId
@@ -134,6 +185,9 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
     }
   }
 
+  /* =====================
+     RENDER
+  ===================== */
   return (
     <div className="chat-root">
       <header className="chat-header">
@@ -148,7 +202,9 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
 
         {messages.map((m) => (
           <div key={m.id} className="message-row">
-            {m.type === "text" && <div className="bubble">{m.text}</div>}
+            {m.type === "text" && (
+              <div className="bubble">{m.text}</div>
+            )}
 
             {m.type === "voice" && (
               <div className="bubble">
@@ -165,7 +221,9 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
                 {m.audioUrl ? (
                   <audio controls src={m.audioUrl} />
                 ) : (
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>Préparation audio…</div>
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>
+                    Préparation audio…
+                  </div>
                 )}
               </div>
             )}
@@ -179,11 +237,18 @@ export default function RoomChat({ room, title, subtitle, isAuth }: RoomChatProp
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={isAuth ? "Écris ton message…" : "Connexion requise"}
+          onKeyDown={(e) => e.key === "Enter" && handleSendText()}
+          placeholder={
+            isAuth ? "Écris ton message…" : "Connexion requise"
+          }
           disabled={!isAuth}
         />
 
-        <button className="send-icon" onClick={handleSendText} disabled={!isAuth}>
+        <button
+          className="send-icon"
+          onClick={handleSendText}
+          disabled={!isAuth}
+        >
           ➤
         </button>
       </footer>
