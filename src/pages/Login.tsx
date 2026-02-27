@@ -4,28 +4,27 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-// Services
-import { login } from "../services/auth";
-
-// Hooks
 import { useLang } from "../hooks/useLang";
-
-// Styles
 import "../style/login.css";
 
-// =====================
-// TYPES
-// =====================
+/* =====================
+   API BASE
+===================== */
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
 
+/* =====================
+   TYPES
+===================== */
 type LoginProps = {
   setIsAuth: (value: boolean) => void;
 };
 
-// =====================
-// COMPONENT
-// =====================
-
+/* =====================
+   COMPONENT
+===================== */
 export default function Login({ setIsAuth }: LoginProps) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -36,38 +35,53 @@ export default function Login({ setIsAuth }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null);
 
-  async function handleLogin() {
+  async function handleLogin(e?: React.FormEvent) {
+    e?.preventDefault();
     setErrorGlobal(null);
 
     if (!identifier || !password) {
-      setErrorGlobal(t("emailOrUsername") + " / " + t("password"));
+      setErrorGlobal("Email / Nom d'utilisateur et mot de passe requis");
       return;
     }
 
     try {
       setLoading(true);
 
-      const data = await login(identifier, password);
+      const res = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Erreur de connexion");
+      }
 
       // SESSION
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
 
-      // Langue utilisateur (depuis backend)
       if (data.user.language) {
         localStorage.setItem("language", data.user.language);
       }
 
       if (remember) {
         localStorage.setItem("rememberMe", "true");
+      } else {
+        localStorage.removeItem("rememberMe");
       }
 
       setIsAuth(true);
       navigate("/");
     } catch (err: any) {
-      setErrorGlobal(
-        err?.message || "Erreur de connexion"
-      );
+      setErrorGlobal(err.message || "Erreur serveur");
     } finally {
       setLoading(false);
     }
@@ -83,36 +97,43 @@ export default function Login({ setIsAuth }: LoginProps) {
 
         <h2>{t("welcome")}</h2>
 
-        {errorGlobal && <div className="login-error">{errorGlobal}</div>}
+        {errorGlobal && (
+          <div className="login-error">
+            {errorGlobal}
+          </div>
+        )}
 
-        <input
-          placeholder={t("emailOrUsername")}
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          disabled={loading}
-        />
-
-        <input
-          type="password"
-          placeholder={t("password")}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={loading}
-        />
-
-        <label>
+        {/* FORM */}
+        <form onSubmit={handleLogin}>
           <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
+            placeholder={t("emailOrUsername")}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             disabled={loading}
           />
-          {t("rememberMe")}
-        </label>
 
-        <button onClick={handleLogin} disabled={loading}>
-          {loading ? "…" : t("login")}
-        </button>
+          <input
+            type="password"
+            placeholder={t("password")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+          />
+
+          <label className="remember">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              disabled={loading}
+            />
+            {t("rememberMe")}
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Connexion..." : t("login")}
+          </button>
+        </form>
       </div>
     </div>
   );
