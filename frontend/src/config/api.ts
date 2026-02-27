@@ -1,7 +1,18 @@
 // src/config/api.ts
 
-export const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
+/**
+ * En PROD (Vercel): on appelle l'API via un chemin relatif "/api"
+ * qui sera rewrité vers Railway (via vercel.json).
+ *
+ * En DEV: Vite proxy ou backend local selon ton besoin.
+ */
 
-export const API = `${API_URL}/api`;
-export const UPLOADS = `${API_URL}/uploads`;
+const isProd = import.meta.env.PROD;
+
+// En prod: Vercel
+export const API = isProd ? "/api" : `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api`;
+
+// Uploads: en prod, pareil via Vercel (recommandé)
+export const UPLOADS = isProd
+  ? "/uploads"
+  : `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/uploads`;
