@@ -9,10 +9,22 @@ import MicButton from "./MicButton";
 import "../style/rupures.css"; // orthographe conservée
 import { useTranslation } from "react-i18next";
 
-// =====================
-// TYPES
-// =====================
+/* =====================
+   API BASE
+===================== */
+const API =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:8000/api";
 
+const UPLOADS =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/uploads`
+    : "http://localhost:8000/uploads";
+
+/* =====================
+   TYPES
+===================== */
 type Message = {
   id: string;
   type: "text" | "voice";
@@ -28,21 +40,17 @@ type RuptureProps = {
   isAuth: boolean;
 };
 
-// =====================
-// CONSTANTES
-// =====================
-
+/* =====================
+   CONSTANTES
+===================== */
 const ROOM = "rupture";
 const EDIT_WINDOW = 20 * 60 * 1000;
 
-// =====================
-// COMPONENT
-// =====================
-
+/* =====================
+   COMPONENT
+===================== */
 export default function Rupture({ isAuth }: RuptureProps) {
   const navigate = useNavigate();
-
-  // ✅ TS6133 FIX
   useTranslation();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,10 +62,9 @@ export default function Rupture({ isAuth }: RuptureProps) {
   const userId = isAuth ? localStorage.getItem("userId") : null;
   const streamRef = useRef<HTMLDivElement>(null);
 
-  // =====================
-  // SOCKET
-  // =====================
-
+  /* =====================
+     SOCKET
+  ===================== */
   useEffect(() => {
     if (!isAuth || !userId) return;
 
@@ -76,12 +83,11 @@ export default function Rupture({ isAuth }: RuptureProps) {
     };
   }, [isAuth, userId]);
 
-  // =====================
-  // LOAD MESSAGES
-  // =====================
-
+  /* =====================
+     LOAD MESSAGES
+  ===================== */
   useEffect(() => {
-    fetch(`http://localhost:8000/api/messages?room=${ROOM}`)
+    fetch(`${API}/messages?room=${ROOM}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(
@@ -90,18 +96,18 @@ export default function Rupture({ isAuth }: RuptureProps) {
             type: m.audio_path ? "voice" : "text",
             text: m.content ?? "",
             audioUrl: m.audio_path
-              ? `http://localhost:8000/uploads/audio/${m.audio_path}`
+              ? `${UPLOADS}/audio/${m.audio_path}`
               : undefined,
             createdAt: m.created_at,
           }))
         );
-      });
+      })
+      .catch(() => {});
   }, []);
 
-  // =====================
-  // AUTOSCROLL
-  // =====================
-
+  /* =====================
+     AUTOSCROLL
+  ===================== */
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
@@ -109,10 +115,9 @@ export default function Rupture({ isAuth }: RuptureProps) {
     });
   }, [messages]);
 
-  // =====================
-  // HELPERS
-  // =====================
-
+  /* =====================
+     HELPERS
+  ===================== */
   function canEdit(m: Message) {
     return (
       isAuth &&
@@ -128,10 +133,9 @@ export default function Rupture({ isAuth }: RuptureProps) {
     });
   }
 
-  // =====================
-  // ACTIONS
-  // =====================
-
+  /* =====================
+     SEND TEXT
+  ===================== */
   async function handleSend() {
     if (!isAuth || !userId || !input.trim()) return;
 
@@ -148,45 +152,56 @@ export default function Rupture({ isAuth }: RuptureProps) {
       return;
     }
 
-    const res = await fetch("http://localhost:8000/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: ROOM, userId, content: input }),
-    });
+    try {
+      const res = await fetch(`${API}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: ROOM, userId, content: input }),
+      });
 
-    const saved = await res.json();
+      if (!res.ok) throw new Error("Erreur envoi");
 
-    setMessages((msgs) => [
-      ...msgs,
-      {
-        id: saved.id,
-        type: "text",
-        text: saved.content,
-        createdAt: saved.createdAt ?? Date.now(),
-      },
-    ]);
+      const saved = await res.json();
 
-    setInput("");
+      setMessages((msgs) => [
+        ...msgs,
+        {
+          id: saved.id,
+          type: "text",
+          text: saved.content,
+          createdAt: saved.createdAt ?? Date.now(),
+        },
+      ]);
+
+      setInput("");
+    } catch (e) {
+      console.error(e);
+    }
   }
 
+  /* =====================
+     DELETE
+  ===================== */
   async function handleDelete(id: string) {
     if (!userId) return;
 
-    await fetch(
-      `http://localhost:8000/api/messages/${id}?userId=${userId}`,
-      { method: "DELETE" }
-    );
+    await fetch(`${API}/messages/${id}?userId=${userId}`, {
+      method: "DELETE",
+    });
 
     setMessages((msgs) => msgs.filter((m) => m.id !== id));
   }
 
+  /* =====================
+     TRANSLATION
+  ===================== */
   async function translateMessage(m: Message) {
     if (!m.text || m.translatedText) return;
 
-    try {
-      const lang = localStorage.getItem("lang") || "fr";
+    const lang = localStorage.getItem("language") || "fr";
 
-      const res = await fetch("http://localhost:8000/api/translate", {
+    try {
+      const res = await fetch(`${API}/translate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -195,7 +210,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
         }),
       });
 
-      if (!res.ok) throw new Error("Backend translation failed");
+      if (!res.ok) throw new Error();
 
       const data = await res.json();
 
@@ -211,10 +226,9 @@ export default function Rupture({ isAuth }: RuptureProps) {
     }
   }
 
-  // =====================
-  // VOICE
-  // =====================
-
+  /* =====================
+     VOICE
+  ===================== */
   function onVoiceRecorded(audioUrl: string) {
     if (!isAuth) return;
 
@@ -244,7 +258,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
     formData.append("room", ROOM);
     formData.append("userId", userId);
 
-    const res = await fetch("http://localhost:8000/api/messages/audio", {
+    const res = await fetch(`${API}/messages/audio`, {
       method: "POST",
       body: formData,
     });
@@ -266,10 +280,9 @@ export default function Rupture({ isAuth }: RuptureProps) {
     );
   }
 
-  // =====================
-  // RENDER
-  // =====================
-
+  /* =====================
+     RENDER
+  ===================== */
   return (
     <div className="chat-root rupture">
       <button
@@ -357,6 +370,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder={
             isAuth ? "Exprime ce que tu ressens…" : "Connexion requise"
           }
