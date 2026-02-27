@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Connexion</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link rel="BaseModal" href="/solidair/main.py">
+    <link rel="js" href="/solidair/api/payment.html">
+    <link rel="index" href="/solidair/index.js">
+    <link rel="user" href="/solidair/user.js">
+    <link rel="javascript" href="/solidair/javascript.js">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4799eb",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#111921",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: "Plus Jakarta Sans", sans-serif;
+        }
+        .error-message {
+            color: #ef4444;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen flex justify-center">
+    <div class="relative flex h-full min-h-screen w-full max-w-[430px] flex-col bg-background-light dark:bg-background-dark overflow-x-hidden">
+        <!-- Top App Bar -->
+        <div class="flex items-center bg-transparent p-4 pb-2 justify-between">
+            <div class="text-[#0e141b] dark:text-white flex size-12 shrink-0 items-center justify-start">
+                <a href="index.html">
+                    <span class="material-symbols-outlined cursor-pointer">arrow_back_ios</span>
+                </a>
+            </div>
+            <h2 class="text-[#0e141b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Connexion</h2>
+        </div>
+
+        <!-- Header Illustration -->
+        <div class="@container px-4 py-3">
+            <div class="w-full bg-gradient-to-br from-primary/10 to-primary/30 flex flex-col items-center justify-center overflow-hidden rounded-xl min-h-[180px] border border-primary/5">
+                <span class="material-symbols-outlined text-primary text-7xl opacity-80">lock</span>
+            </div>
+        </div>
+
+        <!-- Headline & Intro -->
+        <div class="px-4">
+            <h2 class="text-[#0e141b] dark:text-white tracking-tight text-[28px] font-bold leading-tight text-center pb-2 pt-4">Bienvenue</h2>
+            <p class="text-[#4e7397] dark:text-slate-400 text-base font-normal leading-normal pb-6 text-center">
+                Connectez-vous à votre espace pour accéder à la communauté.
+            </p>
+        </div>
+
+        <!-- Form Fields -->
+        <form id="loginForm" class="flex flex-col gap-4 px-4">
+            <!-- Email/Username Field -->
+            <div class="flex flex-col gap-2">
+                <label class="flex flex-col w-full">
+                    <p class="text-[#0e141b] dark:text-white text-base font-semibold leading-normal pb-2 px-1">Email ou nom d'utilisateur</p>
+                    <input id="loginIdentifier" class="form-input flex w-full rounded-full text-[#0e141b] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#d0dbe7] dark:border-slate-700 bg-white dark:bg-slate-800 h-14 placeholder:text-[#4e7397] px-6 text-base font-normal leading-normal"
+                           placeholder="Votre email ou nom d'utilisateur" required/>
+                    <p id="identifierError" class="error-message">Email ou nom d'utilisateur invalide</p>
+                </label>
+            </div>
+
+            <!-- Password Field -->
+            <div class="flex flex-col gap-2">
+                <label class="flex flex-col w-full">
+                    <p class="text-[#0e141b] dark:text-white text-base font-semibold leading-normal pb-2 px-1">Mot de passe</p>
+                    <input id="loginPassword" type="password" class="form-input flex w-full rounded-full text-[#0e141b] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#d0dbe7] dark:border-slate-700 bg-white dark:bg-slate-800 h-14 placeholder:text-[#4e7397] px-6 text-base font-normal leading-normal"
+                           placeholder="Votre mot de passe" required/>
+                    <p id="passwordError" class="error-message">Mot de passe incorrect</p>
+                </label>
+            </div>
+
+            <div class="flex items-center justify-between px-1">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" class="form-checkbox rounded text-primary focus:ring-primary/50 h-4 w-4"/>
+                    <span class="text-[#4e7397] dark:text-slate-400 text-sm">Se souvenir de moi</span>
+                </label>
+                <a href="#" class="text-primary text-sm font-medium hover:underline">Mot de passe oublié?</a>
+            </div>
+        </form>
+
+        <!-- Bottom Actions -->
+        <div class="mt-auto p-4 pb-8 flex flex-col gap-4">
+            <button id="loginButton" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-full text-lg shadow-lg shadow-primary/20 transition-all active:scale-95">
+                Se connecter
+            </button>
+
+            <div class="flex justify-center">
+                <p class="text-[#4e7397] dark:text-slate-500 text-xs text-center">
+                    Vous n'avez pas de compte ?
+                    <a href="register.html" class="text-primary font-semibold hover:underline">Créer un compte</a>
+                </p>
+            </div>
+
+            <div class="flex flex-col items-center gap-2">
+                <p class="text-[#4e7397] dark:text-slate-500 text-xs text-center px-4 leading-relaxed">
+                    En vous connectant, vous acceptez nos Conditions d'Utilisation et notre Politique de Confidentialité.
+                </p>
+            </div>
+        </div>
+
+        <!-- Spacing for iOS Home Indicator -->
+        <div class="h-5 bg-transparent"></div>
+    </div>
+
+    <script>
+        document.getElementById('loginButton').addEventListener('click', async function(e) {
+            e.preventDefault();
+
+            // Réinitialiser les messages d'erreur
+            document.querySelectorAll('.error-message').forEach(el => el.style.display = 'none');
+
+            // Récupérer les valeurs
+            const identifier = document.getElementById('loginIdentifier').value;
+            const password = document.getElementById('loginPassword').value;
+
+            // Validation basique
+            if (!identifier) {
+                document.getElementById('identifierError').textContent = 'Email ou nom d\'utilisateur requis';
+                document.getElementById('identifierError').style.display = 'block';
+                return;
+            }
+
+            if (!password) {
+                document.getElementById('passwordError').textContent = 'Mot de passe requis';
+                document.getElementById('passwordError').style.display = 'block';
+                return;
+            }
+
+            try {
+                // Envoyer les données au backend
+                const response = await fetch('http://0.0.0.0:8000 /api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier,
+                        password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // Afficher le message d'erreur approprié
+                    if (data.detail === 'Invalid credentials') {
+                        document.getElementById('passwordError').textContent = 'Mot de passe incorrect';
+                        document.getElementById('passwordError').style.display = 'block';
+                    } else if (data.detail === 'User not found') {
+                        document.getElementById('identifierError').textContent = 'Utilisateur non trouvé';
+                        document.getElementById('identifierError').style.display = 'block';
+                    } else {
+                        throw new Error(data.detail || 'Erreur de connexion');
+                    }
+                    return;
+                }
+
+                // Stocker le token d'authentification (dans une vraie app, utilisez httpOnly cookies)
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('username', data.username);
+
+                // Rediriger vers la page principale
+                window.location.href = 'index.html';
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

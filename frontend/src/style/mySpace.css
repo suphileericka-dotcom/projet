@@ -1,0 +1,208 @@
+/* =====================
+   THEME VARIABLES
+===================== */
+:root {
+  --bg-page: radial-gradient(circle at top, #1e3a8a 0%, #020617 65%);
+  --bg-card: #ffffff;
+  --bg-soft: #f9fafb;
+  --bg-input: #f8fafc;
+
+  --text-main: #020617;
+  --text-muted: #6b7280;
+
+  --border-soft: rgba(0,0,0,0.08);
+  --border-strong: rgba(0,0,0,0.12);
+}
+
+.dark {
+  --bg-page: radial-gradient(circle at top, #020617 0%, #000000 65%);
+  --bg-card: #0f172a;
+  --bg-soft: #020617;
+  --bg-input: #020617;
+
+  --text-main: #e5e7eb;
+  --text-muted: #9ca3af;
+
+  --border-soft: rgba(255,255,255,0.12);
+  --border-strong: rgba(255,255,255,0.18);
+}
+
+/* =====================
+   PAGE
+===================== */
+.page.myspace-page {
+  min-height: 100vh;
+  padding: 20px 16px 48px;
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.page-header {
+  max-width: 1100px;
+  margin: 44px auto 16px;
+  text-align: center;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.page-header p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+/* =====================
+   BLOCKS
+===================== */
+.block {
+  max-width: 1100px;
+  margin: 14px auto 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.block-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* =====================
+   STORY
+===================== */
+.story-body {
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.empty {
+  margin-top: 12px;
+  color: var(--text-muted);
+}
+
+/* =====================
+   GRID / CARDS
+===================== */
+.grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+.mini-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--bg-soft);
+}
+
+/* =====================
+   TAGS
+===================== */
+.tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.tag.on {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #6366f1;
+  color: white;
+}
+
+/* =====================
+   BUTTONS
+===================== */
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.btn.primary {
+  background: #6366f1;
+  color: white;
+}
+
+.btn.ghost {
+  background: rgba(99,102,241,0.12);
+}
+
+.btn.tiny {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+/* =====================
+   PROFILE
+===================== */
+.profile-row {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+}
+@media (max-width: 900px) {
+  .profile-row { grid-template-columns: 1fr; }
+}
+
+.avatar-xl {
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 3px solid rgba(99,102,241,0.35);
+  background: var(--bg-soft);
+}
+
+.field input,
+.pref-card select {
+  height: 46px;
+  border-radius: 999px;
+  border: 1.5px solid #c7d2fe;
+  padding: 0 14px;
+  background: var(--bg-input);
+  color: var(--text-main);
+}
+
+/* =====================
+   PREFS
+===================== */
+.pref-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--bg-soft);
+}
+
+.pref-title {
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
