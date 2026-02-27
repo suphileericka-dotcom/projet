@@ -57,13 +57,14 @@ export default function MySpace() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // profil
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [language, setLanguage] = useState("fr");
   const [darkMode, setDarkMode] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  const [saving, setSaving] = useState(false);
-
+  // password modal
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -81,25 +82,30 @@ export default function MySpace() {
      LOAD DATA
   ===================== */
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     async function load() {
       try {
-        const [meRes, storyRes, matchRes, recoRes] =
-          await Promise.all([
-            fetch(`${API}/user/me`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API}/stories/me`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API}/match`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API}/recommendations`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-          ]);
+        const [meRes, storyRes, matchRes, recoRes] = await Promise.all([
+          fetch(`${API}/user/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          // IMPORTANT: chez toi c'est /api/mystory ou /api/stories/me ?
+          // Tu avais dit corriger story/me côté frontend.
+          // Ici je mets /mystory/me -> adapte si ton backend diffère.
+          fetch(`${API}/mystory/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/match`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/recommendations`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
         if (meRes.ok) {
           const data: Me = await meRes.json();
@@ -110,12 +116,16 @@ export default function MySpace() {
           setLanguage(data.language ?? "fr");
           setDarkMode(Boolean(data.dark_mode));
 
-          if (data.language) {
-            i18n.changeLanguage(data.language);
-          }
+          if (data.language) i18n.changeLanguage(data.language);
         }
 
-        if (storyRes.ok) setMyStory(await storyRes.json());
+        if (storyRes.ok) {
+          const s = await storyRes.json().catch(() => null);
+          setMyStory(s);
+        } else {
+          setMyStory(null);
+        }
+
         if (matchRes.ok) setMatches(await matchRes.json());
         if (recoRes.ok) setRecommendations(await recoRes.json());
       } finally {
@@ -131,15 +141,14 @@ export default function MySpace() {
     return new Date(me.created_at).toLocaleDateString();
   }, [me?.created_at]);
 
-  if (loading)
-    return <div className="page myspace-page">Chargement…</div>;
+  if (loading) return <div className="page myspace-page">Chargement…</div>;
 
   /* =====================
      SAVE PROFILE
   ===================== */
   async function saveProfile() {
     if (!token) return;
-    setSaving(true);
+    setSavingProfile(true);
 
     try {
       const res = await fetch(`${API}/user/me`, {
@@ -159,9 +168,9 @@ export default function MySpace() {
       }
 
       setMe(data);
-      alert("Profil mis à jour ");
+      alert("Profil mis à jour ✅");
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
     }
   }
 
@@ -197,7 +206,7 @@ export default function MySpace() {
 
     setDarkMode(nextDark);
 
-    await fetch(`${API}/user/me/theme`, {
+    const res = await fetch(`${API}/user/me/theme`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -205,6 +214,10 @@ export default function MySpace() {
       },
       body: JSON.stringify({ dark_mode: nextDark }),
     });
+
+    if (!res.ok) {
+      alert("Erreur thème");
+    }
   }
 
   /* =====================
@@ -212,6 +225,11 @@ export default function MySpace() {
   ===================== */
   async function submitPassword() {
     if (!token) return;
+
+    if (!oldPassword || !newPassword) {
+      setPwError("Remplis les 2 champs.");
+      return;
+    }
 
     setPwSaving(true);
     setPwError(null);
@@ -236,7 +254,7 @@ export default function MySpace() {
       setPwOpen(false);
       setOldPassword("");
       setNewPassword("");
-      alert("Mot de passe modifié ");
+      alert("Mot de passe modifié ✅");
     } finally {
       setPwSaving(false);
     }
@@ -244,10 +262,7 @@ export default function MySpace() {
 
   return (
     <div className="page myspace-page">
-      <button
-        className="back-button-global"
-        onClick={() => navigate("/")}
-      >
+      <button className="back-button-global" onClick={() => navigate("/")}>
         ←
       </button>
 
@@ -257,64 +272,48 @@ export default function MySpace() {
       </header>
 
       {/* PROFIL */}
-      {/* PROFIL */}
-<section className="block">
-  <div className="block-head">
-    <h2>Profil</h2>
+      <section className="block">
+        <div className="block-head">
+          <h2>Profil</h2>
+          <button
+            className="btn ghost"
+            onClick={saveProfile}
+            disabled={savingProfile}
+          >
+            {savingProfile ? "Sauvegarde..." : "Sauvegarder"}
+          </button>
+        </div>
 
-    <button
-      className="btn ghost"
-      onClick={saveProfile}
-      disabled={saving}
-    >
-      {saving ? "Sauvegarde..." : "Sauvegarder"}
-    </button>
-  </div>
+        <div className="muted small">Inscrit le : {createdLabel}</div>
 
-  <div className="muted small">
-    Inscrit le : {createdLabel}
-  </div>
+        <div className="field">
+          <label>Nom d’utilisateur</label>
+          <input value={username} onChange={(e) => setUsername(e.target.value)} />
+        </div>
 
-  <div className="field">
-    <label>Nom d’utilisateur</label>
-    <input
-      value={username}
-      onChange={(e) => setUsername(e.target.value)}
-    />
-  </div>
+        <div className="field">
+          <label>Email</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
 
-  <div className="field">
-    <label>Email</label>
-    <input
-      value={email}
-      onChange={(e) => setEmail(e.target.value)}
-    />
-  </div>
-
-  <button
-    className="btn primary"
-    onClick={() => setPwOpen(true)}
-  >
-    Modifier le mot de passe
-  </button>
-</section>
+        <button className="btn primary" onClick={() => setPwOpen(true)}>
+          Modifier le mot de passe
+        </button>
+      </section>
 
       {/* PRÉFÉRENCES */}
       <section className="block">
         <h2>⚙️ Préférences</h2>
 
-        <select
-          value={language}
-          onChange={(e) => saveLanguage(e.target.value)}
-        >
-            <option value="fr">FR</option>
-  <option value="en">EN</option>
-  <option value="es">ES</option>
-  <option value="de">DE</option>
-  <option value="it">IT</option>
+        <select value={language} onChange={(e) => saveLanguage(e.target.value)}>
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="de">Deutsch</option>
+          <option value="it">Italiano</option>
         </select>
 
-        <label>
+        <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
           <input
             type="checkbox"
             checked={darkMode}
@@ -329,10 +328,7 @@ export default function MySpace() {
         <h2>Ton vécu</h2>
 
         {!myStory ? (
-          <button
-            className="btn primary"
-            onClick={() => navigate("/story")}
-          >
+          <button className="btn primary" onClick={() => navigate("/story")}>
             Écrire mon histoire
           </button>
         ) : (
@@ -346,58 +342,60 @@ export default function MySpace() {
       {/* MATCHS */}
       <section className="block">
         <h2>Personnes similaires</h2>
-        {matches.map((m) => (
-          <div key={m.story_id}>
-            <strong>{m.title}</strong>
-            <p>{m.common_tags.join(", ")}</p>
-          </div>
-        ))}
+        {matches.length === 0 ? (
+          <p className="muted">Aucune correspondance pour le moment.</p>
+        ) : (
+          matches.map((m) => (
+            <div key={m.story_id} style={{ marginBottom: 10 }}>
+              <strong>{m.title}</strong>
+              <p>{m.common_tags.join(", ")}</p>
+            </div>
+          ))
+        )}
       </section>
 
       {/* RECOMMANDATIONS */}
       <section className="block">
         <h2>Discussions recommandées</h2>
-        {recommendations.map((r) => (
-          <div key={r.tag}>
-            <strong>{r.tag}</strong>
-            <p>{r.reason}</p>
-          </div>
-        ))}
+        {recommendations.length === 0 ? (
+          <p className="muted">Aucune recommandation.</p>
+        ) : (
+          recommendations.map((r) => (
+            <div key={r.tag} style={{ marginBottom: 10 }}>
+              <strong>{r.tag}</strong>
+              <p>{r.reason}</p>
+            </div>
+          ))
+        )}
       </section>
 
       {/* PASSWORD MODAL */}
       {pwOpen && (
-        <div className="modal-backdrop">
-          <div className="modal">
+        <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Modifier le mot de passe</h3>
 
-            {pwError && <div>{pwError}</div>}
+            {pwError && <div className="pay-error">{pwError}</div>}
 
             <input
               type="password"
               placeholder="Ancien mot de passe"
               value={oldPassword}
-              onChange={(e) =>
-                setOldPassword(e.target.value)
-              }
+              onChange={(e) => setOldPassword(e.target.value)}
             />
 
             <input
               type="password"
               placeholder="Nouveau mot de passe"
               value={newPassword}
-              onChange={(e) =>
-                setNewPassword(e.target.value)
-              }
+              onChange={(e) => setNewPassword(e.target.value)}
             />
 
-            <button onClick={submitPassword}>
-              Sauvegarder
+            <button onClick={submitPassword} disabled={pwSaving}>
+              {pwSaving ? "..." : "Sauvegarder"}
             </button>
 
-            <button onClick={() => setPwOpen(false)}>
-              Annuler
-            </button>
+            <button onClick={() => setPwOpen(false)}>Annuler</button>
           </div>
         </div>
       )}
