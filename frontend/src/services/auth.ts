@@ -1,18 +1,40 @@
-// src/services/auth.ts
-
 import { API } from "../config/api";
 
-export async function login(identifier: string, password: string) {
+type LoginResponse = {
+  token: string;
+  user: { id: string | number; language?: string };
+};
+
+export async function login(
+  identifier: string,
+  password: string
+): Promise<LoginResponse> {
   const res = await fetch(`${API}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identifier, password }),
+    body: JSON.stringify({ identifier: identifier.trim(), password }),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Erreur de connexion");
+  const text = await res.text();
+
+  // Si réponse vide
+  if (!text) {
+    if (!res.ok) {
+      throw new Error(`Erreur serveur (${res.status})`);
+    }
+    throw new Error("Réponse vide du serveur");
   }
 
-  return res.json();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Réponse invalide du serveur");
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || `Erreur (${res.status})`);
+  }
+
+  return data as LoginResponse;
 }
