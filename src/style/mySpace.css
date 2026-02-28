@@ -237,3 +237,36 @@
 .muted {
   color: var(--text-muted);
 }
+
+.avatar-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.avatar-xl {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #6366f1;
+  transition: transform 0.2s ease;
+}
+
+.avatar-xl:hover {
+  transform: scale(1.05);
+}
+
+.avatar-upload span {
+  font-size: 13px;
+  color: #6366f1;
+  font-weight: 600;
+}
