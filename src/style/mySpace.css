@@ -2,29 +2,24 @@
    THEME VARIABLES
 ===================== */
 :root {
-  --bg-page: radial-gradient(circle at top, #1e3a8a 0%, #020617 65%);
+  --bg-page: radial-gradient(circle at top, #1e3a8a 0%, #020617 70%);
   --bg-card: #ffffff;
-  --bg-soft: #f9fafb;
   --bg-input: #f8fafc;
 
-  --text-main: #020617;
-  --text-muted: #6b7280;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
 
-  --border-soft: rgba(0,0,0,0.08);
-  --border-strong: rgba(0,0,0,0.12);
+  --primary: #6366f1;
+  --primary-soft: rgba(99,102,241,0.12);
 }
 
 .dark {
-  --bg-page: radial-gradient(circle at top, #020617 0%, #000000 65%);
+  --bg-page: radial-gradient(circle at top, #020617 0%, #000000 70%);
   --bg-card: #0f172a;
-  --bg-soft: #020617;
-  --bg-input: #020617;
+  --bg-input: #111827;
 
   --text-main: #e5e7eb;
   --text-muted: #9ca3af;
-
-  --border-soft: rgba(255,255,255,0.12);
-  --border-strong: rgba(255,255,255,0.18);
 }
 
 /* =====================
@@ -32,24 +27,51 @@
 ===================== */
 .page.myspace-page {
   min-height: 100vh;
-  padding: 20px 16px 48px;
+  padding: 80px 20px 60px;
   background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
   color: var(--text-main);
 }
 
+/* BACK BUTTON */
+.back-button-global {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-button-global:hover {
+  transform: scale(1.1);
+}
+
+/* =====================
+   HEADER
+===================== */
 .page-header {
-  max-width: 1100px;
-  margin: 44px auto 16px;
   text-align: center;
+  max-width: 600px;
 }
 
 .page-header h1 {
-  margin: 0;
-  font-size: 26px;
+  font-size: 34px;
+  font-weight: 800;
 }
 
 .page-header p {
-  margin: 8px 0 0;
+  margin-top: 12px;
   color: var(--text-muted);
 }
 
@@ -57,152 +79,160 @@
    BLOCKS
 ===================== */
 .block {
-  max-width: 1100px;
-  margin: 14px auto 0;
+  width: 100%;
+  max-width: 700px;
   background: var(--bg-card);
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+  border-radius: 24px;
+  padding: 36px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .block-head {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
 }
 
 .block-head h2 {
-  margin: 0;
-  font-size: 18px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 /* =====================
-   STORY
+   FIELDS
 ===================== */
-.story-body {
-  color: var(--text-muted);
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
-.empty {
-  margin-top: 12px;
-  color: var(--text-muted);
-}
-
-/* =====================
-   GRID / CARDS
-===================== */
-.grid {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-@media (max-width: 900px) {
-  .grid { grid-template-columns: 1fr; }
-}
-
-.mini-card {
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  padding: 12px;
-  background: var(--bg-soft);
-}
-
-/* =====================
-   TAGS
-===================== */
-.tags {
+.field {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
 }
 
-.tag.on {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: #6366f1;
-  color: white;
+.field label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.field input {
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  padding: 0 18px;
+  font-size: 15px;
+  background: var(--bg-input);
+  transition: all 0.25s ease;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.15);
 }
 
 /* =====================
    BUTTONS
 ===================== */
 .btn {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 14px;
-  cursor: pointer;
+  border-radius: 14px;
+  padding: 12px 20px;
   font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .btn.primary {
-  background: #6366f1;
+  background: var(--primary);
   color: white;
 }
 
+.btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(99,102,241,0.4);
+}
+
 .btn.ghost {
-  background: rgba(99,102,241,0.12);
-}
-
-.btn.tiny {
-  padding: 8px 10px;
-  font-size: 12px;
+  background: var(--primary-soft);
 }
 
 /* =====================
-   PROFILE
+   SELECT
 ===================== */
-.profile-row {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 14px;
-}
-@media (max-width: 900px) {
-  .profile-row { grid-template-columns: 1fr; }
-}
-
-.avatar-xl {
-  width: 120px;
-  height: 120px;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 3px solid rgba(99,102,241,0.35);
-  background: var(--bg-soft);
-}
-
-.field input,
-.pref-card select {
-  height: 46px;
-  border-radius: 999px;
-  border: 1.5px solid #c7d2fe;
-  padding: 0 14px;
-  background: var(--bg-input);
-  color: var(--text-main);
-}
-
-/* =====================
-   PREFS
-===================== */
-.pref-card {
-  border: 1px solid var(--border-soft);
+.modern-select {
+  height: 50px;
   border-radius: 14px;
-  padding: 12px;
-  background: var(--bg-soft);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  background: var(--bg-input);
+  font-size: 14px;
 }
 
-.pref-title {
-  font-weight: 900;
-  margin-bottom: 10px;
+.modern-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.15);
 }
 
+/* =====================
+   PASSWORD MODAL
+===================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+}
+
+.modal h3 {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.modern-input {
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  padding: 0 18px;
+  font-size: 14px;
+  background: var(--bg-input);
+  transition: all 0.25s ease;
+}
+
+.modern-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.15);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* =====================
+   TEXT HELPERS
+===================== */
 .muted {
   color: var(--text-muted);
 }
