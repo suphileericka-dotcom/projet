@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLang } from "../hooks/useLang";
-import type { Lang } from "../hooks/useLang";
+import { useTranslation } from "react-i18next";
 import "../style/mySpace.css";
 
 /* =====================
@@ -15,11 +14,24 @@ const API =
 /* =====================
    TYPES
 ===================== */
+type Story = {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+};
+
+type MatchProfile = {
+  story_id: string;
+  title: string;
+  common_tags: string[];
+};
+
 type Me = {
   id: string;
   username: string | null;
   email: string | null;
-  language: Lang;
+  language: string;
   dark_mode: boolean;
   created_at: number | null;
 };
@@ -27,29 +39,35 @@ type Me = {
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
-  const { t, setLang } = useLang();
+  const { i18n } = useTranslation();
 
   const [me, setMe] = useState<Me | null>(null);
+  const [myStory, setMyStory] = useState<Story | null>(null);
+  const [matches, setMatches] = useState<MatchProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Profil
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [language, setLanguage] = useState<Lang>("fr");
+
+  // Préférences
+  const [language, setLanguage] = useState("fr");
   const [darkMode, setDarkMode] = useState(false);
 
+  // Password
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   /* =====================
-     APPLY THEME
+     THEME AUTO APPLY
   ===================== */
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   /* =====================
-     LOAD PROFILE
+     LOAD DATA
   ===================== */
   useEffect(() => {
     if (!token) {
@@ -59,37 +77,50 @@ export default function MySpace() {
 
     async function load() {
       try {
-        const res = await fetch(`${API}/user/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
 
-        if (!res.ok) return;
+        const [meRes, storyRes, matchRes] = await Promise.all([
+          fetch(`${API}/user/me`, { headers }),
+          fetch(`${API}/mystory/me`, { headers }),
+          fetch(`${API}/match`, { headers }),
+        ]);
 
-        const data: Me = await res.json();
+        if (meRes.ok) {
+          const data: Me = await meRes.json();
+          setMe(data);
 
-        setMe(data);
-        setUsername(data.username ?? "");
-        setEmail(data.email ?? "");
-        setLanguage(data.language ?? "fr");
-        setDarkMode(Boolean(data.dark_mode));
+          setUsername(data.username ?? "");
+          setEmail(data.email ?? "");
+          setLanguage(data.language ?? "fr");
+          setDarkMode(Boolean(data.dark_mode));
 
-        setLang(data.language ?? "fr");
+          if (data.language) {
+            i18n.changeLanguage(data.language);
+          }
+        }
+
+        if (storyRes.ok) {
+          const s = await storyRes.json().catch(() => null);
+          setMyStory(s);
+        }
+
+        if (matchRes.ok) {
+          setMatches(await matchRes.json());
+        }
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, [token, setLang]);
+  }, [token]);
 
   const createdLabel = useMemo(() => {
     if (!me?.created_at) return "—";
     return new Date(me.created_at).toLocaleDateString();
-  }, [me]);
+  }, [me?.created_at]);
 
-  if (loading) {
-    return <div className="page myspace-page">Chargement…</div>;
-  }
+  if (loading) return <div className="page myspace-page">Chargement…</div>;
 
   /* =====================
      SAVE PROFILE
@@ -106,20 +137,24 @@ export default function MySpace() {
       body: JSON.stringify({ username, email }),
     });
 
-    if (res.ok) {
-      alert("Profil mis à jour ✅");
-    } else {
-      alert("Erreur sauvegarde profil");
+    if (!res.ok) {
+      alert("Erreur sauvegarde");
+      return;
     }
+
+    alert("Profil mis à jour ✅");
   }
 
   /* =====================
-     SAVE LANGUAGE
+     SAVE LANGUAGE FIX
   ===================== */
-  async function saveLanguage(next: Lang) {
+  async function saveLanguage(next: string) {
     if (!token) return;
 
-    const res = await fetch(`${API}/user/me/language`, {
+    setLanguage(next);
+    i18n.changeLanguage(next); // change direct frontend
+
+    await fetch(`${API}/user/me/language`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -127,14 +162,24 @@ export default function MySpace() {
       },
       body: JSON.stringify({ language: next }),
     });
+  }
 
-    if (!res.ok) {
-      alert("Erreur langue");
-      return;
-    }
+  /* =====================
+     SAVE THEME FIX
+  ===================== */
+  async function saveTheme(next: boolean) {
+    if (!token) return;
 
-    setLanguage(next);
-    setLang(next);
+    setDarkMode(next);
+
+    await fetch(`${API}/user/me/theme`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ dark_mode: next }),
+    });
   }
 
   /* =====================
@@ -144,7 +189,7 @@ export default function MySpace() {
     if (!token) return;
 
     if (!oldPassword || !newPassword) {
-      alert("Remplis les 2 champs.");
+      alert("Remplis les 2 champs");
       return;
     }
 
@@ -168,9 +213,6 @@ export default function MySpace() {
     alert("Mot de passe modifié ✅");
   }
 
-  /* =====================
-     RENDER
-  ===================== */
   return (
     <div className="page myspace-page">
       <button className="back-button-global" onClick={() => navigate("/")}>
@@ -178,26 +220,20 @@ export default function MySpace() {
       </button>
 
       <header className="page-header">
-        <h1>{t("mySpace")}</h1>
-        <p>{t("profilePreferences")}</p>
+        <h1>Mon espace</h1>
+        <p>Profil et préférences</p>
       </header>
 
       {/* PROFIL */}
-      <section className="block">
-        <div className="block-head">
-          <h2>{t("profile")}</h2>
-          <button className="btn primary" onClick={saveProfile}>
-            {t("save")}
-          </button>
-        </div>
+      <section className="block modern-card">
+        <h2>Profil</h2>
 
-        <div className="muted small">
-          {t("memberSince")} : {createdLabel}
-        </div>
+        <div className="muted small">Inscrit le : {createdLabel}</div>
 
         <div className="field">
-          <label>{t("username")}</label>
+          <label>Nom d’utilisateur</label>
           <input
+            className="modern-input"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
@@ -206,24 +242,29 @@ export default function MySpace() {
         <div className="field">
           <label>Email</label>
           <input
+            className="modern-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
 
+        <button className="btn primary" onClick={saveProfile}>
+          Sauvegarder
+        </button>
+
         <button className="btn ghost" onClick={() => setPwOpen(true)}>
-          {t("changePassword")}
+          Modifier mot de passe
         </button>
       </section>
 
       {/* PRÉFÉRENCES */}
-      <section className="block">
-        <h2>⚙️ {t("preferences")}</h2>
+      <section className="block modern-card">
+        <h2> Préférences</h2>
 
         <select
           className="modern-select"
           value={language}
-          onChange={(e) => saveLanguage(e.target.value as Lang)}
+          onChange={(e) => saveLanguage(e.target.value)}
         >
           <option value="fr">Français</option>
           <option value="en">English</option>
@@ -232,28 +273,58 @@ export default function MySpace() {
           <option value="it">Italiano</option>
         </select>
 
-        <label className="toggle">
+        <label className="toggle-modern">
           <input
             type="checkbox"
             checked={darkMode}
-            onChange={(e) => setDarkMode(e.target.checked)}
+            onChange={(e) => saveTheme(e.target.checked)}
           />
-          <span>
-            {darkMode ? t("darkMode") : t("lightMode")}
-          </span>
+          <span>{darkMode ? "Mode sombre" : "Mode clair"}</span>
         </label>
+      </section>
+
+      {/* TON VÉCU */}
+      <section className="block modern-card">
+        <h2>Ton vécu</h2>
+
+        {!myStory ? (
+          <button className="btn primary" onClick={() => navigate("/story")}>
+            Écrire mon histoire
+          </button>
+        ) : (
+          <>
+            <h3>{myStory.title}</h3>
+            <p>{myStory.body}</p>
+          </>
+        )}
+      </section>
+
+      {/* MATCHES */}
+      <section className="block modern-card">
+        <h2>Personnes similaires</h2>
+
+        {matches.length === 0 ? (
+          <p className="muted">Aucune correspondance.</p>
+        ) : (
+          matches.map((m) => (
+            <div key={m.story_id} className="modern-list-item">
+              <strong>{m.title}</strong>
+              <p>{m.common_tags.join(", ")}</p>
+            </div>
+          ))
+        )}
       </section>
 
       {/* PASSWORD MODAL */}
       {pwOpen && (
         <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{t("changePassword")}</h3>
+          <div className="modal modern-card" onClick={(e) => e.stopPropagation()}>
+            <h3>Modifier le mot de passe</h3>
 
             <input
               className="modern-input"
               type="password"
-              placeholder={t("oldPassword")}
+              placeholder="Ancien mot de passe"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
             />
@@ -261,21 +332,18 @@ export default function MySpace() {
             <input
               className="modern-input"
               type="password"
-              placeholder={t("newPassword")}
+              placeholder="Nouveau mot de passe"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
 
             <div className="modal-actions">
               <button className="btn primary" onClick={submitPassword}>
-                {t("save")}
+                Sauvegarder
               </button>
 
-              <button
-                className="btn ghost"
-                onClick={() => setPwOpen(false)}
-              >
-                {t("cancel")}
+              <button className="btn ghost" onClick={() => setPwOpen(false)}>
+                Annuler
               </button>
             </div>
           </div>
