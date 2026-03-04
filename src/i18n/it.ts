@@ -1,0 +1,17 @@
+export default {
+  login: "Accedi",
+  register: "Crea account",
+  logout: "Disconnetti",
+  welcome: "Benvenuto",
+  emailOrUsername: "Email o nome utente",
+  password: "Password",
+  send: "Invia",
+  edit: "Modifica",
+  typingDisabled: "Accedi per partecipare",
+  rememberMe: "Ricordami",
+  burnoutTitle: "Burnout",
+  solitudeTitle: "Solitudine",
+  ruptureTitle: "Rottura",
+  expatriationTitle: "Espatrio",
+  changementTitle: "Cambiamento di vita",
+};

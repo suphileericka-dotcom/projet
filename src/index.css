@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #19e6c4;
+  --bg-light: #f6f8f8;
+  --bg-dark: #11211e;
+  --text: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg-light);
+  color: var(--text);
+}
