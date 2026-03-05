@@ -5,11 +5,7 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: radial-gradient(
-    circle at top,
-    #1e3a8a 0%,
-    #020617 70%
-  );
+  background: radial-gradient(circle at top, #1e3a8a 0%, #020617 70%);
   color: #e5e7eb;
 }
 
@@ -18,7 +14,7 @@ body {
 ========================= */
 
 .app-container {
-  max-width: 1100px; /* 🔥 plus large */
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
   min-height: 100vh;
@@ -43,7 +39,7 @@ body {
 }
 
 .app-header button {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255,255,255,0.08);
   border: none;
   border-radius: 999px;
   padding: 8px 14px;
@@ -53,7 +49,7 @@ body {
 }
 
 .app-header button:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255,255,255,0.18);
 }
 
 /* =========================
@@ -106,36 +102,70 @@ body {
 }
 
 /* =========================
-   GRID – 4 COLONNES
+   GRID RESPONSIVE
 ========================= */
 
 .spaces-grid {
-  
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
+
+  /* Desktop large */
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Laptop */
+@media (max-width: 1200px) {
+  .spaces-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Tablette */
+@media (max-width: 900px) {
+  .spaces-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .spaces-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-container {
+    padding: 16px;
+  }
+
+  .app-header h1 {
+    font-size: 22px;
+  }
 }
 
 /* =========================
-   SPACE CARD (BASE)
+   SPACE CARD
 ========================= */
 
 .space-card {
-  margin: 3,64px;
-  min-height: 150px;
+  min-height: 160px;
   border-radius: 22px;
   padding: 22px;
+
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+
   cursor: pointer;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+
+  box-shadow: 0 12px 30px rgba(0,0,0,0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  width: 100%;
 }
 
 .space-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
 }
 
 .space-card h4 {
@@ -157,56 +187,45 @@ body {
 }
 
 /* =========================
-   COULEURS – PAR TYPE
+   COULEURS PAR TYPE
 ========================= */
 
-/* Stories */
 .space-stories {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
 }
 
-/* Burnout */
 .space-burnout {
   background: linear-gradient(135deg, #7c3aed, #4c1d95);
 }
 
-/* Solitude */
 .space-solitude {
   background: linear-gradient(135deg, #334155, #0f172a);
 }
 
-/* Rupture */
 .space-rupture {
   background: linear-gradient(135deg, #ef4444, #7f1d1d);
 }
 
-/* Expatriation */
 .space-expatriation {
   background: linear-gradient(135deg, #10b981, #064e3b);
 }
 
-/* Changement */
 .space-changement {
   background: linear-gradient(135deg, #3b82f6, #1e3a8a);
-
 }
 
-/* My Story */
 .space-story {
   background: linear-gradient(135deg, #020617, #111827);
 }
 
-/* My Space */
 .space-personal {
   background: linear-gradient(135deg, #0ea5e9, #075985);
 }
 
-/* Match */
 .space-match {
   background: linear-gradient(135deg, #f97316, #7c2d12);
 }
 
-/* Journal */
 .space-ai {
   background: linear-gradient(135deg, #22c55e, #14532d);
 }
@@ -220,30 +239,4 @@ body {
   font-size: 13px;
   color: #94a3b8;
   margin-top: auto;
-}
-
-/* =========================
-   RESPONSIVE
-========================= */
-
-/* TABLETTE */
-@media (max-width: 1024px) {
-  .spaces-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* MOBILE */
-@media (max-width: 600px) {
-  .spaces-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .app-container {
-    padding: 16px;
-  }
-
-  .app-header h1 {
-    font-size: 22px;
-  }
 }
