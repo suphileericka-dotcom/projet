@@ -10,7 +10,7 @@ import "../style/register.css";
 /* =====================
    API BASE
 ===================== */
-const API = import.meta.env.VITE_API_URL;
+const API = "https://ameya-production.up.railway.app";
 
 /* =====================
    TYPES
@@ -102,7 +102,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Erreur lors de l’inscription");
+        setError(data.error || "Erreur lors de l'inscription");
         return;
       }
 
@@ -136,10 +136,9 @@ export default function Register({ setIsAuth }: RegisterProps) {
         {error && <div className="register-error">{error}</div>}
 
         <form onSubmit={submit}>
-          {/*  NOM D’UTILISATEUR CLAIR */}
           <input
             name="username"
-            placeholder="Nom d’utilisateur"
+            placeholder="Nom d'utilisateur"
             value={form.username}
             onChange={update}
             required
@@ -186,7 +185,6 @@ export default function Register({ setIsAuth }: RegisterProps) {
             <option value="CA">Canada</option>
           </select>
 
-          {/* LANGUE LIVE */}
           <select
             name="language"
             value={form.language}
@@ -220,7 +218,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
               checked={form.terms}
               onChange={update}
             />
-            J’accepte les conditions
+            J'accepte les conditions
           </label>
 
           <button type="submit" disabled={loading}>
