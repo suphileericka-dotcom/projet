@@ -10,14 +10,15 @@ import "../style/login.css";
 /* =====================
    API BASE
 ===================== */
+
 const API =
-  import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api`
-    : "http://localhost:8000/api";
+  import.meta.env.VITE_API_URL ||
+  "https://ameya-production.up.railway.app";
 
 /* =====================
    TYPES
 ===================== */
+
 type LoginProps = {
   setIsAuth: (value: boolean) => void;
 };
@@ -25,6 +26,7 @@ type LoginProps = {
 /* =====================
    COMPONENT
 ===================== */
+
 export default function Login({ setIsAuth }: LoginProps) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -32,6 +34,7 @@ export default function Login({ setIsAuth }: LoginProps) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null);
 
@@ -47,7 +50,7 @@ export default function Login({ setIsAuth }: LoginProps) {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API}/auth/login`, {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -58,13 +61,26 @@ export default function Login({ setIsAuth }: LoginProps) {
         }),
       });
 
-      const data = await res.json();
+      let data: any = null;
+
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Réponse serveur invalide");
+      }
+
+      console.log("LOGIN RESPONSE:", data);
 
       if (!res.ok) {
         throw new Error(data?.error || "Erreur de connexion");
       }
 
-      // SESSION
+      if (!data?.token || !data?.user?.id) {
+        throw new Error("Réponse serveur invalide");
+      }
+
+      /* SESSION */
+
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
 
@@ -80,7 +96,9 @@ export default function Login({ setIsAuth }: LoginProps) {
 
       setIsAuth(true);
       navigate("/");
+
     } catch (err: any) {
+      console.error("LOGIN ERROR:", err);
       setErrorGlobal(err.message || "Erreur serveur");
     } finally {
       setLoading(false);
@@ -90,6 +108,7 @@ export default function Login({ setIsAuth }: LoginProps) {
   return (
     <div className="login-page">
       <div className="login-container">
+
         <div className="login-header">
           <button onClick={() => navigate(-1)}>←</button>
           <h1>{t("login")}</h1>
@@ -104,7 +123,9 @@ export default function Login({ setIsAuth }: LoginProps) {
         )}
 
         {/* FORM */}
+
         <form onSubmit={handleLogin}>
+
           <input
             placeholder={t("emailOrUsername")}
             value={identifier}
@@ -133,7 +154,9 @@ export default function Login({ setIsAuth }: LoginProps) {
           <button type="submit" disabled={loading}>
             {loading ? "Connexion..." : t("login")}
           </button>
+
         </form>
+
       </div>
     </div>
   );

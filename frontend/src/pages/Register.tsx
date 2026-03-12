@@ -1,7 +1,3 @@
-// =====================
-// IMPORTS
-// =====================
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLang } from "../hooks/useLang";
@@ -10,12 +6,15 @@ import "../style/register.css";
 /* =====================
    API BASE
 ===================== */
+
 const API =
   import.meta.env.VITE_API_URL ||
   "https://ameya-production.up.railway.app";
+
 /* =====================
    TYPES
 ===================== */
+
 type RegisterProps = {
   setIsAuth: (value: boolean) => void;
 };
@@ -23,6 +22,7 @@ type RegisterProps = {
 /* =====================
    COMPONENT
 ===================== */
+
 export default function Register({ setIsAuth }: RegisterProps) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -45,6 +45,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
   /* =====================
      UPDATE FORM
   ===================== */
+
   function update(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
@@ -60,8 +61,9 @@ export default function Register({ setIsAuth }: RegisterProps) {
   }
 
   /* =====================
-     CHANGE LANGUAGE LIVE
+     CHANGE LANGUAGE
   ===================== */
+
   function changeLanguage(e: React.ChangeEvent<HTMLSelectElement>) {
     const lang = e.target.value;
 
@@ -77,6 +79,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
   /* =====================
      SUBMIT
   ===================== */
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -96,25 +99,43 @@ export default function Register({ setIsAuth }: RegisterProps) {
 
       const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
-console.log("API RESPONSE:", data);
+      let data: any = null;
 
-if (!res.ok) {
-  setError(data.error || "Erreur lors de l'inscription");
-  return;
-}
-      // SESSION
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Réponse JSON invalide");
+      }
+
+      console.log("API RESPONSE:", data);
+
+      if (!res.ok) {
+        setError(data?.error || "Erreur lors de l'inscription");
+        return;
+      }
+
+      if (!data?.token || !data?.user?.id) {
+        setError("Réponse serveur invalide");
+        return;
+      }
+
+      /* SESSION */
+
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
       localStorage.setItem("language", form.language);
 
       setIsAuth(true);
       navigate("/");
-    } catch {
+
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
       setError("Impossible de contacter le serveur");
     } finally {
       setLoading(false);
@@ -124,19 +145,29 @@ if (!res.ok) {
   /* =====================
      RENDER
   ===================== */
+
   return (
     <div className="register-page">
       <div className="register-container">
-        <button className="back-btn" onClick={() => navigate(-1)}>
+
+        <button
+          className="back-btn"
+          onClick={() => navigate(-1)}
+        >
           ←
         </button>
 
         <h1>{t("register")}</h1>
         <p className="subtitle">{t("welcome")}</p>
 
-        {error && <div className="register-error">{error}</div>}
+        {error && (
+          <div className="register-error">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={submit}>
+
           <input
             name="username"
             placeholder="Nom d'utilisateur"
@@ -179,7 +210,11 @@ if (!res.ok) {
             onChange={update}
           />
 
-          <select name="country" value={form.country} onChange={update}>
+          <select
+            name="country"
+            value={form.country}
+            onChange={update}
+          >
             <option value="FR">France</option>
             <option value="BE">Belgique</option>
             <option value="CH">Suisse</option>
@@ -222,14 +257,20 @@ if (!res.ok) {
             J'accepte les conditions
           </label>
 
-          <button type="submit" disabled={loading}>
+          <button
+            type="submit"
+            disabled={loading}
+          >
             {loading ? "…" : t("register")}
           </button>
+
         </form>
 
         <p className="footer">
-          Déjà un compte ? <Link to="/login">{t("login")}</Link>
+          Déjà un compte ?{" "}
+          <Link to="/login">{t("login")}</Link>
         </p>
+
       </div>
     </div>
   );
