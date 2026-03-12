@@ -10,7 +10,7 @@ import "../style/register.css";
 /* =====================
    API BASE
 ===================== */
-const API = "https://ameya-production.up.railway.app";
+const API = "const API = import.meta.env.VITE_API_URL;";
 
 /* =====================
    TYPES
