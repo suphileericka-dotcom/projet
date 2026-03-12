@@ -19,6 +19,16 @@ type RegisterProps = {
   setIsAuth: (value: boolean) => void;
 };
 
+type RegisterResponse = {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    email?: string;
+  };
+  error?: string;
+};
+
 /* =====================
    COMPONENT
 ===================== */
@@ -105,7 +115,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
         body: JSON.stringify(form),
       });
 
-      let data: any = null;
+      let data: RegisterResponse;
 
       try {
         data = await res.json();

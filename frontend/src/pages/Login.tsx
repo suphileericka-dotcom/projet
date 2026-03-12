@@ -1,7 +1,3 @@
-// =====================
-// IMPORTS
-// =====================
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "../hooks/useLang";
@@ -21,6 +17,17 @@ const API =
 
 type LoginProps = {
   setIsAuth: (value: boolean) => void;
+};
+
+type LoginResponse = {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    email?: string;
+    language?: string;
+  };
+  error?: string;
 };
 
 /* =====================
@@ -61,7 +68,7 @@ export default function Login({ setIsAuth }: LoginProps) {
         }),
       });
 
-      let data: any = null;
+      let data: LoginResponse;
 
       try {
         data = await res.json();
@@ -97,9 +104,14 @@ export default function Login({ setIsAuth }: LoginProps) {
       setIsAuth(true);
       navigate("/");
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("LOGIN ERROR:", err);
-      setErrorGlobal(err.message || "Erreur serveur");
+
+      if (err instanceof Error) {
+        setErrorGlobal(err.message);
+      } else {
+        setErrorGlobal("Erreur serveur");
+      }
     } finally {
       setLoading(false);
     }
@@ -121,8 +133,6 @@ export default function Login({ setIsAuth }: LoginProps) {
             {errorGlobal}
           </div>
         )}
-
-        {/* FORM */}
 
         <form onSubmit={handleLogin}>
 
