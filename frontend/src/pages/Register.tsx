@@ -101,12 +101,12 @@ export default function Register({ setIsAuth }: RegisterProps) {
       });
 
       const data = await res.json();
+console.log("API RESPONSE:", data);
 
-      if (!res.ok) {
-        setError(data.error || "Erreur lors de l'inscription");
-        return;
-      }
-
+if (!res.ok) {
+  setError(data.error || "Erreur lors de l'inscription");
+  return;
+}
       // SESSION
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
