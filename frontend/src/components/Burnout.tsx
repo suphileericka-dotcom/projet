@@ -274,15 +274,18 @@ export default function Burnout({ isAuth }: BurnoutProps) {
   ===================== */
   return (
     <div className="chat-root burnout">
-      <button
-        className="back-button-global"
-        onClick={() => navigate("/")}
-      >
-        ←
-      </button>
-
       <header className="chat-header">
-        <h1>Burnout</h1>
+        <div className="chat-header-bar">
+          <button
+            className="back-button-header"
+            onClick={() => navigate("/")}
+            aria-label="Retour a l'accueil"
+          >
+            <span className="back-button-icon" aria-hidden="true">&larr;</span>
+            <span>Accueil</span>
+          </button>
+          <h1>Burnout</h1>
+        </div>
         <span className="online">
           <span className="dot" /> {onlineCount} en ligne
         </span>
@@ -382,3 +385,4 @@ export default function Burnout({ isAuth }: BurnoutProps) {
     </div>
   );
 }
+

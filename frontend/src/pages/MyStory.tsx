@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/myStory.css";
 
+/* 🔥 IMPORT API GLOBAL */
+import { API } from "../config/api";
+
+/* =====================
+   TYPES
+===================== */
+
 const TAGS = [
   "burnout",
   "solitude",
@@ -19,7 +26,8 @@ type Draft = {
   tags: Tag[];
 };
 
-const API = "http://localhost:8000/api/mystory";
+/* 🔥 API MYSTORY CENTRALISÉE */
+const MYSTORY_API = `${API}/mystory`;
 
 export default function MyStory() {
   const navigate = useNavigate();
@@ -50,13 +58,15 @@ export default function MyStory() {
   async function openDrafts() {
     if (!token) return;
 
-    const res = await fetch(`${API}/drafts`, {
+    const res = await fetch(`${MYSTORY_API}/drafts`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (res.ok) {
       setDrafts(await res.json());
       setShowDrafts(true);
+    } else {
+      console.error("Erreur fetch drafts");
     }
   }
 
@@ -72,7 +82,7 @@ export default function MyStory() {
     if (!token) return;
     if (!confirm("Supprimer ce brouillon ?")) return;
 
-    await fetch(`${API}/${id}`, {
+    await fetch(`${MYSTORY_API}/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -96,7 +106,7 @@ export default function MyStory() {
       return;
     }
 
-    const res = await fetch(API, {
+    const res = await fetch(MYSTORY_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -136,10 +146,13 @@ export default function MyStory() {
       return;
     }
 
-    const res = await fetch(`${API}/${currentDraftId}/publish`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      `${MYSTORY_API}/${currentDraftId}/publish`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
     if (!res.ok) {
       alert("Erreur lors de la publication");
@@ -155,16 +168,21 @@ export default function MyStory() {
 
   return (
     <div className="story-editor-page">
-      <button className="back-btn" onClick={() => navigate("/")}>←</button>
+      {/* 🔥 BOUTON RETOUR */}
+      <button className="back-btn" onClick={() => navigate("/")}>
+        ←
+      </button>
 
       <div className="editor-card">
         <header className="editor-header">
           <h1>Mon histoire</h1>
+
           <button className="drafts-btn" onClick={openDrafts}>
             Mes brouillons
           </button>
         </header>
 
+        {/* TITRE */}
         <input
           className="title-input"
           placeholder="Titre (optionnel)"
@@ -172,6 +190,7 @@ export default function MyStory() {
           onChange={(e) => setTitle(e.target.value)}
         />
 
+        {/* TEXTE */}
         <textarea
           className="body-textarea"
           placeholder="Écris ton histoire…"
@@ -179,6 +198,7 @@ export default function MyStory() {
           onChange={(e) => setBody(e.target.value)}
         />
 
+        {/* TAGS */}
         <div className="tags">
           {TAGS.map((tag) => (
             <button
@@ -191,17 +211,22 @@ export default function MyStory() {
           ))}
         </div>
 
+        {/* ACTIONS */}
         <div className="actions">
           <button className="btn ghost" onClick={saveDraft}>
             Enregistrer
           </button>
+
           <button className="btn primary" onClick={publish}>
             Publier
           </button>
         </div>
       </div>
 
-      {/* MODAL BROUILLONS */}
+      {/* =====================
+         MODAL BROUILLONS
+      ===================== */}
+
       {showDrafts && (
         <div className="modal-backdrop">
           <div className="modal">
@@ -227,7 +252,10 @@ export default function MyStory() {
               </div>
             ))}
 
-            <button className="close" onClick={() => setShowDrafts(false)}>
+            <button
+              className="close"
+              onClick={() => setShowDrafts(false)}
+            >
               Fermer
             </button>
           </div>
