@@ -19,6 +19,14 @@ const TAGS = [
 
 type Tag = (typeof TAGS)[number];
 
+const TAG_LABELS: Record<Tag, string> = {
+  burnout: "burnout",
+  solitude: "solitude",
+  rupture: "rupture",
+  expatriation: "expatriation",
+  changement: "changement de vie",
+};
+
 type Draft = {
   id: string;
   title: string;
@@ -241,12 +249,12 @@ export default function MyStory() {
           {TAGS.map((tag) => (
             <button
               key={tag}
-              className={`tag ${
+              className={`tag tag-${tag} ${
                 selectedTags.includes(tag) ? "on" : ""
               }`}
               onClick={() => toggleTag(tag)}
             >
-              {tag}
+              {TAG_LABELS[tag]}
             </button>
           ))}
         </div>
