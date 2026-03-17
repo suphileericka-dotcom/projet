@@ -5,7 +5,10 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Fond dégradé élégant */
   background: radial-gradient(circle at top, #1e3a8a 0%, #020617 70%);
+
   color: #e5e7eb;
 }
 
@@ -16,8 +19,12 @@ body {
 .app-container {
   max-width: 1200px;
   margin: 0 auto;
+
+  /* 🔥 espace global amélioré */
   padding: 24px;
+
   min-height: 100vh;
+
   display: flex;
   flex-direction: column;
 }
@@ -30,12 +37,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 36px;
+
+  /* 🔥 plus d’espace sous le header */
+  margin-bottom: 48px;
 }
 
 .app-header h1 {
   font-size: 28px;
   font-weight: 800;
+}
+
+/* Groupe de boutons (Info / Logout) */
+.header-actions {
+  display: flex;
+
+  /* 🔥 espace entre les boutons */
+  gap: 12px;
 }
 
 .app-header button {
@@ -58,7 +75,9 @@ body {
 
 .welcome {
   text-align: center;
-  margin-bottom: 32px;
+
+  /* 🔥 plus d’air */
+  margin-bottom: 36px;
 }
 
 .welcome p {
@@ -66,11 +85,16 @@ body {
   color: #cbd5f5;
 }
 
+/* Boutons login / register */
 .auth-buttons {
   display: flex;
   justify-content: center;
-  gap: 16px;
-  margin-top: 20px;
+
+  /* 🔥 espace horizontal */
+  gap: 20px;
+
+  /* 🔥 espace vertical */
+  margin-top: 28px;
 }
 
 .auth-buttons button {
@@ -81,12 +105,14 @@ body {
   cursor: pointer;
 }
 
+/* Bouton principal */
 .auth-buttons button:first-child {
   background: #22d3ee;
   color: #020617;
   font-weight: 700;
 }
 
+/* Bouton secondaire */
 .auth-buttons button:last-child {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.3);
@@ -98,7 +124,8 @@ body {
 ========================= */
 
 .spaces {
-  margin-bottom: 48px;
+  /* 🔥 plus d’air entre sections */
+  margin-bottom: 64px;
 }
 
 /* =========================
@@ -107,9 +134,11 @@ body {
 
 .spaces-grid {
   display: grid;
-  gap: 24px;
 
-  /* Desktop large */
+  /* 🔥 espace entre les cards */
+  gap: 32px;
+
+  /* Desktop */
   grid-template-columns: repeat(4, 1fr);
 }
 
@@ -147,9 +176,13 @@ body {
 ========================= */
 
 .space-card {
-  min-height: 160px;
+  /* 🔥 hauteur augmentée pour respirer */
+  min-height: 180px;
+
   border-radius: 22px;
-  padding: 22px;
+
+  /* 🔥 padding amélioré */
+  padding: 26px;
 
   display: flex;
   flex-direction: column;
@@ -158,11 +191,13 @@ body {
   cursor: pointer;
 
   box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   width: 100%;
 }
 
+/* Effet hover */
 .space-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 18px 40px rgba(0,0,0,0.45);
@@ -171,14 +206,20 @@ body {
 .space-card h4 {
   font-size: 18px;
   font-weight: 700;
-  margin-bottom: 6px;
+
+  /* 🔥 espace sous le titre */
+  margin-bottom: 8px;
 }
 
 .space-card p {
   font-size: 14px;
   opacity: 0.85;
+
+  /* 🔥 lisibilité améliorée */
+  line-height: 1.5;
 }
 
+/* Texte du bas */
 .space-card .enter {
   margin-top: auto;
   font-weight: 600;
@@ -238,5 +279,7 @@ body {
   text-align: center;
   font-size: 13px;
   color: #94a3b8;
-  margin-top: auto;
+
+  /* 🔥 espace en haut */
+  margin-top: 24px;
 }
