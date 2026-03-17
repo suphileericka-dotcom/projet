@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/stories.css";
+import { API } from "../config/api";
+
+/* =====================
+   TYPES
+===================== */
 
 type Story = {
   id: string;
@@ -12,6 +17,10 @@ type Story = {
   likes: number;
 };
 
+/* =====================
+   COMPONENT
+===================== */
+
 export default function Stories() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
@@ -21,30 +30,75 @@ export default function Stories() {
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
-  const API = import.meta.env.VITE_API_URL;
 
   /* =====================
-     LOAD STORIES (SEARCH + TAG)
+     LOAD STORIES
   ===================== */
-  useEffect(() => {
-  const params = new URLSearchParams();
-  if (search) params.append("q", search);
-  if (tagFilter) params.append("tag", tagFilter);
 
-  fetch(`${API}/api/stories?${params}`)
-    .then(r => r.json())
-    .then(setStories);
-}, [search, tagFilter, API]);
-  function likeStory(id: string) {
+  useEffect(() => {
+    async function fetchStories() {
+      try {
+        const params = new URLSearchParams();
+
+        if (search) params.append("q", search);
+        if (tagFilter) params.append("tag", tagFilter);
+
+        const res = await fetch(`${API}/stories?${params}`);
+
+        if (!res.ok) {
+          throw new Error("Erreur fetch stories");
+        }
+
+        const data = await res.json();
+        setStories(data);
+
+      } catch (err) {
+        console.error("Erreur stories:", err);
+      }
+    }
+
+    fetchStories();
+  }, [search, tagFilter]);
+
+  /* =====================
+     LIKE
+  ===================== */
+
+  async function likeStory(id: string) {
     if (!token) return;
-    fetch(`http://localhost:8000/api/stories/${id}/like`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+
+    try {
+      await fetch(`${API}/stories/${id}/like`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // 🔥 refresh local state
+      setStories((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, likes: s.likes + 1 } : s
+        )
+      );
+
+    } catch (err) {
+      console.error("Erreur like:", err);
+    }
   }
+
+  /* =====================
+     RENDER
+  ===================== */
 
   return (
     <div className="page stories-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
+
+      <button
+        className="back-button-global"
+        onClick={() => navigate("/")}
+      >
+        ←
+      </button>
 
       <header className="page-header">
         <h1>Histoires</h1>
@@ -62,11 +116,13 @@ export default function Stories() {
 
       {/* TAG FILTER */}
       <div className="filters">
-        {["burnout", "solitude", "rupture", "expatriation", "changement"].map(t => (
+        {["burnout", "solitude", "rupture", "expatriation", "changement"].map((t) => (
           <button
             key={t}
             className={tagFilter === t ? "active" : ""}
-            onClick={() => setTagFilter(t)}
+            onClick={() =>
+              setTagFilter(tagFilter === t ? "" : t)
+            }
           >
             #{t}
           </button>
@@ -74,12 +130,15 @@ export default function Stories() {
       </div>
 
       <div className="layout">
+
         {/* LIST */}
         <div className="list">
           {stories.map((s) => (
             <div
               key={s.id}
-              className={`story-tile ${s.user_id === myUserId ? "mine" : ""}`}
+              className={`story-tile ${
+                s.user_id === myUserId ? "mine" : ""
+              }`}
               onClick={() => setActiveStory(s)}
             >
               <div className="tile-head">
@@ -89,7 +148,10 @@ export default function Stories() {
                 />
                 <strong>{s.title}</strong>
               </div>
-              <div className="tile-tags">{s.tags.map(t => `#${t}`).join(" ")}</div>
+
+              <div className="tile-tags">
+                {s.tags.map((t) => `#${t}`).join(" ")}
+              </div>
             </div>
           ))}
         </div>
@@ -104,20 +166,27 @@ export default function Stories() {
               <p>{activeStory.body}</p>
 
               <div className="reader-actions">
-                <button onClick={() => likeStory(activeStory.id)}>
+
+                <button
+                  onClick={() => likeStory(activeStory.id)}
+                >
                   🤍 Soutenir ({activeStory.likes})
                 </button>
 
                 <button
                   className="ghost"
-                  onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}
+                  onClick={() =>
+                    navigate(`/chat/${activeStory.tags[0]}`)
+                  }
                 >
                   Discussion liée
                 </button>
+
               </div>
             </>
           )}
         </div>
+
       </div>
     </div>
   );
