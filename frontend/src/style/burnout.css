@@ -289,25 +289,66 @@
 
 .back-button-global {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  top: 18px;
+  left: 18px;
 
-  width: 44px;
+  min-width: 108px;
   height: 44px;
-  border-radius: 50%;
-  border: none;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
 
-  background: #6366f1;
-  color: white;
+  background: rgba(10, 10, 12, 0.78);
+  backdrop-filter: blur(12px);
+  color: #f8fafc;
 
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 
-  font-size: 22px;
+  font-size: 0;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
 
   /* 🔥 VISIBILITÉ FIX */
   z-index: 9999;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.32);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.back-button-global::before {
+  content: "\2190";
+  font-size: 18px;
+  line-height: 1;
+}
+
+.back-button-global::after {
+  content: "Retour";
+  font-size: 13px;
+}
+
+.back-button-global:hover {
+  transform: translateY(-1px);
+  background: rgba(25, 25, 30, 0.9);
+  border-color: rgba(99,102,241,0.42);
+}
+
+.back-button-global:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.9);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .back-button-global {
+    top: 12px;
+    left: 12px;
+    min-width: 44px;
+    padding: 0;
+  }
+
+  .back-button-global::after {
+    content: "";
+  }
 }
