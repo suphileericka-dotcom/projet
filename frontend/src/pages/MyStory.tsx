@@ -58,15 +58,35 @@ export default function MyStory() {
   async function openDrafts() {
     if (!token) return;
 
-    const res = await fetch(`${MYSTORY_API}/drafts`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    try {
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
 
-    if (res.ok) {
-      setDrafts(await res.json());
+      // 🔥 1️⃣ tentative normale
+      let res = await fetch(`${MYSTORY_API}/drafts`, {
+        headers,
+      });
+
+      // 🔥 2️⃣ fallback si backend pas encore déployé
+      if (res.status === 404) {
+        console.warn("Fallback vers /me");
+
+        res = await fetch(`${MYSTORY_API}/me`, {
+          headers,
+        });
+      }
+
+      if (!res.ok) {
+        throw new Error("Erreur fetch drafts");
+      }
+
+      const data = await res.json();
+      setDrafts(data);
       setShowDrafts(true);
-    } else {
-      console.error("Erreur fetch drafts");
+
+    } catch (err) {
+      console.error("Erreur fetch drafts", err);
     }
   }
 
