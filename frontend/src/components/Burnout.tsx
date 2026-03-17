@@ -282,7 +282,6 @@ export default function Burnout({ isAuth }: BurnoutProps) {
             aria-label="Retour a l'accueil"
           >
             <span className="back-button-icon" aria-hidden="true">&larr;</span>
-            <span>Accueil</span>
           </button>
           <h1>Burnout</h1>
         </div>

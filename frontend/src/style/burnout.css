@@ -57,33 +57,33 @@
 .back-button-header {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   justify-self: start;
   height: 40px;
-  padding: 0 14px;
-  border: 1px solid rgba(53, 67, 48, 0.12);
-  border-radius: 12px;
-  background: rgba(16, 45, 23, 0.06);
-  color: #152f09;
-  font-size: 13px;
+  width: 40px;
+  padding: 0;
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  border-radius: 999px;
+  background: rgba(22, 101, 52, 0.18);
+  color: #4ade80;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 .back-button-header:hover {
-  background: rgba(99,102,241,0.18);
-  border-color: rgba(129,140,248,0.35);
+  background: rgba(22, 163, 74, 0.28);
+  border-color: rgba(74, 222, 128, 0.5);
   transform: translateY(-1px);
 }
 
 .back-button-header:focus-visible {
-  outline: 2px solid rgba(129, 140, 248, 0.9);
+  outline: 2px solid rgba(74, 222, 128, 0.9);
   outline-offset: 3px;
 }
 
 .back-button-icon {
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1;
 }
 
