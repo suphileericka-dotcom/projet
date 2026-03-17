@@ -26,7 +26,7 @@ type Draft = {
   tags: Tag[];
 };
 
-/* 🔥 API MYSTORY CENTRALISÉE */
+/* 🔥 API CENTRALISÉE */
 const MYSTORY_API = `${API}/mystory`;
 
 export default function MyStory() {
@@ -47,12 +47,14 @@ export default function MyStory() {
 
   function toggleTag(tag: Tag) {
     setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag)
+        ? prev.filter((t) => t !== tag)
+        : [...prev, tag]
     );
   }
 
   /* =====================
-     DRAFT MODAL
+     FETCH DRAFTS (avec fallback)
   ===================== */
 
   async function openDrafts() {
@@ -63,18 +65,12 @@ export default function MyStory() {
         Authorization: `Bearer ${token}`,
       };
 
-      // 🔥 1️⃣ tentative normale
-      let res = await fetch(`${MYSTORY_API}/drafts`, {
-        headers,
-      });
+      let res = await fetch(`${MYSTORY_API}/drafts`, { headers });
 
-      // 🔥 2️⃣ fallback si backend pas encore déployé
+      // 🔥 fallback si backend pas encore déployé
       if (res.status === 404) {
         console.warn("Fallback vers /me");
-
-        res = await fetch(`${MYSTORY_API}/me`, {
-          headers,
-        });
+        res = await fetch(`${MYSTORY_API}/me`, { headers });
       }
 
       if (!res.ok) {
@@ -121,6 +117,16 @@ export default function MyStory() {
   async function saveDraft() {
     if (!token) return;
 
+    if (!title.trim()) {
+      alert("Le titre est obligatoire");
+      return;
+    }
+
+    if (selectedTags.length === 0) {
+      alert("Ajoute au moins un tag");
+      return;
+    }
+
     if (body.trim().length < 30) {
       alert("Écris encore un peu.");
       return;
@@ -166,6 +172,16 @@ export default function MyStory() {
       return;
     }
 
+    if (!title.trim()) {
+      alert("Le titre est obligatoire");
+      return;
+    }
+
+    if (selectedTags.length === 0) {
+      alert("Ajoute au moins un tag");
+      return;
+    }
+
     const res = await fetch(
       `${MYSTORY_API}/${currentDraftId}/publish`,
       {
@@ -188,12 +204,14 @@ export default function MyStory() {
 
   return (
     <div className="story-editor-page">
-      {/* 🔥 BOUTON RETOUR */}
+
+      {/* 🔥 BACK */}
       <button className="back-btn" onClick={() => navigate("/")}>
         ←
       </button>
 
       <div className="editor-card">
+
         <header className="editor-header">
           <h1>Mon histoire</h1>
 
@@ -202,10 +220,10 @@ export default function MyStory() {
           </button>
         </header>
 
-        {/* TITRE */}
+        {/* 🔥 TITRE OBLIGATOIRE */}
         <input
           className="title-input"
-          placeholder="Titre (optionnel)"
+          placeholder="Titre (obligatoire)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
@@ -223,7 +241,9 @@ export default function MyStory() {
           {TAGS.map((tag) => (
             <button
               key={tag}
-              className={`tag ${selectedTags.includes(tag) ? "on" : ""}`}
+              className={`tag ${
+                selectedTags.includes(tag) ? "on" : ""
+              }`}
               onClick={() => toggleTag(tag)}
             >
               {tag}
