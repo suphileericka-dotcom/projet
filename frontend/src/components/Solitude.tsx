@@ -328,7 +328,7 @@ export default function Solitude({ isAuth }: SolitudeProps) {
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Cet espace est anonyme et bienveillant.
+          Un espace pour parler sans rester seul face au silence.
         </div>
 
         {note && (

@@ -304,7 +304,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Espace anonyme et respectueux.
+          Un espace pour deposer la peine et avancer apres la rupture.
         </div>
 
         {messages.map((m) => (

@@ -197,7 +197,7 @@ export default function RoomChat({
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          🔒 Pour garantir l’anonymat, les messages vocaux sont transformés en voix IA.
+          Pour proteger l'anonymat, les messages vocaux sont transformes en voix IA.
         </div>
 
         {messages.map((m) => (

@@ -292,7 +292,7 @@ export default function Burnout({ isAuth }: BurnoutProps) {
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Cet espace est anonyme et bienveillant.
+          Un espace pour parler de fatigue, de surcharge et retrouver un peu d'air.
         </div>
 
         {messages.map((m) => (

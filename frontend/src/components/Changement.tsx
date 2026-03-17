@@ -290,7 +290,7 @@ export default function Changement({ isAuth }: ChangementProps) {
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Espace anonyme et bienveillant.
+          Un espace pour traverser le changement a ton rythme.
         </div>
 
         {messages.map((m) => (

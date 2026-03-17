@@ -293,7 +293,7 @@ export default function Expatriation({ isAuth }: ExpatriationProps) {
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Espace anonyme et bienveillant.
+          Un espace pour parler du depart, du manque et de l'adaptation.
         </div>
 
         {messages.map((m) => (
