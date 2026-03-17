@@ -311,14 +311,19 @@
    MODAL
 ===================== */
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
+.modal {
+  width: 420px;
+  border-radius: 20px;
+  padding: 1.5rem;
 
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  background: #ffffff;
+  color: #020617; /* 🔥 TEXTE NOIR */
+
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+
+.modal * {
+  color: #020617;
 }
 
 .modal {
@@ -341,24 +346,18 @@
   padding: 12px;
   border-radius: 12px;
 
-  background: rgba(255,255,255,0.04);
-  margin-bottom: 8px;
+  background: #f8fafc;
+  color: #020617;
 }
 
 .draft-title {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
+  color: #020617;
+  font-weight: 600;
 }
 
 .draft-delete {
-  background: rgba(239,68,68,0.2);
-  color: #f87171;
-  border: none;
-  border-radius: 999px;
-  padding: 6px 10px;
-  cursor: pointer;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .modal .close {
