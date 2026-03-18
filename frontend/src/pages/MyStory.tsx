@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/myStory.css";
-
-/* 🔥 IMPORT API GLOBAL */
 import { API } from "../config/api";
-
-/* =====================
-   TYPES
-===================== */
 
 const TAGS = [
   "burnout",
@@ -34,7 +28,6 @@ type Draft = {
   tags: Tag[];
 };
 
-/* 🔥 API CENTRALISÉE */
 const MYSTORY_API = `${API}/mystory`;
 
 export default function MyStory() {
@@ -45,13 +38,8 @@ export default function MyStory() {
   const [body, setBody] = useState("");
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [showDrafts, setShowDrafts] = useState(false);
-
-  /* =====================
-     TAGS
-  ===================== */
 
   function toggleTag(tag: Tag) {
     setSelectedTags((prev) =>
@@ -60,10 +48,6 @@ export default function MyStory() {
         : [...prev, tag]
     );
   }
-
-  /* =====================
-     FETCH DRAFTS (avec fallback)
-  ===================== */
 
   async function openDrafts() {
     if (!token) return;
@@ -75,7 +59,6 @@ export default function MyStory() {
 
       let res = await fetch(`${MYSTORY_API}/drafts`, { headers });
 
-      // 🔥 fallback si backend pas encore déployé
       if (res.status === 404) {
         console.warn("Fallback vers /me");
         res = await fetch(`${MYSTORY_API}/me`, { headers });
@@ -88,7 +71,6 @@ export default function MyStory() {
       const data = await res.json();
       setDrafts(data);
       setShowDrafts(true);
-
     } catch (err) {
       console.error("Erreur fetch drafts", err);
     }
@@ -111,16 +93,12 @@ export default function MyStory() {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    setDrafts((d) => d.filter((x) => x.id !== id));
+    setDrafts((current) => current.filter((draft) => draft.id !== id));
 
     if (currentDraftId === id) {
       clearEditor();
     }
   }
-
-  /* =====================
-     SAVE
-  ===================== */
 
   async function saveDraft() {
     if (!token) return;
@@ -170,10 +148,6 @@ export default function MyStory() {
     setSelectedTags([]);
   }
 
-  /* =====================
-     PUBLISH
-  ===================== */
-
   async function publish() {
     if (!token || !currentDraftId) {
       alert("Sélectionne ou enregistre un brouillon d’abord.");
@@ -190,13 +164,10 @@ export default function MyStory() {
       return;
     }
 
-    const res = await fetch(
-      `${MYSTORY_API}/${currentDraftId}/publish`,
-      {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    const res = await fetch(`${MYSTORY_API}/${currentDraftId}/publish`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     if (!res.ok) {
       alert("Erreur lors de la publication");
@@ -206,29 +177,26 @@ export default function MyStory() {
     navigate("/story");
   }
 
-  /* =====================
-     RENDER
-  ===================== */
-
   return (
     <div className="story-editor-page">
-
-      {/* 🔥 BACK */}
       <button className="back-btn" onClick={() => navigate("/")}>
         ←
       </button>
 
       <div className="editor-card">
-
         <header className="editor-header">
-          <h1>Mon histoire</h1>
+          <div>
+            <h1>Mon histoire</h1>
+            <p className="editor-intro">
+              Prépare ton brouillon ici, puis publie-le quand il est prêt.
+            </p>
+          </div>
 
           <button className="drafts-btn" onClick={openDrafts}>
             Mes brouillons
           </button>
         </header>
 
-        {/* 🔥 TITRE OBLIGATOIRE */}
         <input
           className="title-input"
           placeholder="Titre (obligatoire)"
@@ -236,7 +204,6 @@ export default function MyStory() {
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        {/* TEXTE */}
         <textarea
           className="body-textarea"
           placeholder="Écris ton histoire…"
@@ -244,7 +211,6 @@ export default function MyStory() {
           onChange={(e) => setBody(e.target.value)}
         />
 
-        {/* TAGS */}
         <div className="tags">
           {TAGS.map((tag) => (
             <button
@@ -259,7 +225,6 @@ export default function MyStory() {
           ))}
         </div>
 
-        {/* ACTIONS */}
         <div className="actions">
           <button className="btn ghost" onClick={saveDraft}>
             Enregistrer
@@ -271,10 +236,6 @@ export default function MyStory() {
         </div>
       </div>
 
-      {/* =====================
-         MODAL BROUILLONS
-      ===================== */}
-
       {showDrafts && (
         <div className="modal-backdrop">
           <div className="modal">
@@ -282,28 +243,25 @@ export default function MyStory() {
 
             {drafts.length === 0 && <p>Aucun brouillon</p>}
 
-            {drafts.map((d) => (
-              <div key={d.id} className="draft-row">
+            {drafts.map((draft) => (
+              <div key={draft.id} className="draft-row">
                 <button
                   className="draft-title"
-                  onClick={() => selectDraft(d)}
+                  onClick={() => selectDraft(draft)}
                 >
-                  {d.title || "Sans titre"}
+                  {draft.title || "Sans titre"}
                 </button>
 
                 <button
                   className="draft-delete"
-                  onClick={() => deleteDraft(d.id)}
+                  onClick={() => deleteDraft(draft.id)}
                 >
                   Supprimer
                 </button>
               </div>
             ))}
 
-            <button
-              className="close"
-              onClick={() => setShowDrafts(false)}
-            >
+            <button className="close" onClick={() => setShowDrafts(false)}>
               Fermer
             </button>
           </div>
