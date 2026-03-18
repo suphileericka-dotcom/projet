@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/match.css";
+import { API } from "../config/api";
 
-/* =====================
-   API BASE (SAFE)
-===================== */
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-/* =====================
-   TYPES
-===================== */
 type MatchProfile = {
   id: string;
   summary: string;
@@ -17,62 +10,71 @@ type MatchProfile = {
   avatar?: string;
 };
 
-/* =====================
-   COMPONENT
-===================== */
+type MatchResponse = {
+  match_date?: string;
+  generated?: boolean;
+  items?: MatchProfile[];
+};
+
 export default function Match() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
 
   const [matches, setMatches] = useState<MatchProfile[]>([]);
+  const [matchDate, setMatchDate] = useState<string | null>(null);
+  const [generated, setGenerated] = useState<boolean | null>(null);
   const [payTarget, setPayTarget] = useState<MatchProfile | null>(null);
   const [payLoading, setPayLoading] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
-  /* =====================
-     LOAD MATCHES
-  ===================== */
   useEffect(() => {
     if (!token) return;
 
     async function fetchMatches() {
       try {
-        const res = await fetch(`${API}/api/match`, {
+        const res = await fetch(`${API}/match`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) throw new Error();
 
-        const data = await res.json();
-        setMatches(data);
+        const data: MatchResponse | MatchProfile[] = await res.json();
+
+        if (Array.isArray(data)) {
+          setMatches(data);
+          setMatchDate(null);
+          setGenerated(null);
+          return;
+        }
+
+        setMatches(data.items ?? []);
+        setMatchDate(data.match_date ?? null);
+        setGenerated(typeof data.generated === "boolean" ? data.generated : null);
       } catch {
         setMatches([]);
+        setMatchDate(null);
+        setGenerated(null);
       }
     }
 
     fetchMatches();
   }, [token]);
 
-  /* =====================
-     OPEN PRIVATE CHAT
-  ===================== */
   async function openPrivateChat(profile: MatchProfile) {
     if (!token) return;
 
     try {
-      const accessRes = await fetch(
-        `${API}/api/dm/access/${profile.id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const accessRes = await fetch(`${API}/dm/access/${profile.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!accessRes.ok) throw new Error();
 
       const access = await accessRes.json();
 
       if (access.allowed) {
-        const threadRes = await fetch(`${API}/api/dm/threads`, {
+        const threadRes = await fetch(`${API}/dm/threads`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -95,17 +97,14 @@ export default function Match() {
     }
   }
 
-  /* =====================
-     STRIPE PAYMENT
-  ===================== */
-  async function payWithStripe() {
+  async function payOnce() {
     if (!token || !payTarget) return;
 
     setPayLoading(true);
     setPayError(null);
 
     try {
-      const res = await fetch(`${API}/api/payments/dm`, {
+      const res = await fetch(`${API}/payments/dm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -117,22 +116,14 @@ export default function Match() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error);
 
-      if (data.alreadyPaid) {
-        const threadRes = await fetch(`${API}/api/dm/threads`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ targetUserId: payTarget.id }),
-        });
-
-        const { id } = await threadRes.json();
-        navigate(`/private-chat?thread=${id}`);
+      if (data.url) {
+        window.location.href = data.url;
         return;
       }
 
-      window.location.href = data.url;
+      if (data.alreadyPaid) {
+        await openPrivateChat(payTarget);
+      }
     } catch (e: any) {
       setPayError(e?.message || "Erreur paiement");
     } finally {
@@ -140,9 +131,36 @@ export default function Match() {
     }
   }
 
-  /* =====================
-     RENDER
-  ===================== */
+  async function subscribeDm() {
+    if (!token) return;
+
+    setSubscriptionLoading(true);
+    setPayError(null);
+
+    try {
+      const res = await fetch(`${API}/payments/dm/subscription`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      if (payTarget) {
+        await openPrivateChat(payTarget);
+      }
+    } catch (e: any) {
+      setPayError(e?.message || "Erreur abonnement");
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }
+
   return (
     <div className="match-root">
       <header className="match-header">
@@ -151,21 +169,26 @@ export default function Match() {
         </button>
         <h1>Connexions humaines</h1>
         <p>Des personnes proches de ton vécu</p>
+        <div className="match-meta">
+          <span>Date match : {matchDate || "—"}</span>
+          <span>
+            {generated === null
+              ? "Statut inconnu"
+              : generated
+                ? "Généré aujourd’hui"
+                : "Cache backend"}
+          </span>
+        </div>
       </header>
 
       <main className="match-list">
         {matches.length === 0 && (
-          <p className="empty">
-            Aucun profil similaire pour l’instant.
-          </p>
+          <p className="empty">Aucun profil similaire pour l’instant.</p>
         )}
 
         {matches.map((m) => (
           <div key={m.id} className="match-card">
-            <img
-              src={m.avatar || "/avatar.png"}
-              className="avatar-lg"
-            />
+            <img src={m.avatar || "/avatar.png"} className="avatar-lg" />
             <p className="summary">“{m.summary}”</p>
 
             <div className="tags">
@@ -177,15 +200,11 @@ export default function Match() {
             </div>
 
             <div className="actions">
-              <button onClick={() => openPrivateChat(m)}>
-                💬 Message privé
-              </button>
+              <button onClick={() => openPrivateChat(m)}>Message privé</button>
 
               <button
                 className="ghost"
-                onClick={() =>
-                  navigate(`/chat/${m.common_tags[0]}`)
-                }
+                onClick={() => navigate(`/chat/${m.common_tags[0]}`)}
               >
                 Discussion liée
               </button>
@@ -194,47 +213,32 @@ export default function Match() {
         ))}
       </main>
 
-      {/* PAYMENT MODAL */}
       {payTarget && (
-        <div
-          className="modal-backdrop"
-          onClick={() => setPayTarget(null)}
-        >
-          <div
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3>Débloquer message privé</h3>
+        <div className="modal-backdrop" onClick={() => setPayTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Accès privé requis</h3>
             <p>
-              Pour contacter cette personne en privé,
-              il faut débloquer l’accès (4,99€).
-              <br />
-              Paiement sécurisé.
+              Tu peux débloquer ce DM pour 4,99 € ou prendre l’abonnement DM à
+              9,75 €.
             </p>
 
-            {payError && (
-              <div className="pay-error">{payError}</div>
-            )}
+            {payError && <div className="pay-error">{payError}</div>}
 
             <div className="pay-options">
-              <button
-                onClick={payWithStripe}
-                disabled={payLoading}
-              >
-                {payLoading
-                  ? "Redirection..."
-                  : "Carte / Apple Pay (Stripe)"}
+              <button onClick={payOnce} disabled={payLoading}>
+                {payLoading ? "Redirection..." : "Paiement unique 4,99 €"}
               </button>
 
-              <button className="disabled" disabled>
-                PayPal (bientôt)
+              <button
+                className="ghost"
+                onClick={subscribeDm}
+                disabled={subscriptionLoading}
+              >
+                {subscriptionLoading ? "Redirection..." : "Abonnement 9,75 €"}
               </button>
             </div>
 
-            <button
-              className="ghost"
-              onClick={() => setPayTarget(null)}
-            >
+            <button className="ghost subtle" onClick={() => setPayTarget(null)}>
               Annuler
             </button>
           </div>

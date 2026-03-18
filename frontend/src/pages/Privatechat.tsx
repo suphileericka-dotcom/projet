@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "../style/privateChat.css";
+import { API } from "../config/api";
 
 type Thread = {
   id: string;
@@ -21,7 +22,6 @@ type Msg = {
 
 export default function PrivateChat() {
   const navigate = useNavigate();
-
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
 
@@ -29,19 +29,18 @@ export default function PrivateChat() {
   const initialThread = params.get("thread");
 
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThread);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(
+    initialThread
+  );
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
 
   const streamRef = useRef<HTMLDivElement>(null);
 
-  // =====================
-  // LOAD THREADS
-  // =====================
   const loadThreads = useCallback(async () => {
     if (!token) return;
 
-    const res = await fetch("http://localhost:8000/api/dm/threads", {
+    const res = await fetch(`${API}/dm/threads`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -57,21 +56,15 @@ export default function PrivateChat() {
     }
   }, [token, activeThreadId]);
 
-  // =====================
-  // LOAD MESSAGES
-  // =====================
   const loadMessages = useCallback(
     async (threadId: string) => {
       if (!token) return;
 
-      const res = await fetch(
-        `http://localhost:8000/api/dm/threads/${threadId}/messages`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${API}/dm/threads/${threadId}/messages`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!res.ok) return;
 
@@ -81,9 +74,6 @@ export default function PrivateChat() {
     [token]
   );
 
-  // =====================
-  // EFFECTS
-  // =====================
   useEffect(() => {
     loadThreads();
   }, [loadThreads]);
@@ -93,7 +83,6 @@ export default function PrivateChat() {
     loadMessages(activeThreadId);
   }, [activeThreadId, loadMessages]);
 
-  // autoscroll
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
@@ -101,9 +90,6 @@ export default function PrivateChat() {
     });
   }, [messages]);
 
-  // =====================
-  // SEND MESSAGE
-  // =====================
   async function send() {
     if (!token || !activeThreadId) return;
 
@@ -112,17 +98,14 @@ export default function PrivateChat() {
 
     setInput("");
 
-    const res = await fetch(
-      `http://localhost:8000/api/dm/threads/${activeThreadId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ body: text }),
-      }
-    );
+    const res = await fetch(`${API}/dm/threads/${activeThreadId}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ body: text }),
+    });
 
     if (!res.ok) {
       alert("Message non envoyé");
@@ -133,17 +116,11 @@ export default function PrivateChat() {
     await loadThreads();
   }
 
-  // =====================
-  // DERIVED STATE
-  // =====================
   const activeThread = useMemo(
     () => threads.find((t) => t.id === activeThreadId) || null,
     [threads, activeThreadId]
   );
 
-  // =====================
-  // RENDER
-  // =====================
   return (
     <div className="pc-root">
       <header className="pc-topbar">
@@ -162,7 +139,6 @@ export default function PrivateChat() {
       </header>
 
       <div className="pc-layout">
-        {/* SIDEBAR */}
         <aside className="pc-sidebar">
           <div className="pc-sidebar-title">Conversations</div>
 
@@ -187,9 +163,7 @@ export default function PrivateChat() {
                     {t.otherName || t.otherUserId}
                     <span className={`pc-dot ${t.online ? "on" : "off"}`} />
                   </div>
-                  <div className="pc-thread-last">
-                    {t.lastMessage || "—"}
-                  </div>
+                  <div className="pc-thread-last">{t.lastMessage || "—"}</div>
                 </div>
               </div>
 
@@ -200,7 +174,6 @@ export default function PrivateChat() {
           ))}
         </aside>
 
-        {/* CHAT */}
         <main className="pc-chat">
           {!activeThreadId ? (
             <div className="pc-empty">Choisis une conversation.</div>
@@ -210,9 +183,7 @@ export default function PrivateChat() {
                 {messages.map((m) => (
                   <div
                     key={m.id}
-                    className={`pc-msg ${
-                      m.sender_id === myUserId ? "me" : "them"
-                    }`}
+                    className={`pc-msg ${m.sender_id === myUserId ? "me" : "them"}`}
                   >
                     <div className="pc-bubble">{m.body}</div>
                     <div className="pc-time">

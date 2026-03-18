@@ -30,6 +30,7 @@ import MyStory from "./pages/MyStory";
 import MySpace from "./pages/MySpace";
 import Stories from "./pages/Stories";
 import Match from "./pages/Match";
+import PrivateChat from "./pages/Privatechat";
 
 /* =====================
    AUTH UTILS
@@ -185,6 +186,10 @@ export default function App() {
       <Route
         path="/match"
         element={isAuth ? <Match /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/private-chat"
+        element={isAuth ? <PrivateChat /> : <Navigate to="/login" />}
       />
 
       {/* CHATS */}

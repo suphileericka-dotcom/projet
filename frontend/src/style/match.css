@@ -13,6 +13,16 @@
   margin-bottom: 40px;
 }
 
+.match-meta {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+}
+
 .match-title h1 {
   font-size: 32px;
   font-weight: 800;
@@ -113,4 +123,60 @@
 
 .actions .ghost {
   background: #f1f5f9;
+}
+
+.empty {
+  text-align: center;
+  opacity: 0.86;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  background: white;
+  color: #020617;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 25px 70px rgba(2, 6, 23, 0.4);
+}
+
+.pay-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pay-options button,
+.modal .subtle {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.pay-options .ghost,
+.modal .subtle {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.pay-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #991b1b;
 }
