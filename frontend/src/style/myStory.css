@@ -255,20 +255,26 @@
   bottom: 40px;
   padding: 14px 28px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
+  background: linear-gradient(135deg, #f8fafc, #dbeafe);
+  color: #0f172a;
   font-weight: 600;
   font-size: 16px;
-  box-shadow: 0 12px 30px rgba(59, 130, 246, 0.4);
-  transition: all 0.2s ease;
+  border: 1px solid rgba(191, 219, 254, 0.95);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.24);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .story-btn-primary:hover {
   transform: translateY(-2px);
+  background: linear-gradient(135deg, #ffffff, #bfdbfe);
+  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.28);
 }
 
 .story-btn-primary:active {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, #e2e8f0, #93c5fd);
 }
 
 .modal-backdrop {
