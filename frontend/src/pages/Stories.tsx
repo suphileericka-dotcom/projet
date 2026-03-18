@@ -86,6 +86,31 @@ export default function Stories() {
     }
   }
 
+  async function deleteStory(id: string) {
+    if (!token) return;
+    if (!confirm("Supprimer cette histoire publiée ?")) return;
+
+    try {
+      const res = await fetch(`${API}/stories/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        alert("Erreur lors de la suppression");
+        return;
+      }
+
+      setStories((prev) => prev.filter((s) => s.id !== id));
+      setActiveStory((prev) => (prev?.id === id ? null : prev));
+    } catch (err) {
+      console.error("Erreur suppression story:", err);
+      alert("Erreur lors de la suppression");
+    }
+  }
+
   /* =====================
      RENDER
   ===================== */
@@ -166,7 +191,6 @@ export default function Stories() {
               <p>{activeStory.body}</p>
 
               <div className="reader-actions">
-
                 <button
                   onClick={() => likeStory(activeStory.id)}
                 >
@@ -181,6 +205,15 @@ export default function Stories() {
                 >
                   Discussion liée
                 </button>
+
+                {activeStory.user_id === myUserId && (
+                  <button
+                    className="danger"
+                    onClick={() => deleteStory(activeStory.id)}
+                  >
+                    Supprimer
+                  </button>
+                )}
 
               </div>
             </>

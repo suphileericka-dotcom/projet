@@ -153,6 +153,30 @@
   margin-bottom: 14px;
 }
 
+.reader-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reader-actions button {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-actions .ghost {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.reader-actions .danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 /* =====================
    COMMENTS
 ===================== */
