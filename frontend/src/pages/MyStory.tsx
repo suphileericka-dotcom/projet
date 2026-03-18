@@ -226,11 +226,11 @@ export default function MyStory() {
         </div>
 
         <div className="actions">
-          <button className="btn ghost" onClick={saveDraft}>
+          <button className="story-btn story-btn-ghost" onClick={saveDraft}>
             Enregistrer
           </button>
 
-          <button className="btn primary" onClick={publish}>
+          <button className="story-btn story-btn-primary" onClick={publish}>
             Publier
           </button>
         </div>
