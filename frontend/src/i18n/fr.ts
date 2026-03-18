@@ -28,6 +28,9 @@ export default {
   connections: "Connexions humaines",
   connectionsDesc: "Personnes vivant des situations proches",
 
+  journal: "Journal guidé",
+  journalDesc: "Écrire en sécurité avec un accompagnement",
+
   /* =====================
      ESPACES DE DISCUSSION
   ===================== */

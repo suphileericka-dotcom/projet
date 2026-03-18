@@ -31,6 +31,7 @@ import MySpace from "./pages/MySpace";
 import Stories from "./pages/Stories";
 import Match from "./pages/Match";
 import PrivateChat from "./pages/Privatechat";
+import Journal from "./pages/Journal";
 
 /* =====================
    AUTH UTILS
@@ -155,6 +156,13 @@ export default function App() {
               variant="match"
               onClick={() => navigate("/match")}
             />
+
+            <ChatCard
+              title={t("journal")}
+              description={t("journalDesc")}
+              variant="ai"
+              onClick={() => navigate("/journal")}
+            />
           </section>
         )}
 
@@ -190,6 +198,10 @@ export default function App() {
       <Route
         path="/private-chat"
         element={isAuth ? <PrivateChat /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/journal"
+        element={isAuth ? <Journal /> : <Navigate to="/login" />}
       />
 
       {/* CHATS */}

@@ -28,6 +28,9 @@ export default {
   connections: "Menschliche Verbindungen",
   connectionsDesc: "Menschen mit ähnlichen Erfahrungen",
 
+  journal: "Geführtes Journal",
+  journalDesc: "Sicher schreiben mit Begleitung",
+
   
   /* =====================
      ESPACES DE DISCUSSION

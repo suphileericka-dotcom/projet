@@ -1,0 +1,171 @@
+.journal-page {
+  min-height: 100vh;
+  padding: 72px 20px 40px;
+  background:
+    radial-gradient(circle at top, rgba(34, 197, 94, 0.28), transparent 32%),
+    linear-gradient(180deg, #f3fff7 0%, #ecfdf5 46%, #dcfce7 100%);
+  color: #14532d;
+}
+
+.journal-back {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(20, 83, 45, 0.12);
+  color: #14532d;
+  cursor: pointer;
+}
+
+.journal-hero,
+.journal-layout {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.journal-hero {
+  margin-bottom: 28px;
+}
+
+.journal-hero h1 {
+  margin: 0 0 10px;
+  font-size: 38px;
+}
+
+.journal-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: #166534;
+}
+
+.journal-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 20px;
+}
+
+.journal-editor,
+.journal-feed {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(20, 83, 45, 0.08);
+  border-radius: 28px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(20, 83, 45, 0.08);
+}
+
+.editor-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.editor-top h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.editor-top select,
+.editor-top span {
+  border-radius: 999px;
+  padding: 10px 14px;
+  border: 1px solid rgba(20, 83, 45, 0.12);
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.journal-editor textarea {
+  width: 100%;
+  min-height: 260px;
+  border: 1px solid rgba(20, 83, 45, 0.12);
+  border-radius: 20px;
+  padding: 18px;
+  resize: vertical;
+  box-sizing: border-box;
+  background: #fafffc;
+  color: #14532d;
+  font: inherit;
+}
+
+.journal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.journal-actions button {
+  border: none;
+  border-radius: 16px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.journal-actions .primary {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: white;
+}
+
+.journal-actions .ghost {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.journal-insight {
+  margin-top: 18px;
+  border-radius: 20px;
+  padding: 18px;
+  background: linear-gradient(135deg, #14532d, #166534);
+  color: #f0fdf4;
+}
+
+.journal-insight strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.journal-empty {
+  color: #166534;
+  opacity: 0.72;
+}
+
+.journal-card {
+  border-top: 1px solid rgba(20, 83, 45, 0.1);
+  padding: 16px 0;
+}
+
+.journal-card:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.journal-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.journal-card p {
+  margin: 0;
+  color: #166534;
+  line-height: 1.55;
+}
+
+.journal-chip {
+  margin-top: 12px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+@media (max-width: 900px) {
+  .journal-layout {
+    grid-template-columns: 1fr;
+  }
+}
