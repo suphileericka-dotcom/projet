@@ -1,7 +1,3 @@
-// =====================
-// PAGE INFO
-// =====================
-
 import { useNavigate } from "react-router-dom";
 import "../style/info.css";
 
@@ -10,9 +6,6 @@ export default function Info() {
 
   return (
     <div className="info-page">
-      {/* =====================
-          HEADER
-      ===================== */}
       <header className="info-header">
         <button className="back-button" onClick={() => navigate(-1)}>
           ←
@@ -20,121 +13,110 @@ export default function Info() {
         <h1>À propos</h1>
       </header>
 
-      {/* =====================
-          HERO
-      ===================== */}
       <section className="info-hero">
         <div className="info-icon">💬</div>
-        <h2>Espace de soutien anonyme</h2>
+        <h2>Un espace de soutien anonyme</h2>
         <p>
-          Un lieu sécurisé pour écrire, échanger et partager ce que vous
-          traversez, sans jugement et dans le respect.
+          Un lieu pour écrire, échanger, publier son histoire et créer des liens
+          de manière respectueuse, sans exposer son identité publiquement.
         </p>
       </section>
 
-      {/* =====================
-          LANGUES & TRADUCTION
-      ===================== */}
       <section className="info-card">
-        <h3>Langues et traduction</h3>
-        <p>
-          L’interface de l’application n’est pas encore entièrement traduite
-          dans toutes les langues.
-        </p>
-        <p>
-          En revanche, les messages échangés dans les espaces de discussion
-          peuvent être traduits afin de faciliter les échanges
-          entre utilisateurs.
-        </p>
-      </section>
-
-      {/* =====================
-          DISCUSSIONS
-      ===================== */}
-      <section className="info-card">
-        <h3>Fonctionnement des discussions</h3>
+        <h3>Ce que tu peux faire ici</h3>
         <ul className="info-list">
-          <li>
-            Chaque espace de discussion peut accueillir jusqu’à environ
-            1500 participants.
-          </li>
-          <li>
-            Les messages sont temporaires et sont automatiquement supprimés
-            après 24 heures.
-          </li>
-          <li>
-            Les échanges se font principalement en groupe, autour de thématiques
-            communes.
-          </li>
+          <li>Participer à des espaces de discussion thématiques en groupe.</li>
+          <li>Écrire des brouillons puis publier ton histoire si tu le souhaites.</li>
+          <li>Consulter ton espace personnel avec tes stats, amis, DM et stories récentes.</li>
+          <li>Recevoir des matchs du jour avec des profils proches de ton vécu.</li>
+          <li>Utiliser le journal guidé avec un éclairage IA ponctuel.</li>
         </ul>
       </section>
 
-      {/* =====================
-          MATCHS & CONNEXIONS
-      ===================== */}
       <section className="info-card">
-        <h3>Connexions et correspondances</h3>
-        <p>
-          L’application propose des correspondances entre personnes traversant
-          des situations similaires afin de favoriser des échanges plus
-          pertinents et humains.
-        </p>
-        <p>
-          Il est possible d’échanger en privé en dehors des discussions de
-          groupe. Cette fonctionnalité est optionnelle et payante.
-        </p>
+        <h3>Discussions de groupe</h3>
+        <ul className="info-list">
+          <li>Les échanges se font par thème : burnout, solitude, rupture, expatriation et changement de vie.</li>
+          <li>Le chat de groupe reste séparé des conversations privées.</li>
+          <li>Le ton attendu est simple : respect, bienveillance et discrétion.</li>
+        </ul>
+      </section>
 
-        <div className="pricing-box">
-          <h4>Discussion privée</h4>
-          <div className="price">4,99 €</div>
-          <p>
-            Accès à une conversation privée avec une personne de votre choix.
-          </p>
+      <section className="info-card">
+        <h3>Connexions privées</h3>
+        <p>
+          Les conversations privées passent par le système DM. Elles peuvent être
+          ouvertes avec une personne selon les règles d’accès prévues par la
+          plateforme.
+        </p>
+        <ul className="info-list">
+          <li>Accès si vous êtes amis.</li>
+          <li>Ou déblocage ponctuel d’un DM à 4,99 €.</li>
+          <li>Ou abonnement DM illimité à 9,75 € si activé.</li>
+        </ul>
+
+        <div className="pricing-grid">
+          <div className="pricing-box">
+            <h4>DM ponctuel</h4>
+            <div className="price">4,99 €</div>
+            <p>Débloque une conversation privée avec une personne.</p>
+          </div>
+
+          <div className="pricing-box accent">
+            <h4>Abonnement DM</h4>
+            <div className="price">9,75 €</div>
+            <p>Accès illimité aux DM selon l’état de l’abonnement.</p>
+          </div>
         </div>
       </section>
 
-      {/* =====================
-          HISTOIRES & ANONYMAT
-      ===================== */}
       <section className="info-card">
-        <h3>Histoires et anonymat</h3>
+        <h3>Histoires et brouillons</h3>
         <ul className="info-list">
-          <li>
-            Vous pouvez écrire et partager votre histoire personnelle de manière
-            totalement anonyme.
-          </li>
-          <li>
-            Les histoires publiées peuvent être likées et commentées par les
-            autres utilisateurs.
-          </li>
-          <li>
-            Aucune information personnelle n’est rendue publique.
-          </li>
+          <li>Tu peux enregistrer une histoire en brouillon avant publication.</li>
+          <li>Les brouillons se gèrent dans “Mon histoire”.</li>
+          <li>Les histoires publiées vivent dans l’espace public “Stories”.</li>
+          <li>Une publication peut être supprimée depuis la page des stories.</li>
         </ul>
       </section>
 
-      {/* =====================
-          RESPONSABILITÉ
-      ===================== */}
-      <section className="info-card warning">
-        <h3>Responsabilité</h3>
+      <section className="info-card">
+        <h3>Mon espace</h3>
         <p>
-          Cette application n’est pas un service médical et ne remplace en aucun
-          cas l’avis ou l’accompagnement d’un professionnel de santé.
-        </p>
-        <p>
-          En cas de détresse grave ou de danger immédiat, il est fortement
-          recommandé de contacter un proche, un professionnel ou les services
-          d’urgence.
+          “Mon espace” réunit ton profil, tes amis, les demandes reçues et
+          envoyées, tes DM récents, tes stories récentes, ton journal, tes
+          matchs du jour et l’état de tes déblocages ou abonnements.
         </p>
       </section>
 
-      {/* =====================
-          FOOTER
-      ===================== */}
+      <section className="info-card">
+        <h3>Langues et compréhension</h3>
+        <p>
+          L’interface continue d’évoluer, mais l’objectif reste de faciliter les
+          échanges entre personnes qui ne parlent pas toujours la même langue.
+        </p>
+        <p>
+          Certaines formulations peuvent encore évoluer avec les prochaines mises
+          à jour du produit.
+        </p>
+      </section>
+
+      <section className="info-card warning">
+        <h3>Important</h3>
+        <p>
+          Cette application n’est pas un service médical et ne remplace pas
+          l’avis d’un professionnel de santé.
+        </p>
+        <p>
+          En cas de danger immédiat, de détresse aiguë ou de risque pour toi ou
+          pour quelqu’un d’autre, contacte sans attendre un proche, un
+          professionnel ou les services d’urgence.
+        </p>
+      </section>
+
       <footer className="info-footer">
         <button onClick={() => navigate("/")}>Revenir à l’accueil</button>
-        <p>Anonymat • Bienveillance • Respect</p>
+        <p>Anonymat • Respect • Liens humains</p>
       </footer>
     </div>
   );

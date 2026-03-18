@@ -1,5 +1,5 @@
 .info-page {
-  max-width: 430px;
+  max-width: 860px;
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
@@ -17,14 +17,14 @@
 .info-header {
   display: flex;
   align-items: center;
-  padding: 16px;
+  padding: 20px 20px 12px;
   position: relative;
 }
 
 .info-header h1 {
   flex: 1;
   text-align: center;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -39,7 +39,7 @@
 /* Hero */
 .info-hero {
   text-align: center;
-  padding: 24px 16px;
+  padding: 32px 20px 24px;
 }
 
 .info-icon {
@@ -56,62 +56,93 @@
 }
 
 .info-hero h2 {
-  font-size: 20px;
-  margin-bottom: 6px;
+  font-size: 28px;
+  margin-bottom: 10px;
 }
 
 .info-hero p {
   color: #cbd5f5;
-  font-size: 14px;
+  font-size: 15px;
+  max-width: 680px;
+  margin: 0 auto;
+  line-height: 1.65;
 }
 
 /* Cards */
 .info-card {
   background: rgba(255, 255, 255, 0.95);
   color: #020617;
-  border-radius: 16px;
-  margin: 12px 16px;
-  padding: 16px;
+  border-radius: 22px;
+  margin: 14px 20px;
+  padding: 22px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
 
 .info-card.warning {
   border-left: 4px solid #dc2626;
+  background: #fff7f7;
 }
 
 .info-card h3 {
-  margin-bottom: 8px;
-  font-size: 16px;
+  margin: 0 0 10px;
+  font-size: 19px;
+}
+
+.info-card p {
+  margin: 0 0 12px;
+  line-height: 1.65;
+  color: #1e293b;
 }
 
 /* Lists */
 .info-list {
-  padding-left: 16px;
+  padding-left: 18px;
+  margin: 0;
 }
 
 .info-list li {
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 /* Pricing */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
 .pricing-box {
-  margin-top: 12px;
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 16px;
+  padding: 16px;
   background: #eef2ff;
+  border: 1px solid rgba(37, 99, 235, 0.08);
+}
+
+.pricing-box.accent {
+  background: #ecfeff;
+  border-color: rgba(8, 145, 178, 0.12);
+}
+
+.pricing-box h4,
+.price,
+.pricing-box p {
+  margin: 0;
 }
 
 .price {
+  font-size: 22px;
   font-weight: 700;
   color: #1d4ed8;
-  margin: 6px 0;
+  margin: 8px 0;
 }
 
 /* Footer */
 .info-footer {
   margin-top: auto;
-  padding: 16px;
+  padding: 20px;
   text-align: center;
 }
 
@@ -128,6 +159,25 @@
 }
 
 .info-footer p {
-  font-size: 12px;
+  font-size: 13px;
   color: #c7d2fe;
+}
+
+@media (max-width: 700px) {
+  .info-page {
+    max-width: 100%;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-card {
+    margin: 12px 14px;
+    padding: 18px;
+  }
+
+  .info-hero h2 {
+    font-size: 24px;
+  }
 }
