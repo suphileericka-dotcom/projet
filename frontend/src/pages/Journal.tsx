@@ -32,6 +32,8 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
+  const [journalUnavailable, setJournalUnavailable] = useState(false);
+  const [journalMessage, setJournalMessage] = useState<string | null>(null);
 
   async function loadEntries() {
     if (!token) {
@@ -44,16 +46,29 @@ export default function Journal() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) {
+      if (res.status === 404) {
+        setJournalUnavailable(true);
+        setJournalMessage(
+          "Le journal n’est pas encore disponible sur le backend déployé."
+        );
         setEntries([]);
         return;
       }
 
+      if (!res.ok) {
+        setEntries([]);
+        setJournalMessage("Impossible de charger le journal pour le moment.");
+        return;
+      }
+
       const data = await res.json();
+      setJournalUnavailable(false);
+      setJournalMessage(null);
       setEntries(Array.isArray(data) ? data : data.items ?? []);
     } catch (err) {
       console.error("Erreur journal:", err);
       setEntries([]);
+      setJournalMessage("Impossible de joindre le service journal.");
     } finally {
       setLoading(false);
     }
@@ -64,7 +79,7 @@ export default function Journal() {
   }, [token]);
 
   async function saveEntry() {
-    if (!token) return;
+    if (!token || journalUnavailable) return;
     if (!body.trim()) {
       alert("Écris quelque chose avant d’enregistrer.");
       return;
@@ -84,6 +99,14 @@ export default function Journal() {
 
       const data = await res.json().catch(() => null);
 
+      if (res.status === 404) {
+        setJournalUnavailable(true);
+        setJournalMessage(
+          "Le backend déployé ne propose pas encore l’enregistrement du journal."
+        );
+        return;
+      }
+
       if (!res.ok) {
         alert(data?.error || "Impossible d’enregistrer l’entrée");
         return;
@@ -98,7 +121,7 @@ export default function Journal() {
   }
 
   async function generateInsight() {
-    if (!token) return;
+    if (!token || journalUnavailable) return;
 
     const sourceText = body.trim() || entries[0]?.body?.trim() || "";
     if (!sourceText) {
@@ -119,6 +142,14 @@ export default function Journal() {
       });
 
       const data = await res.json().catch(() => null);
+
+      if (res.status === 404) {
+        setJournalUnavailable(true);
+        setJournalMessage(
+          "L’insight IA du journal n’est pas encore disponible sur ce déploiement."
+        );
+        return;
+      }
 
       if (!res.ok) {
         alert(data?.error || "Impossible de générer l’insight");
@@ -142,11 +173,22 @@ export default function Journal() {
         <p>Écris, garde une trace, et demande un éclairage ponctuel à l’IA.</p>
       </header>
 
+      {journalMessage && (
+        <div className="journal-banner">
+          <strong>Info backend</strong>
+          <span>{journalMessage}</span>
+        </div>
+      )}
+
       <div className="journal-layout">
-        <section className="journal-editor">
+        <section className={`journal-editor ${journalUnavailable ? "disabled" : ""}`}>
           <div className="editor-top">
             <h2>Nouvelle entrée</h2>
-            <select value={mood} onChange={(e) => setMood(e.target.value)}>
+            <select
+              value={mood}
+              onChange={(e) => setMood(e.target.value)}
+              disabled={journalUnavailable}
+            >
               <option value="calme">Calme</option>
               <option value="fatigue">Fatigue</option>
               <option value="stress">Stress</option>
@@ -159,16 +201,21 @@ export default function Journal() {
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Dépose ici ce que tu traverses aujourd’hui…"
+            disabled={journalUnavailable}
           />
 
           <div className="journal-actions">
-            <button className="primary" onClick={saveEntry} disabled={saving}>
+            <button
+              className="primary"
+              onClick={saveEntry}
+              disabled={saving || journalUnavailable}
+            >
               {saving ? "Enregistrement..." : "Enregistrer"}
             </button>
             <button
               className="ghost"
               onClick={generateInsight}
-              disabled={insightLoading}
+              disabled={insightLoading || journalUnavailable}
             >
               {insightLoading ? "Analyse..." : "Insight IA"}
             </button>
@@ -189,8 +236,13 @@ export default function Journal() {
           </div>
 
           {loading && <p className="journal-empty">Chargement…</p>}
-          {!loading && entries.length === 0 && (
+          {!loading && entries.length === 0 && !journalUnavailable && (
             <p className="journal-empty">Aucune entrée pour l’instant.</p>
+          )}
+          {!loading && journalUnavailable && (
+            <p className="journal-empty">
+              Le flux du journal apparaîtra ici dès que l’API sera disponible.
+            </p>
           )}
 
           {entries.map((entry) => (
