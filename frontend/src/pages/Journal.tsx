@@ -345,7 +345,7 @@ export default function Journal() {
     async function loadConversation() {
       if (!token) {
         setLoading(false);
-        setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir le journal.");
+        setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir ton journal.");
         return;
       }
 
@@ -429,7 +429,7 @@ export default function Journal() {
 
     const text = input.trim();
     if (!text) {
-      setErrorMessage("Ecris un message avant d'envoyer.");
+      setErrorMessage("Écris un message avant de l'envoyer.");
       return;
     }
 
@@ -479,7 +479,7 @@ export default function Journal() {
         );
         setInput(text);
         setErrorMessage(
-          extractErrorMessage(data, "Le journal est en pause pour le moment.")
+          extractErrorMessage(data, "Le journal est momentanément indisponible.")
         );
         return;
       }
@@ -546,7 +546,7 @@ export default function Journal() {
 
     if (!sourceText) {
       setErrorMessage(
-        "Ecris un brouillon ou envoie deja un message avant de demander un insight."
+        "Écris un brouillon ou envoie déjà un message avant de demander une analyse."
       );
       return;
     }
@@ -568,7 +568,7 @@ export default function Journal() {
 
       if (!res.ok) {
         setErrorMessage(
-          extractErrorMessage(data, "Impossible de generer l'insight rapide.")
+          extractErrorMessage(data, "Impossible de générer l'analyse pour le moment.")
         );
         return;
       }
@@ -577,10 +577,10 @@ export default function Journal() {
         readText(isRecord(data) ? data.insight : null) ||
         readText(isRecord(data) ? data.message : null);
 
-      setCompatInsight(nextInsight || "Aucun insight supplementaire n'a ete renvoye.");
+      setCompatInsight(nextInsight || "Aucune analyse complémentaire n'a été renvoyée.");
     } catch (error) {
       console.error("Erreur insight journal:", error);
-      setErrorMessage("Impossible de joindre l'insight rapide pour le moment.");
+      setErrorMessage("Impossible de joindre l'analyse pour le moment.");
     } finally {
       setInsightLoading(false);
     }
@@ -600,17 +600,17 @@ export default function Journal() {
 
       <header className="journal-hero">
         <div>
-          <h1>Journal guide</h1>
+          <h1>Journal guidé</h1>
           <p>
-            Envoie ce que tu traverses et laisse l'IA te repondre dans un vrai
-            fil de conversation.
+            Exprime ce que tu traverses et reçois une réponse de l'IA dans un
+            échange continu.
           </p>
         </div>
 
         <div className="journal-hero-chip">
           {isRateLimited
-            ? `Pause jusqu'a ${formatDateTime(rateLimit?.retryAt ?? null)}`
-            : `${messages.length} messages`}
+            ? `Disponible de nouveau à ${formatDateTime(rateLimit?.retryAt ?? null)}`
+            : `${messages.length} messages échangés`}
         </div>
       </header>
 
@@ -628,8 +628,8 @@ export default function Journal() {
               <div className="journal-empty-card">
                 <strong>La conversation est vide.</strong>
                 <p>
-                  Ecris ton premier message a l'IA pour lancer l'echange dans ce
-                  journal.
+                  Commence la conversation en écrivant quelques mots sur ce que
+                  tu ressens aujourd'hui.
                 </p>
               </div>
             )}
@@ -645,7 +645,7 @@ export default function Journal() {
                       ? "Toi"
                       : message.role === "assistant"
                         ? "IA"
-                        : "Systeme"}
+                        : "Système"}
                   </strong>
                   <small className="journal-message-time">
                     {formatDateTime(message.createdAt)}
@@ -661,19 +661,19 @@ export default function Journal() {
         <section className="journal-editor">
           <div className="editor-top">
             <h2>Ton message</h2>
-            <span>{isRateLimited ? "En pause" : sending ? "Envoi..." : "Pret"}</span>
+            <span>{isRateLimited ? "En pause" : sending ? "Envoi..." : "Prêt"}</span>
           </div>
 
           <p className="journal-side-copy">
-            Le bouton principal envoie maintenant ton message a l'IA et ajoute la
-            reponse directement dans le fil.
+            Écris librement. Chaque message reçoit une réponse de l'IA dans ce
+            même fil.
           </p>
 
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleComposerKeyDown}
-            placeholder="Ecris ici ce que tu ressens, ce que tu veux comprendre, ou la question a poser..."
+            placeholder="Décris ce que tu ressens, ce qui te préoccupe, ou la question que tu aimerais explorer..."
             disabled={!token || sending || isRateLimited}
           />
 
@@ -695,7 +695,7 @@ export default function Journal() {
               }}
               disabled={!token || insightLoading}
             >
-              {insightLoading ? "Analyse..." : "Insight rapide"}
+              {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
             </button>
           </div>
 
@@ -703,8 +703,8 @@ export default function Journal() {
 
           {isRateLimited && (
             <div className="journal-alert warning">
-              Reviens apres {formatDateTime(rateLimit?.retryAt ?? null)} pour
-              reprendre l'echange avec l'IA.
+              Tu pourras reprendre l'échange à partir de{" "}
+              {formatDateTime(rateLimit?.retryAt ?? null)}.
             </div>
           )}
 
@@ -713,13 +713,13 @@ export default function Journal() {
           )}
 
           <p className="journal-note">
-            Appuie sur Entree pour envoyer, ou Shift + Entree pour passer a la
-            ligne.
+            Appuie sur Entrée pour envoyer. Utilise Maj + Entrée pour revenir à
+            la ligne.
           </p>
 
           {compatInsight && (
             <div className="journal-insight">
-              <strong>Insight rapide</strong>
+              <strong>Analyse ponctuelle</strong>
               <p>{compatInsight}</p>
             </div>
           )}

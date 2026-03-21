@@ -170,13 +170,13 @@ export default function Match() {
         <h1>Connexions humaines</h1>
         <p>Des personnes proches de ton vécu</p>
         <div className="match-meta">
-          <span>Date match : {matchDate || "—"}</span>
+          <span>Date des suggestions : {matchDate || "—"}</span>
           <span>
             {generated === null
               ? "Statut inconnu"
               : generated
                 ? "Généré aujourd’hui"
-                : "Cache backend"}
+                : "Suggestions déjà prêtes"}
           </span>
         </div>
       </header>
