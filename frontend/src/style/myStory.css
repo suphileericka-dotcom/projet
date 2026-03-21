@@ -253,6 +253,8 @@
   position: fixed;
   right: 40px;
   bottom: 40px;
+  width: auto;
+  min-width: 160px;
   padding: 14px 28px;
   border-radius: 999px;
   background: linear-gradient(135deg, #f8fafc, #dbeafe);
@@ -359,9 +361,11 @@
   }
 
   .story-btn-primary {
+    left: auto;
     right: 16px;
-    left: 16px;
-    bottom: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 32px);
+    padding-inline: 22px;
   }
 
   .modal {
