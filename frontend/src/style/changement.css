@@ -121,10 +121,13 @@
   cursor: pointer;
 }
 
-.back-button-global {
+.chat-root.changement .back-button-global {
   position: fixed;
   top: 16px;
   left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -133,4 +136,6 @@
   border: none;
   font-size: 22px;
   cursor: pointer;
+  z-index: 20;
+  box-shadow: 0 14px 28px rgba(20, 184, 166, 0.28);
 }

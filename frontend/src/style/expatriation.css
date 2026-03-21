@@ -129,10 +129,13 @@
   cursor: pointer;
 }
 
-.back-button-global {
+.chat-root.expatriation .back-button-global {
   position: fixed;
   top: 16px;
   left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -141,5 +144,6 @@
   border: none;
   font-size: 22px;
   cursor: pointer;
-  z-index: 9999;
+  z-index: 20;
+  box-shadow: 0 14px 28px rgba(48, 140, 232, 0.3);
 }

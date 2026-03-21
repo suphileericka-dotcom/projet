@@ -13,6 +13,32 @@
   color: #f8fafc;
 }
 
+.page.stories-page .back-button-global {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 20;
+  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.26);
+}
+
+.page.stories-page .back-button-global:hover {
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.18);
+}
+
 /* =====================
    HEADER
 ===================== */

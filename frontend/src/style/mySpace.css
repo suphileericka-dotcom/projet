@@ -37,10 +37,13 @@
 }
 
 /* BACK BUTTON */
-.back-button-global {
+.page.myspace-page .back-button-global {
   position: fixed;
   top: 24px;
   left: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 52px;
   height: 52px;
   border-radius: 50%;
@@ -51,9 +54,11 @@
   font-size: 22px;
   cursor: pointer;
   transition: all 0.2s ease;
+  z-index: 20;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.24);
 }
 
-.back-button-global:hover {
+.page.myspace-page .back-button-global:hover {
   transform: scale(1.1);
 }
 
