@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
@@ -32,6 +32,14 @@ export default function Stories() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
 
+  const searchSuggestions = searchInput.trim()
+    ? stories
+        .filter((story) =>
+          story.title.toLowerCase().includes(searchInput.trim().toLowerCase())
+        )
+        .slice(0, 5)
+    : [];
+
   /* =====================
      LOAD STORIES
   ===================== */
@@ -60,6 +68,14 @@ export default function Stories() {
 
     fetchStories();
   }, [search, tagFilter]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   /* =====================
      LIKE
@@ -112,9 +128,15 @@ export default function Stories() {
     }
   }
 
-  function submitSearch(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    setSearch(searchInput.trim());
+  function clearSearch() {
+    setSearchInput("");
+    setSearch("");
+  }
+
+  function chooseSuggestion(story: Story) {
+    setSearchInput(story.title);
+    setSearch(story.title);
+    setActiveStory(story);
   }
 
   /* =====================
@@ -138,7 +160,7 @@ export default function Stories() {
 
       {/* SEARCH */}
       <div className="search-bar">
-        <form className="search-form" onSubmit={submitSearch}>
+        <div className="search-stack">
           <div className="search-field">
             <span className="search-icon" aria-hidden="true">
               🔎
@@ -148,12 +170,35 @@ export default function Stories() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
+
+            {searchInput && (
+              <button
+                type="button"
+                className="search-clear"
+                onClick={clearSearch}
+                aria-label="Effacer la recherche"
+              >
+                ×
+              </button>
+            )}
           </div>
 
-          <button type="submit" className="search-submit">
-            Lancer la recherche
-          </button>
-        </form>
+          {searchSuggestions.length > 0 && (
+            <div className="search-suggestions">
+              {searchSuggestions.map((story) => (
+                <button
+                  key={story.id}
+                  type="button"
+                  className="search-suggestion"
+                  onClick={() => chooseSuggestion(story)}
+                >
+                  <span>{story.title}</span>
+                  <small>{story.tags.map((tag) => `#${tag}`).join(" ")}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* TAG FILTER */}

@@ -190,23 +190,29 @@
   margin: 0 auto 18px;
 }
 
-.search-form {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+.search-stack {
+  display: grid;
+  gap: 10px;
 }
 
 .search-field {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
   min-width: 0;
   padding: 0 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-field:focus-within {
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 4px rgba(59, 130, 246, 0.12);
 }
 
 .search-icon {
@@ -233,22 +239,60 @@
   outline: none;
 }
 
-.search-submit {
+.search-clear {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 999px;
-  padding: 14px 18px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: #ffffff;
-  font-weight: 700;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  font-size: 22px;
+  line-height: 1;
   cursor: pointer;
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.search-submit:hover {
+.search-clear:hover {
+  background: rgba(255, 255, 255, 0.18);
   transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.34);
+}
+
+.search-suggestions {
+  display: grid;
+  gap: 8px;
+}
+
+.search-suggestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.search-suggestion:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.search-suggestion span {
+  font-weight: 600;
+}
+
+.search-suggestion small {
+  color: #c7d2fe;
 }
 
 .reader-actions button {
@@ -330,12 +374,9 @@
     max-height: none;
   }
 
-  .search-form {
+  .search-suggestion {
+    align-items: flex-start;
     flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-submit {
-    width: 100%;
+    gap: 6px;
   }
 }
