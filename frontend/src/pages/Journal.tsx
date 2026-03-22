@@ -849,62 +849,19 @@ export default function Journal() {
 
   return (
     <div className="journal-page">
-      <button className="journal-back" onClick={() => navigate("/")}>
-        Retour
-      </button>
+      <div className={`journal-app ${showArchivePanel ? "sidebar-open" : "sidebar-closed"}`}>
+        <button
+          className={`journal-sidebar-overlay ${showArchivePanel ? "open" : ""}`}
+          onClick={() => setShowArchivePanel(false)}
+          type="button"
+          aria-label="Fermer le panneau des discussions"
+        />
 
-      <header className="journal-hero">
-        <div>
-          <h1>Journal guide</h1>
-          <p>
-            Garde des discussions separees, retrouve tes echanges archives et
-            reprends chaque fil sans avoir a remonter toute la page.
-          </p>
-        </div>
-
-        <div className="journal-hero-actions">
-          <button
-            className="journal-hero-button ghost"
-            onClick={() => setShowArchivePanel((current) => !current)}
-            type="button"
-          >
-            {showArchivePanel ? "Masquer les discussions" : "Voir les discussions"}
-          </button>
-
-          <button
-            className="journal-hero-button primary"
-            onClick={startFreshConversation}
-            disabled={!canCreateNewDiscussion}
-            type="button"
-          >
-            Nouvelle discussion
-          </button>
-
-          <div className="journal-hero-chip">
-            {isRateLimited
-              ? `Disponible de nouveau a ${formatDateTime(rateLimit?.retryAt ?? null)}`
-              : `${messages.length} messages echanges`}
-          </div>
-        </div>
-      </header>
-
-      <div className={`journal-shell ${showArchivePanel ? "with-archives" : ""}`}>
-        {showArchivePanel && (
-          <aside className="journal-sidebar">
-            <div className="journal-sidebar-head">
-              <div>
-                <h2>Discussions</h2>
-                <p>{archives.length === 0 ? "Tes archives apparaissent ici." : archiveCountLabel}</p>
-              </div>
-
-              <button
-                className="journal-sidebar-close"
-                onClick={() => setShowArchivePanel(false)}
-                type="button"
-              >
-                Fermer
-              </button>
-            </div>
+        <aside className={`journal-sidebar ${showArchivePanel ? "open" : ""}`}>
+          <div className="journal-sidebar-topbar">
+            <button className="journal-nav-button" onClick={() => navigate("/")}>
+              Retour
+            </button>
 
             <button
               className="journal-sidebar-new"
@@ -912,125 +869,145 @@ export default function Journal() {
               disabled={!canCreateNewDiscussion}
               type="button"
             >
-              + Nouvelle discussion
+              Nouvelle discussion
             </button>
+          </div>
 
-            {archives.length === 0 ? (
-              <div className="journal-sidebar-empty">
-                <strong>Aucune discussion archivee.</strong>
-                <p>
-                  Des que tu entames un echange, il s'enregistre ici avec un titre
-                  genere a partir de ton premier message.
-                </p>
-              </div>
-            ) : (
-              <div className="journal-thread-list">
-                {archives.map((archive) => (
-                  <article
-                    key={archive.localId}
-                    className={`journal-thread-card ${
-                      archive.localId === activeArchiveId ? "active" : ""
-                    }`}
+          <div className="journal-sidebar-head">
+            <div>
+              <p className="journal-sidebar-kicker">Journal IA</p>
+              <h1>Discussions</h1>
+              <p>{archives.length === 0 ? "Tes archives apparaissent ici." : archiveCountLabel}</p>
+            </div>
+
+            <button
+              className="journal-sidebar-close"
+              onClick={() => setShowArchivePanel(false)}
+              type="button"
+            >
+              Fermer
+            </button>
+          </div>
+
+          {archives.length === 0 ? (
+            <div className="journal-sidebar-empty">
+              <strong>Aucune discussion archivee.</strong>
+              <p>
+                Des que tu entames un echange, il s'enregistre ici avec un titre
+                genere a partir de ton premier message.
+              </p>
+            </div>
+          ) : (
+            <div className="journal-thread-list">
+              {archives.map((archive) => (
+                <article
+                  key={archive.localId}
+                  className={`journal-thread-card ${
+                    archive.localId === activeArchiveId ? "active" : ""
+                  }`}
+                >
+                  <button
+                    className="journal-thread-main"
+                    onClick={() => openArchiveById(archive.localId)}
+                    type="button"
                   >
-                    <button
-                      className="journal-thread-main"
-                      onClick={() => openArchiveById(archive.localId)}
-                      type="button"
-                    >
-                      <strong>{archive.title}</strong>
-                      <p>{buildConversationPreview(archive.messages)}</p>
-                      <small>{formatDateTime(archive.updatedAt)}</small>
-                    </button>
+                    <strong>{archive.title}</strong>
+                    <p>{buildConversationPreview(archive.messages)}</p>
+                    <small>{formatDateTime(archive.updatedAt)}</small>
+                  </button>
 
-                    <button
-                      className="journal-thread-delete"
-                      onClick={() => deleteArchive(archive.localId)}
-                      type="button"
-                    >
-                      Supprimer
-                    </button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </aside>
-        )}
+                  <button
+                    className="journal-thread-delete"
+                    onClick={() => deleteArchive(archive.localId)}
+                    type="button"
+                  >
+                    Supprimer
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </aside>
 
-        <div className="journal-layout">
-          <section className="journal-feed">
-            <div className="editor-top">
-              <div className="journal-section-copy">
-                <h2>{currentConversationTitle}</h2>
-                <p>
-                  {activeArchive
-                    ? "Cette discussion est archivee automatiquement."
-                    : "Commence ici une nouvelle discussion."}
-                </p>
-              </div>
-
-              <div className="journal-top-actions">
+        <section className="journal-main">
+          <header className="journal-main-header">
+            <div className="journal-main-title">
+              <div className="journal-main-controls">
                 <button
-                  className="journal-inline-button"
+                  className="journal-menu-button"
                   onClick={() => setShowArchivePanel((current) => !current)}
                   type="button"
                 >
                   {showArchivePanel ? "Masquer" : "Discussions"}
                 </button>
-                <span>{messages.length}</span>
-              </div>
-            </div>
-
-            <div className="journal-stream" ref={streamRef}>
-              {loading && <p className="journal-empty">Chargement...</p>}
-
-              {!loading && messages.length === 0 && (
-                <div className="journal-empty-card">
-                  <strong>Aucune discussion active.</strong>
-                  <p>
-                    Lance une nouvelle conversation ou rouvre une discussion
-                    archivee pour retrouver tous tes echanges.
-                  </p>
-                </div>
-              )}
-
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`journal-message ${message.role}`}
+                <button
+                  className="journal-header-new"
+                  onClick={startFreshConversation}
+                  disabled={!canCreateNewDiscussion}
+                  type="button"
                 >
-                  <div className="journal-message-head">
-                    <strong className="journal-message-label">
-                      {message.role === "user"
-                        ? "Toi"
-                        : message.role === "assistant"
-                          ? "IA"
-                          : "Systeme"}
-                    </strong>
-                    <small className="journal-message-time">
-                      {formatDateTime(message.createdAt)}
-                    </small>
-                  </div>
-
-                  <div className="journal-message-bubble">{message.text}</div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="journal-editor">
-            <div className="editor-top">
-              <div className="journal-section-copy">
-                <h2>Ton message</h2>
-                <p>Reprends la discussion en cours ou demarre un nouveau fil.</p>
+                  Nouveau
+                </button>
               </div>
-              <span>{isRateLimited ? "En pause" : sending ? "Envoi..." : "Pret"}</span>
+
+              <h2>{currentConversationTitle}</h2>
+              <p>
+                {activeArchive
+                  ? "Retrouve ton echange et continue la discussion ici."
+                  : "Tout se passe dans ce meme espace, comme un vrai assistant."}
+              </p>
             </div>
 
-            <p className="journal-side-copy">
-              Chaque discussion garde son propre historique et se range
-              automatiquement dans tes archives.
-            </p>
+            <div className="journal-main-meta">
+              <div className="journal-top-chip">
+                {isRateLimited
+                  ? `Disponible de nouveau a ${formatDateTime(rateLimit?.retryAt ?? null)}`
+                  : `${messages.length} messages`}
+              </div>
 
+              {rateLimitLabel && !isRateLimited && (
+                <div className="journal-top-chip subtle">{rateLimitLabel}</div>
+              )}
+            </div>
+          </header>
+
+          <div className="journal-conversation" ref={streamRef}>
+            {loading && <p className="journal-empty">Chargement...</p>}
+
+            {!loading && messages.length === 0 && (
+              <div className="journal-empty-card chat-style">
+                <strong>Nouvelle discussion.</strong>
+                <p>
+                  Ecris ton premier message ci-dessous pour commencer, puis retrouve
+                  ce fil dans la liste des discussions.
+                </p>
+              </div>
+            )}
+
+            {messages.map((message) => (
+              <article
+                key={message.id}
+                className={`journal-message ${message.role}`}
+              >
+                <div className="journal-message-head">
+                  <strong className="journal-message-label">
+                    {message.role === "user"
+                      ? "Toi"
+                      : message.role === "assistant"
+                        ? "IA"
+                        : "Systeme"}
+                  </strong>
+                  <small className="journal-message-time">
+                    {formatDateTime(message.createdAt)}
+                  </small>
+                </div>
+
+                <div className="journal-message-bubble">{message.text}</div>
+              </article>
+            ))}
+          </div>
+
+          <div className="journal-composer">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -1039,7 +1016,7 @@ export default function Journal() {
               disabled={!token || sending || isRateLimited}
             />
 
-            <div className="journal-actions">
+            <div className="journal-composer-actions">
               <button
                 className="primary"
                 onClick={() => {
@@ -1070,23 +1047,21 @@ export default function Journal() {
               </div>
             )}
 
-            {rateLimitLabel && !isRateLimited && (
-              <div className="journal-meta">{rateLimitLabel}</div>
-            )}
-
-            <p className="journal-note">
-              Appuie sur Entree pour envoyer. Utilise Maj + Entree pour revenir a
-              la ligne.
-            </p>
-
             {compatInsight && (
               <div className="journal-insight">
                 <strong>Analyse ponctuelle</strong>
                 <p>{compatInsight}</p>
               </div>
             )}
-          </section>
-        </div>
+
+            <div className="journal-composer-footer">
+              <p className="journal-note">
+                Appuie sur Entree pour envoyer. Utilise Maj + Entree pour revenir a
+                la ligne.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
