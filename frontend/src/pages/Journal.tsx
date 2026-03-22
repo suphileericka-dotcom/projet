@@ -368,7 +368,7 @@ export default function Journal() {
   const canCreateNewDiscussion = !sending && !insightLoading;
 
   function shouldClosePanelAfterAction(): boolean {
-    return typeof window !== "undefined" && window.innerWidth < 1100;
+    return true;
   }
 
   function applyArchiveList(nextArchives: JournalArchive[]) {
@@ -841,207 +841,185 @@ export default function Journal() {
 
   return (
     <div className="journal-page">
-      <div className={`journal-app ${showArchivePanel ? "sidebar-open" : "sidebar-closed"}`}>
-        <button
-          className={`journal-sidebar-overlay ${showArchivePanel ? "open" : ""}`}
-          onClick={() => setShowArchivePanel(false)}
-          type="button"
-          aria-label="Fermer le panneau des discussions"
-        />
+      <div className="journal-app">
+        {showArchivePanel ? (
+          <section className="journal-list-screen">
+            <div className="journal-list-topbar">
+              <button className="journal-nav-button" onClick={() => navigate("/")}>
+                Retour
+              </button>
 
-        <aside className={`journal-sidebar ${showArchivePanel ? "open" : ""}`}>
-          <div className="journal-sidebar-topbar">
-            <button className="journal-nav-button" onClick={() => navigate("/")}>
-              Retour
-            </button>
+              <button
+                className="journal-sidebar-new"
+                onClick={startFreshConversation}
+                disabled={!canCreateNewDiscussion}
+                type="button"
+              >
+                Nouvelle discussion
+              </button>
+            </div>
 
-            <button
-              className="journal-sidebar-new"
-              onClick={startFreshConversation}
-              disabled={!canCreateNewDiscussion}
-              type="button"
-            >
-              Nouvelle discussion
-            </button>
-          </div>
-
-          <div className="journal-sidebar-head">
-            <div>
+            <div className="journal-list-header">
               <p className="journal-sidebar-kicker">Journal IA</p>
               <h1>Discussions</h1>
               <p>{archives.length === 0 ? "Tes archives apparaissent ici." : archiveCountLabel}</p>
             </div>
 
-            <button
-              className="journal-sidebar-close"
-              onClick={() => setShowArchivePanel(false)}
-              type="button"
-            >
-              Fermer
-            </button>
-          </div>
-
-          {archives.length === 0 ? (
-            <div className="journal-sidebar-empty">
-              <strong>Aucune discussion archivee.</strong>
-              <p>
-                Des que tu entames un echange, il s'enregistre ici avec un titre
-                genere a partir de ton premier message.
-              </p>
-            </div>
-          ) : (
-            <div className="journal-thread-list">
-              {archives.map((archive) => (
-                <article
-                  key={archive.localId}
-                  className={`journal-thread-card ${
-                    archive.localId === activeArchiveId ? "active" : ""
-                  }`}
-                >
-                  <button
-                    className="journal-thread-main"
-                    onClick={() => openArchiveById(archive.localId)}
-                    type="button"
+            {archives.length === 0 ? (
+              <div className="journal-sidebar-empty">
+                <strong>Aucune discussion archivee.</strong>
+                <p>
+                  Des que tu entames un echange, il s'enregistre ici avec un titre
+                  genere a partir de ton premier message.
+                </p>
+              </div>
+            ) : (
+              <div className="journal-thread-list journal-thread-list-page">
+                {archives.map((archive) => (
+                  <article
+                    key={archive.localId}
+                    className={`journal-thread-card ${
+                      archive.localId === activeArchiveId ? "active" : ""
+                    }`}
                   >
-                    <strong>{archive.title}</strong>
-                    <p>{buildConversationPreview(archive.messages)}</p>
-                    <small>{formatDateTime(archive.updatedAt)}</small>
-                  </button>
+                    <button
+                      className="journal-thread-main"
+                      onClick={() => openArchiveById(archive.localId)}
+                      type="button"
+                    >
+                      <strong>{archive.title}</strong>
+                      <p>{buildConversationPreview(archive.messages)}</p>
+                      <small>{formatDateTime(archive.updatedAt)}</small>
+                    </button>
 
-                  <button
-                    className="journal-thread-delete"
-                    onClick={() => deleteArchive(archive.localId)}
-                    type="button"
-                  >
-                    Supprimer
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-        </aside>
-
-        <section className="journal-main">
-          <header className="journal-main-header">
-            <div className="journal-main-title">
+                    <button
+                      className="journal-thread-delete"
+                      onClick={() => deleteArchive(archive.localId)}
+                      type="button"
+                    >
+                      Supprimer
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="journal-chat-screen">
+            <header className="journal-main-header">
               <div className="journal-main-controls">
                 <button
                   className="journal-menu-button"
-                  onClick={() => setShowArchivePanel((current) => !current)}
+                  onClick={() => setShowArchivePanel(true)}
                   type="button"
                 >
-                  {showArchivePanel ? "Masquer" : "Discussions"}
+                  Discussions
                 </button>
+
                 <button
                   className="journal-header-new"
                   onClick={startFreshConversation}
                   disabled={!canCreateNewDiscussion}
                   type="button"
+                  aria-label="Nouvelle discussion"
                 >
-                  Nouveau
+                  <span className="journal-header-new-text">Nouveau</span>
+                  <span className="journal-header-new-plus" aria-hidden="true">
+                    +
+                  </span>
                 </button>
               </div>
 
-              <h2>{currentConversationTitle}</h2>
-              <p>
-                {activeArchive
-                  ? "Retrouve ton echange et continue la discussion ici."
-                  : "Tout se passe dans ce meme espace, comme un vrai assistant."}
-              </p>
-            </div>
-          </header>
-
-          <div className="journal-conversation" ref={streamRef}>
-            {loading && <p className="journal-empty">Chargement...</p>}
-
-            {!loading && messages.length === 0 && (
-              <div className="journal-empty-card chat-style">
-                <strong>Nouvelle discussion.</strong>
-                <p>
-                  Ecris ton premier message ci-dessous pour commencer, puis retrouve
-                  ce fil dans la liste des discussions.
-                </p>
+              <div className="journal-main-title">
+                <h2>{currentConversationTitle}</h2>
+                {activeArchive && (
+                  <p>Retrouve ton echange et continue la discussion ici.</p>
+                )}
               </div>
-            )}
+            </header>
 
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`journal-message ${message.role}`}
-              >
-                <div className="journal-message-head">
-                  <strong className="journal-message-label">
-                    {message.role === "user"
-                      ? "Toi"
-                      : message.role === "assistant"
-                        ? "IA"
-                        : "Systeme"}
-                  </strong>
-                  <small className="journal-message-time">
-                    {formatDateTime(message.createdAt)}
-                  </small>
+            <div className="journal-conversation" ref={streamRef}>
+              {loading && <p className="journal-empty">Chargement...</p>}
+
+              {!loading && messages.length === 0 && (
+                <div className="journal-empty-card chat-style">
+                  <strong>Nouvelle discussion.</strong>
+                  <p>Ecris ton premier message ci-dessous pour commencer.</p>
                 </div>
+              )}
 
-                <div className="journal-message-bubble">{message.text}</div>
-              </article>
-            ))}
-          </div>
+              {messages.map((message) => (
+                <article
+                  key={message.id}
+                  className={`journal-message ${message.role}`}
+                >
+                  <div className="journal-message-head">
+                    <strong className="journal-message-label">
+                      {message.role === "user"
+                        ? "Toi"
+                        : message.role === "assistant"
+                          ? "IA"
+                          : "Systeme"}
+                    </strong>
+                    <small className="journal-message-time">
+                      {formatDateTime(message.createdAt)}
+                    </small>
+                  </div>
 
-          <div className="journal-composer">
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              placeholder="Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
-              disabled={!token || sending || isRateLimited}
-            />
-
-            <div className="journal-composer-actions">
-              <button
-                className="primary"
-                onClick={() => {
-                  void sendMessage();
-                }}
-                disabled={!token || sending || isRateLimited || !input.trim()}
-              >
-                {sending ? "Envoi..." : "Envoyer"}
-              </button>
-
-              <button
-                className="ghost"
-                onClick={() => {
-                  void generateCompatibilityInsight();
-                }}
-                disabled={!token || insightLoading}
-              >
-                {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
-              </button>
+                  <div className="journal-message-bubble">{message.text}</div>
+                </article>
+              ))}
             </div>
 
-            {errorMessage && <div className="journal-alert error">{errorMessage}</div>}
+            <div className="journal-composer">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder="Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
+                disabled={!token || sending || isRateLimited}
+              />
 
-            {isRateLimited && (
-              <div className="journal-alert warning">
-                Tu pourras reprendre l'echange a partir de{" "}
-                {formatDateTime(rateLimit?.retryAt ?? null)}.
+              <div className="journal-composer-actions">
+                <button
+                  className="primary"
+                  onClick={() => {
+                    void sendMessage();
+                  }}
+                  disabled={!token || sending || isRateLimited || !input.trim()}
+                >
+                  {sending ? "Envoi..." : "Envoyer"}
+                </button>
+
+                <button
+                  className="ghost"
+                  onClick={() => {
+                    void generateCompatibilityInsight();
+                  }}
+                  disabled={!token || insightLoading}
+                >
+                  {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
+                </button>
               </div>
-            )}
 
-            {compatInsight && (
-              <div className="journal-insight">
-                <strong>Analyse ponctuelle</strong>
-                <p>{compatInsight}</p>
-              </div>
-            )}
+              {errorMessage && <div className="journal-alert error">{errorMessage}</div>}
 
-            <div className="journal-composer-footer">
-              <p className="journal-note">
-                Appuie sur Entree pour envoyer. Utilise Maj + Entree pour revenir a
-                la ligne.
-              </p>
+              {isRateLimited && (
+                <div className="journal-alert warning">
+                  Tu pourras reprendre l'echange a partir de{" "}
+                  {formatDateTime(rateLimit?.retryAt ?? null)}.
+                </div>
+              )}
+
+              {compatInsight && (
+                <div className="journal-insight">
+                  <strong>Analyse ponctuelle</strong>
+                  <p>{compatInsight}</p>
+                </div>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
       </div>
     </div>
   );
