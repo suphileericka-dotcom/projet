@@ -6,7 +6,8 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 3rem 1rem 7rem;
+  padding: clamp(4.5rem, 8vw, 5.5rem) clamp(1rem, 2.5vw, 1.5rem)
+    calc(2rem + env(safe-area-inset-bottom, 0px));
   color: white;
   font-family: "Inter", system-ui, sans-serif;
 }
@@ -38,7 +39,7 @@
 .editor-card {
   width: 100%;
   max-width: 900px;
-  padding: 2rem;
+  padding: clamp(1.25rem, 2vw + 0.75rem, 2rem);
   border-radius: 32px;
   background: rgba(2, 6, 23, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -93,7 +94,7 @@
   border-radius: 20px;
   padding: 16px 18px;
   color: white;
-  font-size: 18px;
+  font-size: clamp(1rem, 0.8rem + 0.5vw, 1.125rem);
   transition:
     border-color 0.2s ease,
     background 0.2s ease,
@@ -101,7 +102,7 @@
 }
 
 .title-input::placeholder {
-  font-size: 22px;
+  font-size: clamp(1.35rem, 1.05rem + 1vw, 1.75rem);
   opacity: 0.28;
 }
 
@@ -132,6 +133,9 @@
 
 .tag {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
@@ -232,35 +236,47 @@
 
 .actions {
   display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 2rem;
+  padding: 12px;
+  border-radius: 24px;
+  background: rgba(2, 6, 23, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  position: sticky;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
 }
 
 .story-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 999px;
   border: none;
   cursor: pointer;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .story-btn-ghost {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.82);
-  padding: 10px 18px;
-  border-radius: 999px;
 }
 
 .story-btn-primary {
-  position: fixed;
-  right: 40px;
-  bottom: 40px;
-  width: auto;
+  position: static;
   min-width: 160px;
-  padding: 14px 28px;
-  border-radius: 999px;
   background: linear-gradient(135deg, #f8fafc, #dbeafe);
   color: #0f172a;
-  font-weight: 600;
-  font-size: 16px;
   border: 1px solid rgba(191, 219, 254, 0.95);
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.24);
   transition:
@@ -343,7 +359,7 @@
 
 @media (max-width: 720px) {
   .story-editor-page {
-    padding: 5rem 1rem 7rem;
+    padding: 5rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .editor-card {
@@ -356,16 +372,27 @@
     align-items: flex-start;
   }
 
+  .drafts-btn {
+    align-self: stretch;
+    text-align: center;
+  }
+
   .actions {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .story-btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .story-btn-primary {
-    left: auto;
-    right: 16px;
-    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-    max-width: calc(100vw - 32px);
-    padding-inline: 22px;
+    max-width: none;
+    padding-inline: 18px;
   }
 
   .modal {
@@ -375,5 +402,43 @@
   .draft-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .back-btn {
+    top: 16px;
+    left: 16px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .editor-header h1 {
+    font-size: 28px;
+  }
+
+  .title-input,
+  .body-textarea {
+    padding: 14px 16px;
+    margin-top: 1rem;
+  }
+
+  .body-textarea {
+    min-height: 220px;
+  }
+
+  .tags {
+    gap: 8px;
+    margin-top: 1.5rem;
+  }
+
+  .tag {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .actions {
+    grid-template-columns: 1fr;
   }
 }

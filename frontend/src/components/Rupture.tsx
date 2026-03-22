@@ -5,7 +5,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../lib/socket";
-import MicButton from "./MicButton";
 import "../style/rupures.css"; // orthographe conservée
 import { useTranslation } from "react-i18next";
 
@@ -17,23 +16,13 @@ const API =
     ? `${import.meta.env.VITE_API_URL}/api`
     : "http://localhost:8000/api";
 
-const UPLOADS =
-  import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/uploads`
-    : "http://localhost:8000/uploads";
-
-/* =====================
-   TYPES
-===================== */
 type Message = {
   id: string;
   type: "text" | "voice";
   text?: string;
-  audioUrl?: string;
   createdAt: number;
   editedAt?: number;
   translatedText?: string;
-  pending?: boolean;
 };
 
 type RuptureProps = {
@@ -94,10 +83,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
           data.map((m: any) => ({
             id: m.id,
             type: m.audio_path ? "voice" : "text",
-            text: m.content ?? "",
-            audioUrl: m.audio_path
-              ? `${UPLOADS}/audio/${m.audio_path}`
-              : undefined,
+            text: m.content ?? (m.audio_path ? "Ancien message vocal non disponible." : ""),
             createdAt: m.created_at,
           }))
         );
@@ -227,62 +213,8 @@ export default function Rupture({ isAuth }: RuptureProps) {
   }
 
   /* =====================
-     VOICE
-  ===================== */
-  function onVoiceRecorded(audioUrl: string) {
-    if (!isAuth) return;
-
-    setMessages((msgs) => [
-      ...msgs,
-      {
-        id: `local-${Date.now()}`,
-        type: "voice",
-        audioUrl,
-        createdAt: Date.now(),
-        pending: true,
-      },
-    ]);
-  }
-
-  function deleteLocalVoice(id: string) {
-    setMessages((msgs) => msgs.filter((m) => m.id !== id));
-  }
-
-  async function sendVoice(m: Message) {
-    if (!m.audioUrl || !userId) return;
-
-    const blob = await fetch(m.audioUrl).then((r) => r.blob());
-
-    const formData = new FormData();
-    formData.append("audio", blob);
-    formData.append("room", ROOM);
-    formData.append("userId", userId);
-
-    const res = await fetch(`${API}/messages/audio`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json();
-
-    setMessages((msgs) =>
-      msgs.map((msg) =>
-        msg.id === m.id
-          ? {
-              ...msg,
-              id: data.id,
-              audioUrl: data.audioUrl,
-              createdAt: data.createdAt,
-              pending: false,
-            }
-          : msg
-      )
-    );
-  }
-
-  /* =====================
      RENDER
-  ===================== */
+   ===================== */
   return (
     <div className="chat-root rupture">
       <button
@@ -328,15 +260,7 @@ export default function Rupture({ isAuth }: RuptureProps) {
 
               {m.type === "voice" && (
                 <div className="bubble">
-                  <audio controls src={m.audioUrl} />
-                  {m.pending && (
-                    <div className="actions">
-                      <button onClick={() => sendVoice(m)}>Envoyer</button>
-                      <button onClick={() => deleteLocalVoice(m.id)}>
-                        Supprimer
-                      </button>
-                    </div>
-                  )}
+                  {m.text || "Ancien message vocal non disponible."}
                 </div>
               )}
 
@@ -365,8 +289,6 @@ export default function Rupture({ isAuth }: RuptureProps) {
       </main>
 
       <footer className="chat-footer">
-        <MicButton onVoiceRecorded={onVoiceRecorded} />
-
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import MicButton from "./MicButton";
-import { useVoiceAnonymizer } from "../hooks/useVoiceAnonymizer";
 
 /* =====================
    API BASE
@@ -10,23 +8,11 @@ const API =
     ? `${import.meta.env.VITE_API_URL}/api`
     : "http://localhost:8000/api";
 
-const UPLOADS =
-  import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/uploads`
-    : "http://localhost:8000/uploads";
-
-/* =====================
-   TYPES
-===================== */
 type Message = {
   id: string;
   type: "text" | "voice";
   text?: string;
-  audioUrl?: string;
   createdAt: number;
-  pending?: boolean;
-  isAI?: boolean;
-  transcript?: string;
 };
 
 type RoomChatProps = {
@@ -48,7 +34,6 @@ export default function RoomChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const streamRef = useRef<HTMLDivElement>(null);
-  const { anonymize } = useVoiceAnonymizer();
 
   const userId = isAuth ? localStorage.getItem("userId") : null;
 
@@ -63,10 +48,7 @@ export default function RoomChat({
           data.map((m: any) => ({
             id: m.id,
             type: m.audio_path ? "voice" : "text",
-            text: m.content ?? "",
-            audioUrl: m.audio_path
-              ? `${UPLOADS}/audio/${m.audio_path}`
-              : undefined,
+            text: m.content ?? (m.audio_path ? "Ancien message vocal non disponible." : ""),
             createdAt: m.created_at,
           }))
         );
@@ -118,76 +100,8 @@ export default function RoomChat({
   }
 
   /* =====================
-     VOICE (ANONYMISATION)
-  ===================== */
-  async function onVoiceRecorded(audioUrlLocal: string) {
-    if (!isAuth) return;
-
-    const tempId = `pending-${Date.now()}`;
-
-    setMessages((msgs) => [
-      ...msgs,
-      {
-        id: tempId,
-        type: "voice",
-        createdAt: Date.now(),
-        pending: true,
-        isAI: true,
-        transcript: "Anonymisation en cours…",
-      },
-    ]);
-
-    try {
-      const data = await anonymize(audioUrlLocal);
-
-      URL.revokeObjectURL(audioUrlLocal);
-
-      setMessages((msgs) =>
-        msgs.map((m) =>
-          m.id === tempId
-            ? {
-                ...m,
-                pending: false,
-                audioUrl: data.audioUrl,
-                transcript: data.transcript,
-              }
-            : m
-        )
-      );
-
-      // 🔥 OPTIONNEL : sauvegarde backend
-      /*
-      await fetch(`${API}/messages/audio-ai`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          room,
-          userId,
-          transcript: data.transcript,
-          audioUrl: data.audioUrl,
-        }),
-      });
-      */
-    } catch (e) {
-      console.error(e);
-
-      setMessages((msgs) =>
-        msgs.map((m) =>
-          m.id === tempId
-            ? {
-                ...m,
-                pending: false,
-                transcript: "Erreur d’anonymisation",
-              }
-            : m
-        )
-      );
-    }
-  }
-
-  /* =====================
      RENDER
-  ===================== */
+   ===================== */
   return (
     <div className="chat-root">
       <header className="chat-header">
@@ -197,7 +111,7 @@ export default function RoomChat({
 
       <main className="chat-stream" ref={streamRef}>
         <div className="secure-banner">
-          Pour proteger l'anonymat, les messages vocaux sont transformes en voix IA.
+          Un espace anonyme pour partager a ton rythme, en toute simplicite.
         </div>
 
         {messages.map((m) => (
@@ -208,23 +122,7 @@ export default function RoomChat({
 
             {m.type === "voice" && (
               <div className="bubble">
-                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
-                  🤖 Voix IA {m.pending ? "(en cours…)" : ""}
-                </div>
-
-                {m.transcript && (
-                  <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 8 }}>
-                    {m.transcript}
-                  </div>
-                )}
-
-                {m.audioUrl ? (
-                  <audio controls src={m.audioUrl} />
-                ) : (
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Préparation audio…
-                  </div>
-                )}
+                {m.text || "Ancien message vocal non disponible."}
               </div>
             )}
           </div>
@@ -232,8 +130,6 @@ export default function RoomChat({
       </main>
 
       <footer className="chat-footer">
-        <MicButton onVoiceRecorded={onVoiceRecorded} />
-
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
