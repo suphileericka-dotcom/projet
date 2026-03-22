@@ -345,9 +345,7 @@ export default function Journal() {
   const [insightLoading, setInsightLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [rateLimit, setRateLimit] = useState<RateLimitState | null>(null);
-  const [showArchivePanel, setShowArchivePanel] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth >= 1100 : true
-  );
+  const [showArchivePanel, setShowArchivePanel] = useState(true);
 
   const streamRef = useRef<HTMLDivElement>(null);
   const archivesRef = useRef<JournalArchive[]>([]);
@@ -356,12 +354,6 @@ export default function Journal() {
   const retryAtTimestamp = toTimestamp(rateLimit?.retryAt ?? null);
   const isRateLimited =
     retryAtTimestamp !== null && retryAtTimestamp > Date.now();
-  const rateLimitLabel =
-    rateLimit?.remaining !== null && rateLimit?.remaining !== undefined
-      ? rateLimit.limit !== null && rateLimit.limit !== undefined
-        ? `${Math.max(rateLimit.remaining, 0)} / ${rateLimit.limit} envois restants`
-        : `${Math.max(rateLimit.remaining, 0)} envois restants`
-      : "";
   const activeArchive =
     archives.find((archive) => archive.localId === activeArchiveId) ?? null;
   const currentConversationTitle =
@@ -956,18 +948,6 @@ export default function Journal() {
                   ? "Retrouve ton echange et continue la discussion ici."
                   : "Tout se passe dans ce meme espace, comme un vrai assistant."}
               </p>
-            </div>
-
-            <div className="journal-main-meta">
-              <div className="journal-top-chip">
-                {isRateLimited
-                  ? `Disponible de nouveau a ${formatDateTime(rateLimit?.retryAt ?? null)}`
-                  : `${messages.length} messages`}
-              </div>
-
-              {rateLimitLabel && !isRateLimited && (
-                <div className="journal-top-chip subtle">{rateLimitLabel}</div>
-              )}
             </div>
           </header>
 
