@@ -12,20 +12,18 @@ type JournalMessage = {
   createdAt?: number | string | null;
 };
 
+type JournalConversation = {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt?: number | string | null;
+  messageCount?: number | null;
+};
+
 type RateLimitState = {
   retryAt?: number | string | null;
   remaining?: number | null;
   limit?: number | null;
-};
-
-type JournalArchive = {
-  localId: string;
-  conversationId: string | null;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  messages: JournalMessage[];
-  rateLimit: RateLimitState | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,46 +47,70 @@ function readNumber(value: unknown): number | null {
 
 function toTimestamp(value?: number | string | null): number | null {
   if (value === null || value === undefined) return null;
+
   if (typeof value === "number" && Number.isFinite(value)) {
     return value < 1_000_000_000_000 ? value * 1000 : value;
   }
+
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) {
       return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
     }
+
     const parsed = new Date(value).getTime();
     return Number.isNaN(parsed) ? null : parsed;
   }
+
   return null;
 }
 
 function formatDateTime(value?: number | string | null): string {
   const timestamp = toTimestamp(value);
   if (!timestamp) return "--";
+
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return "--";
-  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+
+  return date.toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function getConversationId(payload: unknown): string | null {
   if (!isRecord(payload)) return null;
-  const direct = payload.conversationId ?? payload.conversation_id ?? payload.id ?? null;
-  if (typeof direct === "string" && direct.trim()) return direct;
-  if (typeof direct === "number" && Number.isFinite(direct)) return String(direct);
-  const nested = payload.conversation;
-  if (typeof nested === "string" && nested.trim()) return nested;
-  if (!isRecord(nested)) return null;
-  const nestedValue = nested.id ?? nested.conversationId ?? nested.conversation_id ?? null;
+
+  const directValue =
+    payload.conversationId ?? payload.conversation_id ?? payload.id ?? null;
+  if (typeof directValue === "string" && directValue.trim()) return directValue;
+  if (typeof directValue === "number" && Number.isFinite(directValue)) {
+    return String(directValue);
+  }
+
+  const nestedConversation = payload.conversation;
+  if (typeof nestedConversation === "string" && nestedConversation.trim()) {
+    return nestedConversation;
+  }
+
+  if (!isRecord(nestedConversation)) return null;
+
+  const nestedValue =
+    nestedConversation.id ??
+    nestedConversation.conversationId ??
+    nestedConversation.conversation_id ??
+    null;
   if (typeof nestedValue === "string" && nestedValue.trim()) return nestedValue;
   if (typeof nestedValue === "number" && Number.isFinite(nestedValue)) {
     return String(nestedValue);
   }
+
   return null;
 }
 
 function normalizeRole(value: unknown, fallbackRole: JournalRole): JournalRole {
   if (typeof value !== "string") return fallbackRole;
+
   const normalized = value.toLowerCase();
   if (
     normalized.includes("assistant") ||
@@ -98,6 +120,7 @@ function normalizeRole(value: unknown, fallbackRole: JournalRole): JournalRole {
   ) {
     return "assistant";
   }
+
   if (
     normalized.includes("user") ||
     normalized.includes("human") ||
@@ -107,14 +130,22 @@ function normalizeRole(value: unknown, fallbackRole: JournalRole): JournalRole {
   ) {
     return "user";
   }
-  if (normalized.includes("system")) return "system";
+
+  if (normalized.includes("system")) {
+    return "system";
+  }
+
   return fallbackRole;
 }
 
-function normalizeMessage(payload: unknown, fallbackRole: JournalRole): JournalMessage | null {
+function normalizeMessage(
+  payload: unknown,
+  fallbackRole: JournalRole
+): JournalMessage | null {
   if (typeof payload === "string" || typeof payload === "number") {
     const text = readText(payload);
     if (!text) return null;
+
     return {
       id: `${fallbackRole}-${Date.now()}-${text.slice(0, 16)}`,
       role: fallbackRole,
@@ -122,7 +153,9 @@ function normalizeMessage(payload: unknown, fallbackRole: JournalRole): JournalM
       createdAt: Date.now(),
     };
   }
+
   if (!isRecord(payload)) return null;
+
   const text =
     readText(payload.text) ||
     readText(payload.body) ||
@@ -130,7 +163,9 @@ function normalizeMessage(payload: unknown, fallbackRole: JournalRole): JournalM
     readText(payload.message) ||
     readText(payload.reply) ||
     readText(payload.insight);
+
   if (!text) return null;
+
   const createdAt =
     payload.created_at ??
     payload.createdAt ??
@@ -138,40 +173,59 @@ function normalizeMessage(payload: unknown, fallbackRole: JournalRole): JournalM
     payload.timestamp ??
     payload.at ??
     null;
+
   const idCandidate =
-    payload.id ?? payload.messageId ?? payload.message_id ?? payload.entry_id ?? null;
+    payload.id ??
+    payload.messageId ??
+    payload.message_id ??
+    payload.entry_id ??
+    null;
+
   return {
     id:
       typeof idCandidate === "string" || typeof idCandidate === "number"
         ? String(idCandidate)
         : `${fallbackRole}-${String(createdAt ?? Date.now())}-${text.slice(0, 16)}`,
     role: normalizeRole(
-      payload.role ?? payload.sender ?? payload.sender_role ?? payload.senderType ?? payload.type,
+      payload.role ??
+        payload.sender ??
+        payload.sender_role ??
+        payload.senderType ??
+        payload.type,
       fallbackRole
     ),
     text,
-    createdAt: typeof createdAt === "string" || typeof createdAt === "number" ? createdAt : null,
+    createdAt:
+      typeof createdAt === "string" || typeof createdAt === "number"
+        ? createdAt
+        : null,
   };
 }
 
 function mergeMessages(messages: JournalMessage[]): JournalMessage[] {
   const seen = new Set<string>();
   const merged: JournalMessage[] = [];
+
   for (const message of messages) {
-    const signature = `${message.id}|${message.role}|${message.text}|${String(message.createdAt ?? "")}`;
+    const signature = `${message.id}|${message.role}|${message.text}|${String(
+      message.createdAt ?? ""
+    )}`;
     if (seen.has(signature)) continue;
     seen.add(signature);
     merged.push(message);
   }
+
   return merged;
 }
 
 function extractMessages(payload: unknown): JournalMessage[] {
   const candidates: unknown[] = [];
+
   if (Array.isArray(payload)) {
     candidates.push(payload);
   } else if (isRecord(payload)) {
     candidates.push(payload.messages, payload.items, payload.history);
+
     if (isRecord(payload.conversation)) {
       candidates.push(
         payload.conversation.messages,
@@ -180,58 +234,92 @@ function extractMessages(payload: unknown): JournalMessage[] {
       );
     }
   }
+
   for (const candidate of candidates) {
     if (!Array.isArray(candidate)) continue;
+
     const normalized = candidate
       .map((message) => normalizeMessage(message, "assistant"))
       .filter((message): message is JournalMessage => message !== null);
-    if (normalized.length > 0) return mergeMessages(normalized);
+
+    if (normalized.length > 0) {
+      return mergeMessages(normalized);
+    }
   }
+
   return [];
 }
 
-function extractNamedMessage(payload: unknown, keys: string[], fallbackRole: JournalRole): JournalMessage | null {
+function extractNamedMessage(
+  payload: unknown,
+  keys: string[],
+  fallbackRole: JournalRole
+): JournalMessage | null {
   if (!isRecord(payload)) return null;
+
   for (const key of keys) {
     if (!(key in payload)) continue;
     const normalized = normalizeMessage(payload[key], fallbackRole);
     if (normalized) return normalized;
   }
+
   return null;
 }
 
 function extractRateLimit(payload: unknown): RateLimitState | null {
   if (!isRecord(payload)) return null;
+
   const candidates = [
     payload.rate_limit,
     payload.rateLimit,
     payload,
     isRecord(payload.conversation) ? payload.conversation.rate_limit : null,
   ];
+
   for (const candidate of candidates) {
     if (!isRecord(candidate)) continue;
+
     const retryAt =
-      candidate.retry_at ?? candidate.retryAt ?? candidate.reset_at ?? candidate.resetAt ?? null;
+      candidate.retry_at ??
+      candidate.retryAt ??
+      candidate.reset_at ??
+      candidate.resetAt ??
+      null;
+
     const remaining =
       readNumber(candidate.remaining) ??
       readNumber(candidate.remaining_requests) ??
       readNumber(candidate.left);
+
     const limit =
-      readNumber(candidate.limit) ?? readNumber(candidate.max) ?? readNumber(candidate.total);
+      readNumber(candidate.limit) ??
+      readNumber(candidate.max) ??
+      readNumber(candidate.total);
+
     if (retryAt !== null || remaining !== null || limit !== null) {
       return {
-        retryAt: typeof retryAt === "string" || typeof retryAt === "number" ? retryAt : null,
+        retryAt:
+          typeof retryAt === "string" || typeof retryAt === "number"
+            ? retryAt
+            : null,
         remaining,
         limit,
       };
     }
   }
+
   return null;
 }
 
 function extractErrorMessage(payload: unknown, fallbackMessage: string): string {
   if (!isRecord(payload)) return fallbackMessage;
-  return readText(payload.error) || readText(payload.message) || readText(payload.detail) || fallbackMessage;
+
+  return (
+    readText(payload.error) ||
+    readText(payload.message) ||
+    readText(payload.detail) ||
+    fallbackMessage
+  );
 }
 
 function compactText(value: string): string {
@@ -243,104 +331,143 @@ function shortenText(value: string, maxLength: number): string {
   return `${value.slice(0, Math.max(maxLength - 3, 1)).trim()}...`;
 }
 
-function buildConversationTitle(messages: JournalMessage[], fallbackTitle = "Nouvelle discussion"): string {
+function buildConversationTitle(
+  messages: JournalMessage[],
+  fallbackTitle = "Nouvelle discussion"
+): string {
   const source =
-    messages.find((message) => message.role === "user" && compactText(message.text).length > 0) ??
-    messages.find((message) => compactText(message.text).length > 0);
+    messages.find(
+      (message) => message.role === "user" && compactText(message.text).length > 0
+    ) ?? messages.find((message) => compactText(message.text).length > 0);
+
   const candidate = compactText(source?.text ?? "");
   if (!candidate) return fallbackTitle;
+
   const firstLine = candidate.split(/[\n.!?]/)[0]?.trim() || candidate;
   return shortenText(firstLine, 54);
 }
 
 function buildConversationPreview(messages: JournalMessage[]): string {
-  const source = [...messages].reverse().find((message) => compactText(message.text).length > 0);
+  const source = [...messages]
+    .reverse()
+    .find((message) => compactText(message.text).length > 0);
+
   if (!source) return "Aucun message enregistre.";
   return shortenText(compactText(source.text), 90);
 }
 
-function makeArchiveLocalId(): string {
-  return `journal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
+function extractConversationTitle(
+  payload: unknown,
+  fallbackTitle = "Nouvelle discussion"
+): string {
+  if (!isRecord(payload)) return fallbackTitle;
 
-function getArchiveStorageKey(userKey: string): string {
-  return `journal-archives:v1:${userKey}`;
-}
+  const directTitle = readText(payload.title);
+  if (directTitle) return directTitle;
 
-function getArchiveSelectionKey(userKey: string): string {
-  return `journal-active:v1:${userKey}`;
-}
-
-function readStoredArchives(storageKey: string): JournalArchive[] {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((entry): JournalArchive | null => {
-        if (!isRecord(entry)) return null;
-        const messages = Array.isArray(entry.messages)
-          ? entry.messages
-              .map((message) => normalizeMessage(message, "assistant"))
-              .filter((message): message is JournalMessage => message !== null)
-          : [];
-        const conversationId = getConversationId(entry);
-        const localId =
-          readText(entry.localId) ||
-          readText(entry.archiveId) ||
-          conversationId ||
-          readText(entry.id) ||
-          "";
-        if (!localId || (messages.length === 0 && !conversationId)) return null;
-        const createdAt =
-          toTimestamp(entry.createdAt ?? entry.created_at ?? null) ??
-          toTimestamp(messages[0]?.createdAt ?? null) ??
-          Date.now();
-        const updatedAt =
-          toTimestamp(entry.updatedAt ?? entry.updated_at ?? null) ??
-          toTimestamp(messages[messages.length - 1]?.createdAt ?? null) ??
-          createdAt;
-        return {
-          localId,
-          conversationId,
-          title: readText(entry.title) || buildConversationTitle(messages),
-          createdAt,
-          updatedAt,
-          messages: mergeMessages(messages),
-          rateLimit: extractRateLimit(entry),
-        };
-      })
-      .filter((archive): archive is JournalArchive => archive !== null)
-      .sort((left, right) => right.updatedAt - left.updatedAt);
-  } catch (error) {
-    console.error("Erreur lecture archives journal:", error);
-    return [];
+  if (isRecord(payload.conversation)) {
+    const nestedTitle = readText(payload.conversation.title);
+    if (nestedTitle) return nestedTitle;
   }
+
+  const messages = extractMessages(payload);
+  if (messages.length > 0) {
+    return buildConversationTitle(messages, fallbackTitle);
+  }
+
+  return fallbackTitle;
 }
 
-function writeStoredArchives(storageKey: string, archives: JournalArchive[]): void {
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(archives));
-  } catch (error) {
-    console.error("Erreur sauvegarde archives journal:", error);
+function normalizeConversationItem(payload: unknown): JournalConversation | null {
+  if (!isRecord(payload)) return null;
+
+  const id = getConversationId(payload);
+  if (!id) return null;
+
+  const preview =
+    readText(payload.preview) ||
+    readText(payload.last_message) ||
+    readText(payload.lastMessage) ||
+    buildConversationPreview(extractMessages(payload));
+
+  const updatedAt =
+    payload.updated_at ??
+    payload.updatedAt ??
+    payload.last_at ??
+    payload.lastAt ??
+    payload.created_at ??
+    payload.createdAt ??
+    null;
+
+  return {
+    id,
+    title: extractConversationTitle(payload),
+    preview,
+    updatedAt:
+      typeof updatedAt === "string" || typeof updatedAt === "number"
+        ? updatedAt
+        : null,
+    messageCount:
+      readNumber(payload.message_count) ??
+      readNumber(payload.messageCount) ??
+      readNumber(payload.count),
+  };
+}
+
+function extractConversationList(payload: unknown): JournalConversation[] {
+  const candidates: unknown[] = [];
+
+  if (Array.isArray(payload)) {
+    candidates.push(payload);
+  } else if (isRecord(payload)) {
+    candidates.push(payload.conversations, payload.items, payload.data);
   }
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+
+    const normalized = candidate
+      .map((item) => normalizeConversationItem(item))
+      .filter((item): item is JournalConversation => item !== null)
+      .sort((left, right) => {
+        const leftAt = toTimestamp(left.updatedAt ?? null) ?? 0;
+        const rightAt = toTimestamp(right.updatedAt ?? null) ?? 0;
+        return rightAt - leftAt;
+      });
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  return [];
+}
+
+function upsertConversation(
+  current: JournalConversation[],
+  nextConversation: JournalConversation
+): JournalConversation[] {
+  return [
+    nextConversation,
+    ...current.filter((conversation) => conversation.id !== nextConversation.id),
+  ].sort((left, right) => {
+    const leftAt = toTimestamp(left.updatedAt ?? null) ?? 0;
+    const rightAt = toTimestamp(right.updatedAt ?? null) ?? 0;
+    return rightAt - leftAt;
+  });
 }
 
 export default function Journal() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
-  const storageUserKey = localStorage.getItem("userId") || token || "anonymous";
-  const archiveStorageKey = getArchiveStorageKey(storageUserKey);
-  const archiveSelectionKey = getArchiveSelectionKey(storageUserKey);
 
-  const [archives, setArchives] = useState<JournalArchive[]>([]);
-  const [activeArchiveId, setActiveArchiveId] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<JournalConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<JournalMessage[]>([]);
   const [input, setInput] = useState("");
   const [compatInsight, setCompatInsight] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingConversation, setLoadingConversation] = useState(false);
   const [sending, setSending] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -348,294 +475,73 @@ export default function Journal() {
   const [showArchivePanel, setShowArchivePanel] = useState(true);
 
   const streamRef = useRef<HTMLDivElement>(null);
-  const archivesRef = useRef<JournalArchive[]>([]);
-  const activeArchiveIdRef = useRef<string | null>(null);
 
   const retryAtTimestamp = toTimestamp(rateLimit?.retryAt ?? null);
   const isRateLimited =
     retryAtTimestamp !== null && retryAtTimestamp > Date.now();
-  const activeArchive =
-    archives.find((archive) => archive.localId === activeArchiveId) ?? null;
+  const activeConversation =
+    conversations.find((conversation) => conversation.id === activeConversationId) ??
+    null;
   const currentConversationTitle =
     messages.length > 0
       ? buildConversationTitle(
           messages,
-          activeArchive?.title || "Nouvelle discussion"
+          activeConversation?.title || "Nouvelle discussion"
         )
-      : activeArchive?.title || "Nouvelle discussion";
+      : activeConversation?.title || "Nouvelle discussion";
   const archiveCountLabel =
-    archives.length === 1 ? "1 discussion" : `${archives.length} discussions`;
+    conversations.length === 1
+      ? "1 discussion"
+      : `${conversations.length} discussions`;
   const canCreateNewDiscussion = !sending && !insightLoading;
 
-  function shouldClosePanelAfterAction(): boolean {
-    return true;
-  }
-
-  function applyArchiveList(nextArchives: JournalArchive[]) {
-    archivesRef.current = nextArchives;
-    setArchives(nextArchives);
-    writeStoredArchives(archiveStorageKey, nextArchives);
-  }
-
-  function clearActiveConversation(closePanel = false) {
-    activeArchiveIdRef.current = null;
-    setActiveArchiveId(null);
-    localStorage.removeItem(archiveSelectionKey);
-    setConversationId(null);
-    setMessages([]);
-    setRateLimit(null);
-    setCompatInsight("");
-    setErrorMessage("");
-    if (closePanel) {
-      setShowArchivePanel(false);
-    }
-  }
-
-  function activateArchive(archive: JournalArchive, closePanel = false) {
-    activeArchiveIdRef.current = archive.localId;
-    setActiveArchiveId(archive.localId);
-    localStorage.setItem(archiveSelectionKey, archive.localId);
-    setConversationId(archive.conversationId);
-    setMessages(archive.messages);
-    setRateLimit(archive.rateLimit ?? null);
-    setCompatInsight("");
-    setErrorMessage("");
-    if (closePanel) {
-      setShowArchivePanel(false);
-    }
-  }
-
-  function persistConversationSnapshot(
-    nextMessages: JournalMessage[],
-    nextConversationId: string | null,
-    nextRateLimit: RateLimitState | null
-  ): string | null {
-    if (nextMessages.length === 0 && !nextConversationId) {
-      return null;
-    }
-
-    const currentArchives = archivesRef.current;
-    const matchingArchive = currentArchives.find((archive) => {
-      if (nextConversationId && archive.conversationId === nextConversationId) {
-        return true;
-      }
-
-      return (
-        activeArchiveIdRef.current !== null &&
-        archive.localId === activeArchiveIdRef.current
-      );
-    });
-
-    const localId =
-      matchingArchive?.localId ??
-      activeArchiveIdRef.current ??
-      nextConversationId ??
-      makeArchiveLocalId();
-    const createdAt =
-      matchingArchive?.createdAt ??
-      toTimestamp(nextMessages[0]?.createdAt ?? null) ??
-      Date.now();
-    const updatedAt =
-      toTimestamp(nextMessages[nextMessages.length - 1]?.createdAt ?? null) ??
-      Date.now();
-    const nextArchive: JournalArchive = {
-      localId,
-      conversationId: nextConversationId ?? matchingArchive?.conversationId ?? null,
-      title: buildConversationTitle(
-        nextMessages,
-        matchingArchive?.title || "Nouvelle discussion"
-      ),
-      createdAt,
-      updatedAt,
-      messages: mergeMessages(nextMessages),
-      rateLimit: nextRateLimit ?? matchingArchive?.rateLimit ?? null,
-    };
-    const nextArchives = [
-      nextArchive,
-      ...currentArchives.filter((archive) => {
-        if (archive.localId === localId) return false;
-        if (
-          nextArchive.conversationId &&
-          archive.conversationId === nextArchive.conversationId
-        ) {
-          return false;
-        }
-
-        return true;
-      }),
-    ].sort((left, right) => right.updatedAt - left.updatedAt);
-
-    applyArchiveList(nextArchives);
-    activeArchiveIdRef.current = localId;
-    setActiveArchiveId(localId);
-    localStorage.setItem(archiveSelectionKey, localId);
-
-    return localId;
-  }
-
-  function startFreshConversation() {
-    clearActiveConversation(shouldClosePanelAfterAction());
-    setInput("");
-  }
-
-  function openArchiveById(localId: string) {
-    const target = archivesRef.current.find((archive) => archive.localId === localId);
-    if (!target) return;
-    activateArchive(target, shouldClosePanelAfterAction());
-  }
-
-  function deleteArchive(localId: string) {
-    const target = archivesRef.current.find((archive) => archive.localId === localId);
-    if (!target) return;
-
-    if (!confirm("Supprimer cette discussion de tes archives ?")) {
+  async function loadConversations() {
+    if (!token) {
+      setLoadingList(false);
+      setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir ton journal.");
       return;
     }
 
-    const nextArchives = archivesRef.current.filter(
-      (archive) => archive.localId !== localId
-    );
-    applyArchiveList(nextArchives);
+    setLoadingList(true);
 
-    if (activeArchiveIdRef.current !== localId) {
-      return;
-    }
+    try {
+      const res = await fetch(`${API}/journal/conversations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    const nextSelected = nextArchives[0] ?? null;
-    if (nextSelected) {
-      activateArchive(nextSelected, shouldClosePanelAfterAction());
-      return;
-    }
+      const data = await res.json().catch(() => null);
 
-    clearActiveConversation(shouldClosePanelAfterAction());
-  }
-
-  useEffect(() => {
-    archivesRef.current = archives;
-  }, [archives]);
-
-  useEffect(() => {
-    activeArchiveIdRef.current = activeArchiveId;
-  }, [activeArchiveId]);
-
-  useEffect(() => {
-    const storedArchives = readStoredArchives(archiveStorageKey);
-    applyArchiveList(storedArchives);
-
-    const savedActiveId = localStorage.getItem(archiveSelectionKey);
-    const initialArchive =
-      storedArchives.find((archive) => archive.localId === savedActiveId) ??
-      storedArchives[0] ??
-      null;
-
-    if (initialArchive) {
-      activeArchiveIdRef.current = initialArchive.localId;
-      setActiveArchiveId(initialArchive.localId);
-      setConversationId(initialArchive.conversationId);
-      setMessages(initialArchive.messages);
-      setRateLimit(initialArchive.rateLimit ?? null);
-      return;
-    }
-
-    activeArchiveIdRef.current = null;
-    setActiveArchiveId(null);
-    setConversationId(null);
-    setMessages([]);
-    setRateLimit(null);
-  }, [archiveSelectionKey, archiveStorageKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadConversation() {
-      if (!token) {
-        setLoading(false);
-        setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir ton journal.");
+      if (!res.ok) {
+        setErrorMessage(
+          extractErrorMessage(data, "Impossible de charger les discussions.")
+        );
+        setConversations([]);
         return;
       }
 
-      setLoading(true);
-
-      try {
-        const res = await fetch(`${API}/journal/conversation`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const data = await res.json().catch(() => null);
-        if (cancelled) return;
-
-        const nextRateLimit = extractRateLimit(data);
-        const nextConversationId = getConversationId(data);
-        const nextMessages = extractMessages(data);
-
-        if (!res.ok) {
-          if (!activeArchiveIdRef.current) {
-            setMessages([]);
-            setConversationId(nextConversationId);
-          }
-          setRateLimit(nextRateLimit);
-          setErrorMessage(
-            extractErrorMessage(data, "Impossible de charger la conversation.")
-          );
-          return;
-        }
-
-        if (nextMessages.length > 0 || nextConversationId) {
-          setConversationId(nextConversationId);
-          setMessages(nextMessages);
-          setRateLimit(nextRateLimit);
-          persistConversationSnapshot(
-            nextMessages,
-            nextConversationId,
-            nextRateLimit
-          );
-        } else if (activeArchiveIdRef.current) {
-          const selectedArchive = archivesRef.current.find(
-            (archive) => archive.localId === activeArchiveIdRef.current
-          );
-
-          if (selectedArchive) {
-            setConversationId(selectedArchive.conversationId);
-            setMessages(selectedArchive.messages);
-            setRateLimit(selectedArchive.rateLimit ?? nextRateLimit);
-          }
-        } else {
-          setConversationId(null);
-          setMessages([]);
-          setRateLimit(nextRateLimit);
-        }
-
-        setErrorMessage("");
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Erreur conversation journal:", error);
-        if (!activeArchiveIdRef.current) {
-          setMessages([]);
-          setConversationId(null);
-        }
-        setErrorMessage("Impossible de joindre le journal pour le moment.");
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+      setConversations(extractConversationList(data));
+      setErrorMessage("");
+    } catch (error) {
+      console.error("Erreur liste journal:", error);
+      setConversations([]);
+      setErrorMessage("Impossible de charger les discussions pour le moment.");
+    } finally {
+      setLoadingList(false);
     }
+  }
 
-    void loadConversation();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [archiveSelectionKey, archiveStorageKey, token]);
+  useEffect(() => {
+    void loadConversations();
+  }, [token]);
 
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, loading]);
+  }, [messages, loadingConversation]);
 
   useEffect(() => {
     if (!retryAtTimestamp || retryAtTimestamp <= Date.now()) return;
@@ -656,6 +562,111 @@ export default function Journal() {
       window.clearTimeout(timeoutId);
     };
   }, [retryAtTimestamp]);
+
+  async function openConversation(id: string) {
+    if (!token) return;
+
+    setLoadingConversation(true);
+    setErrorMessage("");
+    setCompatInsight("");
+    setShowArchivePanel(false);
+
+    try {
+      const res = await fetch(`${API}/journal/conversations/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setErrorMessage(
+          extractErrorMessage(data, "Impossible de charger cette discussion.")
+        );
+        return;
+      }
+
+      const nextMessages = extractMessages(data);
+      const nextTitle = extractConversationTitle(
+        data,
+        activeConversation?.title || "Nouvelle discussion"
+      );
+      const nextRateLimit = extractRateLimit(data);
+
+      setActiveConversationId(id);
+      setMessages(nextMessages);
+      setRateLimit(nextRateLimit);
+      setConversations((current) =>
+        upsertConversation(current, {
+          id,
+          title: nextTitle,
+          preview: buildConversationPreview(nextMessages),
+          updatedAt:
+            nextMessages[nextMessages.length - 1]?.createdAt ?? Date.now(),
+          messageCount: nextMessages.length,
+        })
+      );
+    } catch (error) {
+      console.error("Erreur detail journal:", error);
+      setErrorMessage("Impossible de charger cette discussion pour le moment.");
+    } finally {
+      setLoadingConversation(false);
+    }
+  }
+
+  function startFreshConversation() {
+    setActiveConversationId(null);
+    setMessages([]);
+    setInput("");
+    setCompatInsight("");
+    setRateLimit(null);
+    setErrorMessage("");
+    setShowArchivePanel(false);
+  }
+
+  async function deleteConversation(id: string) {
+    if (!token) return;
+
+    if (!confirm("Supprimer cette discussion ?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/journal/conversations/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setErrorMessage(
+          extractErrorMessage(data, "Impossible de supprimer cette discussion.")
+        );
+        return;
+      }
+
+      setConversations((current) =>
+        current.filter((conversation) => conversation.id !== id)
+      );
+
+      if (activeConversationId === id) {
+        setActiveConversationId(null);
+        setMessages([]);
+        setRateLimit(null);
+        setCompatInsight("");
+      }
+
+      setShowArchivePanel(true);
+      setErrorMessage("");
+    } catch (error) {
+      console.error("Erreur suppression journal:", error);
+      setErrorMessage("Impossible de supprimer cette discussion pour le moment.");
+    }
+  }
 
   async function sendMessage() {
     if (!token) {
@@ -694,32 +705,21 @@ export default function Journal() {
         },
         body: JSON.stringify({
           text,
-          conversationId,
+          conversationId: activeConversationId,
         }),
       });
 
       const data = await res.json().catch(() => null);
       const nextRateLimit = extractRateLimit(data);
-      const nextConversationId = getConversationId(data);
-      const resolvedConversationId = nextConversationId ?? conversationId;
+      const nextConversationId =
+        getConversationId(data) ?? activeConversationId;
 
       if (nextRateLimit) {
         setRateLimit(nextRateLimit);
       }
 
-      if (resolvedConversationId) {
-        setConversationId(resolvedConversationId);
-      }
-
       if (res.status === 429) {
         setMessages(baseMessages);
-        if (baseMessages.length > 0 || resolvedConversationId) {
-          persistConversationSnapshot(
-            baseMessages,
-            resolvedConversationId,
-            nextRateLimit ?? rateLimit
-          );
-        }
         setInput(text);
         setErrorMessage(
           extractErrorMessage(data, "Le journal est momentanement indisponible.")
@@ -729,13 +729,6 @@ export default function Journal() {
 
       if (!res.ok) {
         setMessages(baseMessages);
-        if (baseMessages.length > 0 || resolvedConversationId) {
-          persistConversationSnapshot(
-            baseMessages,
-            resolvedConversationId,
-            nextRateLimit ?? rateLimit
-          );
-        }
         setInput(text);
         setErrorMessage(
           extractErrorMessage(data, "Impossible d'envoyer le message.")
@@ -754,25 +747,36 @@ export default function Journal() {
       );
       const nextMessages =
         returnedMessages.length > 0
-          ? mergeMessages([...baseMessages, ...returnedMessages])
+          ? mergeMessages(returnedMessages)
           : mergeMessages([
               ...baseMessages,
               persistedUser,
               ...(assistantMessage ? [assistantMessage] : []),
             ]);
+      const nextTitle = extractConversationTitle(
+        data,
+        buildConversationTitle(nextMessages)
+      );
 
       setMessages(nextMessages);
-      persistConversationSnapshot(
-        nextMessages,
-        resolvedConversationId,
-        nextRateLimit ?? rateLimit
-      );
+      if (nextConversationId) {
+        setActiveConversationId(nextConversationId);
+        setConversations((current) =>
+          upsertConversation(current, {
+            id: nextConversationId,
+            title: nextTitle,
+            preview: buildConversationPreview(nextMessages),
+            updatedAt:
+              nextMessages[nextMessages.length - 1]?.createdAt ?? Date.now(),
+            messageCount: nextMessages.length,
+          })
+        );
+      }
+
+      void loadConversations();
     } catch (error) {
       console.error("Erreur envoi journal:", error);
       setMessages(baseMessages);
-      if (baseMessages.length > 0 || conversationId) {
-        persistConversationSnapshot(baseMessages, conversationId, rateLimit);
-      }
       setInput(text);
       setErrorMessage("Impossible d'envoyer le message pour le moment.");
     } finally {
@@ -824,7 +828,9 @@ export default function Journal() {
         readText(isRecord(data) ? data.insight : null) ||
         readText(isRecord(data) ? data.message : null);
 
-      setCompatInsight(nextInsight || "Aucune analyse complementaire n'a ete renvoyee.");
+      setCompatInsight(
+        nextInsight || "Aucune analyse complementaire n'a ete renvoyee."
+      );
     } catch (error) {
       console.error("Erreur insight journal:", error);
       setErrorMessage("Impossible de joindre l'analyse pour le moment.");
@@ -862,10 +868,18 @@ export default function Journal() {
             <div className="journal-list-header">
               <p className="journal-sidebar-kicker">Journal IA</p>
               <h1>Discussions</h1>
-              <p>{archives.length === 0 ? "Tes archives apparaissent ici." : archiveCountLabel}</p>
+              <p>
+                {loadingList
+                  ? "Chargement..."
+                  : conversations.length === 0
+                    ? "Tes archives apparaissent ici."
+                    : archiveCountLabel}
+              </p>
             </div>
 
-            {archives.length === 0 ? (
+            {errorMessage && <div className="journal-alert error">{errorMessage}</div>}
+
+            {!loadingList && conversations.length === 0 ? (
               <div className="journal-sidebar-empty">
                 <strong>Aucune discussion archivee.</strong>
                 <p>
@@ -875,26 +889,30 @@ export default function Journal() {
               </div>
             ) : (
               <div className="journal-thread-list journal-thread-list-page">
-                {archives.map((archive) => (
+                {conversations.map((conversation) => (
                   <article
-                    key={archive.localId}
+                    key={conversation.id}
                     className={`journal-thread-card ${
-                      archive.localId === activeArchiveId ? "active" : ""
+                      conversation.id === activeConversationId ? "active" : ""
                     }`}
                   >
                     <button
                       className="journal-thread-main"
-                      onClick={() => openArchiveById(archive.localId)}
+                      onClick={() => {
+                        void openConversation(conversation.id);
+                      }}
                       type="button"
                     >
-                      <strong>{archive.title}</strong>
-                      <p>{buildConversationPreview(archive.messages)}</p>
-                      <small>{formatDateTime(archive.updatedAt)}</small>
+                      <strong>{conversation.title}</strong>
+                      <p>{conversation.preview || "Ouvrir la discussion"}</p>
+                      <small>{formatDateTime(conversation.updatedAt)}</small>
                     </button>
 
                     <button
                       className="journal-thread-delete"
-                      onClick={() => deleteArchive(archive.localId)}
+                      onClick={() => {
+                        void deleteConversation(conversation.id);
+                      }}
                       type="button"
                     >
                       Supprimer
@@ -932,43 +950,44 @@ export default function Journal() {
 
               <div className="journal-main-title">
                 <h2>{currentConversationTitle}</h2>
-                {activeArchive && (
+                {activeConversation && (
                   <p>Retrouve ton echange et continue la discussion ici.</p>
                 )}
               </div>
             </header>
 
             <div className="journal-conversation" ref={streamRef}>
-              {loading && <p className="journal-empty">Chargement...</p>}
+              {loadingConversation && <p className="journal-empty">Chargement...</p>}
 
-              {!loading && messages.length === 0 && (
+              {!loadingConversation && messages.length === 0 && (
                 <div className="journal-empty-card chat-style">
                   <strong>Nouvelle discussion.</strong>
                   <p>Ecris ton premier message ci-dessous pour commencer.</p>
                 </div>
               )}
 
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`journal-message ${message.role}`}
-                >
-                  <div className="journal-message-head">
-                    <strong className="journal-message-label">
-                      {message.role === "user"
-                        ? "Toi"
-                        : message.role === "assistant"
-                          ? "IA"
-                          : "Systeme"}
-                    </strong>
-                    <small className="journal-message-time">
-                      {formatDateTime(message.createdAt)}
-                    </small>
-                  </div>
+              {!loadingConversation &&
+                messages.map((message) => (
+                  <article
+                    key={message.id}
+                    className={`journal-message ${message.role}`}
+                  >
+                    <div className="journal-message-head">
+                      <strong className="journal-message-label">
+                        {message.role === "user"
+                          ? "Toi"
+                          : message.role === "assistant"
+                            ? "IA"
+                            : "Systeme"}
+                      </strong>
+                      <small className="journal-message-time">
+                        {formatDateTime(message.createdAt)}
+                      </small>
+                    </div>
 
-                  <div className="journal-message-bubble">{message.text}</div>
-                </article>
-              ))}
+                    <div className="journal-message-bubble">{message.text}</div>
+                  </article>
+                ))}
             </div>
 
             <div className="journal-composer">
@@ -977,7 +996,7 @@ export default function Journal() {
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder="Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
-                disabled={!token || sending || isRateLimited}
+                disabled={!token || sending || isRateLimited || loadingConversation}
               />
 
               <div className="journal-composer-actions">
@@ -986,7 +1005,13 @@ export default function Journal() {
                   onClick={() => {
                     void sendMessage();
                   }}
-                  disabled={!token || sending || isRateLimited || !input.trim()}
+                  disabled={
+                    !token ||
+                    sending ||
+                    isRateLimited ||
+                    loadingConversation ||
+                    !input.trim()
+                  }
                 >
                   {sending ? "Envoi..." : "Envoyer"}
                 </button>
@@ -996,7 +1021,7 @@ export default function Journal() {
                   onClick={() => {
                     void generateCompatibilityInsight();
                   }}
-                  disabled={!token || insightLoading}
+                  disabled={!token || insightLoading || loadingConversation}
                 >
                   {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
                 </button>
