@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
@@ -28,6 +28,7 @@ export default function Stories() {
 
   const [stories, setStories] = useState<Story[]>([]);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
 
@@ -111,9 +112,14 @@ export default function Stories() {
     }
   }
 
+  function submitSearch(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setSearch(searchInput.trim());
+  }
+
   /* =====================
      RENDER
-  ===================== */
+   ===================== */
 
   return (
     <div className="page stories-page">
@@ -132,11 +138,22 @@ export default function Stories() {
 
       {/* SEARCH */}
       <div className="search-bar">
-        <input
-          placeholder="Rechercher par titre ou hashtag"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <form className="search-form" onSubmit={submitSearch}>
+          <div className="search-field">
+            <span className="search-icon" aria-hidden="true">
+              🔎
+            </span>
+            <input
+              placeholder="Rechercher par titre ou hashtag"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+
+          <button type="submit" className="search-submit">
+            Lancer la recherche
+          </button>
+        </form>
       </div>
 
       {/* TAG FILTER */}
