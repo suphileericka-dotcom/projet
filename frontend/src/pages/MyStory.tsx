@@ -18,7 +18,7 @@ const TAG_LABELS: Record<Tag, string> = {
   solitude: "solitude",
   rupture: "rupture",
   expatriation: "expatriation",
-  changement: "changement de vie",
+  changement: "changement",
 };
 
 type Draft = {
@@ -36,17 +36,13 @@ export default function MyStory() {
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [showDrafts, setShowDrafts] = useState(false);
 
   function toggleTag(tag: Tag) {
-    setSelectedTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : [...prev, tag]
-    );
+    setSelectedTag((prev) => (prev === tag ? null : tag));
   }
 
   async function openDrafts() {
@@ -80,7 +76,7 @@ export default function MyStory() {
     setCurrentDraftId(draft.id);
     setTitle(draft.title);
     setBody(draft.body);
-    setSelectedTags(draft.tags);
+    setSelectedTag(draft.tags[0] ?? null);
     setShowDrafts(false);
   }
 
@@ -108,7 +104,7 @@ export default function MyStory() {
       return;
     }
 
-    if (selectedTags.length === 0) {
+    if (!selectedTag) {
       alert("Ajoute au moins un tag");
       return;
     }
@@ -128,7 +124,7 @@ export default function MyStory() {
         id: currentDraftId,
         title,
         body,
-        tags: selectedTags,
+        tags: [selectedTag],
       }),
     });
 
@@ -145,7 +141,7 @@ export default function MyStory() {
     setCurrentDraftId(null);
     setTitle("");
     setBody("");
-    setSelectedTags([]);
+    setSelectedTag(null);
   }
 
   async function publish() {
@@ -159,7 +155,7 @@ export default function MyStory() {
       return;
     }
 
-    if (selectedTags.length === 0) {
+    if (!selectedTag) {
       alert("Ajoute au moins un tag");
       return;
     }
@@ -215,12 +211,11 @@ export default function MyStory() {
           {TAGS.map((tag) => (
             <button
               key={tag}
-              className={`tag tag-${tag} ${
-                selectedTags.includes(tag) ? "on" : ""
-              }`}
+              className={`tag ${selectedTag === tag ? "on" : ""}`}
               onClick={() => toggleTag(tag)}
+              type="button"
             >
-              {TAG_LABELS[tag]}
+              #{TAG_LABELS[tag]}
             </button>
           ))}
         </div>

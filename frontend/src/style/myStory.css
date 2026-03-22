@@ -126,7 +126,7 @@
 
 .tags {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
   margin-top: 2rem;
 }
@@ -136,102 +136,41 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 14px;
+  min-height: 42px;
+  padding: 10px 16px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e5e7eb;
   font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .tag:hover {
+  background: rgba(255, 255, 255, 0.16);
   transform: translateY(-1px);
 }
 
-.tag-burnout {
-  background: rgba(131, 24, 67, 0.18);
-  border-color: rgba(244, 114, 182, 0.36);
-  color: #f9a8d4;
-}
-
-.tag-burnout:hover,
-.tag-burnout.on {
-  background: rgba(157, 23, 77, 0.32);
-}
-
-.tag-burnout.on {
-  border-color: rgba(251, 113, 133, 0.88);
-  box-shadow: 0 0 14px rgba(244, 114, 182, 0.28);
-}
-
-.tag-solitude {
-  background: rgba(30, 41, 59, 0.38);
-  border-color: rgba(148, 163, 184, 0.3);
-  color: #cbd5e1;
-}
-
-.tag-solitude:hover,
-.tag-solitude.on {
-  background: rgba(51, 65, 85, 0.48);
-}
-
-.tag-solitude.on {
-  border-color: rgba(203, 213, 225, 0.64);
-  box-shadow: 0 0 14px rgba(148, 163, 184, 0.18);
-}
-
-.tag-rupture {
-  background: rgba(127, 29, 29, 0.18);
-  border-color: rgba(248, 113, 113, 0.34);
-  color: #fca5a5;
-}
-
-.tag-rupture:hover,
-.tag-rupture.on {
-  background: rgba(153, 27, 27, 0.3);
-}
-
-.tag-rupture.on {
-  border-color: rgba(248, 113, 113, 0.84);
-  box-shadow: 0 0 14px rgba(248, 113, 113, 0.22);
-}
-
-.tag-expatriation {
-  background: rgba(120, 53, 15, 0.22);
-  border-color: rgba(251, 191, 36, 0.38);
-  color: #fcd34d;
-}
-
-.tag-expatriation:hover,
-.tag-expatriation.on {
-  background: rgba(146, 64, 14, 0.36);
-}
-
-.tag-expatriation.on {
-  border-color: rgba(252, 211, 77, 0.92);
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.24);
-}
-
-.tag-changement {
-  background: rgba(8, 47, 73, 0.24);
-  border-color: rgba(56, 189, 248, 0.36);
-  color: #7dd3fc;
-}
-
-.tag-changement:hover,
-.tag-changement.on {
-  background: rgba(3, 105, 161, 0.34);
-}
-
-.tag-changement.on {
-  border-color: rgba(125, 211, 252, 0.9);
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
-}
-
 .tag.on {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border-color: transparent;
   color: #ffffff;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.45);
+}
+
+.tag:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(96, 165, 250, 0.2),
+    0 10px 25px rgba(59, 130, 246, 0.32);
 }
 
 .actions {
@@ -433,9 +372,9 @@
   }
 
   .tag {
-    width: 100%;
-    justify-content: center;
-    text-align: center;
+    min-height: 40px;
+    padding: 9px 14px;
+    font-size: 13px;
   }
 
   .actions {
