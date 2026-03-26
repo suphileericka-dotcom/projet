@@ -11,6 +11,7 @@ type Story = {
   user_id: string;
   author_avatar?: string;
   likes: number;
+  liked_by_me?: boolean; // Pour savoir si l'utilisateur actuel a déjà liké
 };
 
 export default function Stories() {
@@ -24,11 +25,10 @@ export default function Stories() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
 
+  // Suggestion de recherche
   const searchSuggestions = searchInput.trim()
     ? stories
-        .filter((story) =>
-          story.title.toLowerCase().includes(searchInput.trim().toLowerCase())
-        )
+        .filter((s) => s.title.toLowerCase().includes(searchInput.toLowerCase()))
         .slice(0, 5)
     : [];
 
@@ -39,36 +39,45 @@ export default function Stories() {
         if (search) params.append("q", search);
         if (tagFilter) params.append("tag", tagFilter);
 
-        const res = await fetch(`${API}/stories?${params}`);
-        if (!res.ok) throw new Error("Erreur fetch stories");
+        const res = await fetch(`${API}/stories?${params}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
         const data = await res.json();
         setStories(data);
       } catch (err) {
-        console.error("Erreur stories:", err);
+        console.error("Erreur fetch stories:", err);
       }
     }
     fetchStories();
-  }, [search, tagFilter]);
+  }, [search, tagFilter, token]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setSearch(searchInput.trim());
-    }, 180);
+    const timeoutId = window.setTimeout(() => setSearch(searchInput.trim()), 200);
     return () => window.clearTimeout(timeoutId);
   }, [searchInput]);
 
-  async function likeStory(id: string) {
+  // LOGIQUE TOGGLE LIKE (Liker / Enlever le like)
+  async function handleLike(id: string) {
     if (!token) return;
+    
+    // Optimistic UI : on change l'état localement tout de suite
+    setStories(prev => prev.map(s => {
+        if (s.id === id) {
+            const isLiked = s.liked_by_me;
+            return { 
+                ...s, 
+                likes: isLiked ? s.likes - 1 : s.likes + 1, 
+                liked_by_me: !isLiked 
+            };
+        }
+        return s;
+    }));
+
     try {
       await fetch(`${API}/stories/${id}/like`, {
+        method: "POST", // ou PATCH selon ton API
         headers: { Authorization: `Bearer ${token}` },
       });
-      setStories((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, likes: s.likes + 1 } : s))
-      );
-      if (activeStory?.id === id) {
-        setActiveStory({ ...activeStory, likes: activeStory.likes + 1 });
-      }
     } catch (err) {
       console.error("Erreur like:", err);
     }
@@ -77,34 +86,20 @@ export default function Stories() {
   async function deleteStory(id: string) {
     if (!token || !confirm("Supprimer cette histoire ?")) return;
     try {
-      const res = await fetch(`${API}/stories/${id}`, {
+      await fetch(`${API}/stories/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return;
-      setStories((prev) => prev.filter((s) => s.id !== id));
+      setStories(prev => prev.filter(s => s.id !== id));
       setActiveStory(null);
     } catch (err) {
       console.error("Erreur suppression:", err);
     }
   }
 
-  const clearSearch = () => {
-    setSearchInput("");
-    setSearch("");
-  };
-
-  const chooseSuggestion = (story: Story) => {
-    setSearchInput(story.title);
-    setSearch(story.title);
-    setActiveStory(story);
-  };
-
   return (
     <div className="page stories-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>
-        ←
-      </button>
+      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
 
       <header className="page-header">
         <h1>Histoires</h1>
@@ -116,22 +111,17 @@ export default function Stories() {
           <div className="search-field">
             <span className="search-icon">🔎</span>
             <input
-              placeholder={!activeStory ? "Sélectionnez une histoire ou recherchez..." : "Rechercher une autre histoire..."}
+              placeholder="Rechercher une histoire..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-            {searchInput && (
-              <button className="search-clear" onClick={clearSearch}>×</button>
-            )}
           </div>
-
           {searchSuggestions.length > 0 && (
             <div className="search-suggestions">
-              {searchSuggestions.map((story) => (
-                <button key={story.id} className="search-suggestion" onClick={() => chooseSuggestion(story)}>
-                  <span>{story.title}</span>
-                  <small>#{story.tags[0]}</small>
-                </button>
+              {searchSuggestions.map((s) => (
+                <div key={s.id} className="suggestion-item" onClick={() => {setActiveStory(s); setSearchInput("")}}>
+                  {s.title}
+                </div>
               ))}
             </div>
           )}
@@ -150,60 +140,74 @@ export default function Stories() {
         </div>
       </div>
 
-      <div className="layout">
-        <div className="list">
-          {stories.map((s) => (
-            <div
-              key={s.id}
-              className={`story-card ${activeStory?.id === s.id ? "active-card" : ""}`}
-              onClick={() => setActiveStory(s)}
-            >
-              <div className="card-content">
-                <img src={s.author_avatar || "/avatar.png"} className="avatar-small" alt="" />
-                <div className="card-text">
-                  <strong>{s.title}</strong>
-                  <span className="card-tag">#{s.tags[0]}</span>
-                </div>
+      {/* GRILLE DES HISTOIRES */}
+      <div className="stories-grid">
+        {stories.map((s) => (
+          <div key={s.id} className="story-card" onClick={() => setActiveStory(s)}>
+            <div className="card-top">
+                <img src={s.author_avatar || "/avatar.png"} className="avatar-card" alt="" />
+                <span className="card-tag">#{s.tags[0]}</span>
+            </div>
+            <h3>{s.title}</h3>
+            <div className="card-footer">
+                <span>🤍 {s.likes}</span>
+                <span className="read-more">Lire l'histoire →</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* MODALE DE LECTURE */}
+      {activeStory && (
+        <div className="modal-overlay" onClick={() => setActiveStory(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setActiveStory(null)}>×</button>
+            
+            <div className="modal-header">
+              <h2>{activeStory.title}</h2>
+              <div className="modal-meta">
+                {activeStory.tags.map(t => <span key={t} className="tag-pill">#{t}</span>)}
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className="reader-container">
-          {!activeStory ? (
-            <div className="empty-state-hint">
-              <p>Cliquez sur une histoire pour commencer la lecture</p>
+            <div className="modal-body">
+              <p>{activeStory.body}</p>
             </div>
-          ) : (
-            <div className="reader">
-              <div className="reader-header">
-                <h2>{activeStory.title}</h2>
-                <div className="reader-meta">
-                  {activeStory.tags.map(t => <span key={t} className="tag-pill">#{t}</span>)}
-                </div>
+
+            <div className="modal-footer">
+              <div className="actions-left">
+                  <button 
+                    className={`btn-action btn-like ${activeStory.liked_by_me ? 'is-liked' : ''}`}
+                    onClick={() => handleLike(activeStory.id)}
+                  >
+                    {activeStory.liked_by_me ? "❤️" : "🤍"} {activeStory.likes}
+                  </button>
+                  <button className="btn-action btn-chat" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>
+                    Discussion
+                  </button>
               </div>
               
-              <div className="reader-body">
-                <p>{activeStory.body}</p>
-              </div>
-
-              <div className="reader-actions">
-                <button className="btn-like" onClick={() => likeStory(activeStory.id)}>
-                  🤍 Soutenir ({activeStory.likes})
+              {activeStory.user_id === myUserId && (
+                <button className="btn-danger" onClick={() => deleteStory(activeStory.id)}>
+                  Supprimer
                 </button>
-                <button className="btn-chat" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>
-                  Discussion
-                </button>
-                {activeStory.user_id === myUserId && (
-                  <button className="btn-delete" onClick={() => deleteStory(activeStory.id)}>
-                    Supprimer
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          )}
+
+            {/* SECTION COMMENTAIRES */}
+            <div className="comments-section">
+                <h3>Commentaires</h3>
+                <div className="comment-input-wrapper">
+                    <textarea placeholder="Écrire un commentaire bienveillant..."></textarea>
+                    <button className="btn-send">Envoyer</button>
+                </div>
+                <div className="comments-list">
+                    <p className="no-comments">Aucun commentaire pour le moment.</p>
+                </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
