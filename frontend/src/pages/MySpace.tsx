@@ -19,7 +19,6 @@ type SpaceProfile = {
 type SpaceStats = {
   stories?: number;
   friends?: number;
-  journal_entries?: number;
   dm_threads?: number;
   matches_today?: number;
 };
@@ -28,7 +27,6 @@ type FriendLike = {
   id: string;
   username?: string | null;
   avatar?: string | null;
-  common_tags?: string[];
 };
 
 type StoryPreview = {
@@ -38,16 +36,9 @@ type StoryPreview = {
   created_at?: number | string | null;
 };
 
-type JournalPreview = {
-  id: string;
-  body?: string | null;
-  created_at?: number | string | null;
-};
-
 type MatchPreview = {
   id: string;
   summary?: string | null;
-  common_tags?: string[];
   avatar?: string | null;
 };
 
@@ -56,7 +47,6 @@ type SpacePayload = {
   stats?: SpaceStats;
   friends?: FriendLike[];
   recent_stories?: StoryPreview[];
-  recent_journal_entries?: JournalPreview[];
   daily_matches?: MatchPreview[];
   dm_subscription?: {
     status?: string;
@@ -83,28 +73,32 @@ function resolveUpload(path?: string | null) {
 }
 
 /* =====================
-   COMPOSANT
+   COMPOSANT PRINCIPAL
 ===================== */
 
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
 
+  // États des données
   const [space, setSpace] = useState<SpacePayload | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // États du formulaire profil
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // États de la modale Password
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
+  // Chargement des données
   const loadDashboard = useCallback(async () => {
     if (!token) {
       setLoading(false);
@@ -132,6 +126,7 @@ export default function MySpace() {
     loadDashboard();
   }, [loadDashboard]);
 
+  // Sauvegarder le profil (Texte + Image)
   async function saveProfile() {
     if (!token) return;
     setSavingProfile(true);
@@ -165,6 +160,7 @@ export default function MySpace() {
     }
   }
 
+  // Changer le mot de passe
   async function submitPassword() {
     if (!token || !oldPassword || !newPassword) return;
     setPwSaving(true);
@@ -184,19 +180,19 @@ export default function MySpace() {
         setPwOpen(false);
         setOldPassword("");
         setNewPassword("");
-        alert("Mot de passe modifié");
+        alert("Mot de passe modifié avec succès");
       } else {
         const data = await res.json();
         setPwError(data.error || "Erreur mot de passe");
       }
     } catch {
-      setPwError("Erreur lors de la modification");
+      setPwError("Serveur injoignable");
     } finally {
       setPwSaving(false);
     }
   }
 
-  if (loading) return <div className="page myspace-page">Chargement…</div>;
+  if (loading) return <div className="page myspace-page">Chargement du dashboard...</div>;
 
   return (
     <div className="page myspace-page">
@@ -204,14 +200,15 @@ export default function MySpace() {
 
       <header className="page-header">
         <h1>Mon espace</h1>
-        <p>Gère ton profil et ton activité.</p>
+        <p>Gère tes publications et tes informations personnelles.</p>
       </header>
 
+      {/* SECTION PROFIL & AVATAR */}
       <section className="block profile-block">
         <div className="block-head">
-          <h2>Profil</h2>
+          <h2>Mon Profil</h2>
           <button className="btn ghost" onClick={saveProfile} disabled={savingProfile}>
-            {savingProfile ? "Sauvegarde..." : "Sauvegarder"}
+            {savingProfile ? "Enregistrement..." : "Enregistrer les modifications"}
           </button>
         </div>
 
@@ -220,7 +217,7 @@ export default function MySpace() {
             <img
               src={avatarPreview || `https://ui-avatars.com/api/?name=${username || "U"}`}
               className="avatar-xl"
-              alt="Avatar"
+              alt="Profil"
             />
             <input
               type="file"
@@ -234,7 +231,7 @@ export default function MySpace() {
                 }
               }}
             />
-            <span>Changer la photo</span>
+            <div className="overlay-text">Changer la photo</div>
           </label>
         </div>
 
@@ -244,63 +241,115 @@ export default function MySpace() {
             <input value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div className="field">
-            <label>Email</label>
+            <label>Adresse Email</label>
             <input value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
 
-        <button className="btn primary" onClick={() => setPwOpen(true)}>Modifier le mot de passe</button>
+        <div className="profile-actions">
+           <button className="btn primary" onClick={() => setPwOpen(true)}>Changer le mot de passe</button>
+        </div>
       </section>
 
+      {/* STATS RAPIDES (JOURNAL RETIRÉ) */}
       <section className="stats-grid">
-        <article className="stat-card"><span>Stories</span><strong>{space?.stats?.stories ?? 0}</strong></article>
-        <article className="stat-card"><span>Amis</span><strong>{space?.stats?.friends ?? 0}</strong></article>
-        <article className="stat-card"><span>Journal</span><strong>{space?.stats?.journal_entries ?? 0}</strong></article>
-        <article className="stat-card"><span>Matchs</span><strong>{space?.stats?.matches_today ?? 0}</strong></article>
-      </section>
-
-      <section className="dashboard-grid">
-        <article className="dash-card">
-          <div className="block-head"><h3>Stories récentes</h3></div>
-          {space?.recent_stories?.map((s) => (
-            <div key={s.id} className="list-row stacked">
-              <strong>{s.title}</strong>
-              <p>{s.body}</p>
-              <small>{formatDateTime(s.created_at)}</small>
-            </div>
-          ))}
+        <article className="stat-card">
+          <span>Stories</span>
+          <strong>{space?.stats?.stories ?? 0}</strong>
         </article>
-
-        <article className="dash-card">
-          <div className="block-head"><h3>Journal récent</h3></div>
-          {space?.recent_journal_entries?.map((j) => (
-            <div key={j.id} className="list-row stacked">
-              <p>{j.body}</p>
-              <small>{formatDateTime(j.created_at)}</small>
-            </div>
-          ))}
+        <article className="stat-card">
+          <span>Amis</span>
+          <strong>{space?.stats?.friends ?? 0}</strong>
         </article>
-
-        <article className="dash-card">
-          <div className="block-head"><h3>Amis</h3></div>
-          {space?.friends?.map((f) => (
-            <div key={f.id} className="list-row">
-              <img src={resolveUpload(f.avatar) || `https://ui-avatars.com/api/?name=${f.username}`} className="avatar-sm" alt="Ami" />
-              <strong>{f.username}</strong>
-            </div>
-          ))}
+        <article className="stat-card">
+          <span>Messages</span>
+          <strong>{space?.stats?.dm_threads ?? 0}</strong>
+        </article>
+        <article className="stat-card">
+          <span>Matchs du jour</span>
+          <strong>{space?.stats?.matches_today ?? 0}</strong>
         </article>
       </section>
 
+      {/* GRILLE DE CONTENU (JOURNAL RETIRÉ) */}
+      <section className="dashboard-grid no-journal">
+        
+        {/* COLONNE STORIES */}
+        <article className="dash-card">
+          <div className="block-head">
+            <h3>Stories récentes</h3>
+            <button className="btn link" onClick={() => navigate("/stories/my")}>Voir tout</button>
+          </div>
+          
+          <div className="list-container">
+            {(!space?.recent_stories || space.recent_stories.length === 0) && (
+              <p className="muted">Tu n'as pas encore publié de story.</p>
+            )}
+            {space?.recent_stories?.map((s) => (
+              <div key={s.id} className="list-row stacked">
+                <strong>{s.title || "Sans titre"}</strong>
+                <p className="truncate-2">{s.body}</p>
+                <small>{formatDateTime(s.created_at)}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        {/* COLONNE AMIS */}
+        <article className="dash-card">
+          <div className="block-head">
+            <h3>Amis connectés</h3>
+            <button className="btn link" onClick={() => navigate("/friends")}>Gérer</button>
+          </div>
+          
+          <div className="list-container">
+            {(!space?.friends || space.friends.length === 0) && (
+              <p className="muted">Aucun ami pour le moment.</p>
+            )}
+            {space?.friends?.map((f) => (
+              <div key={f.id} className="list-row">
+                <img 
+                  src={resolveUpload(f.avatar) || `https://ui-avatars.com/api/?name=${f.username}`} 
+                  className="avatar-sm" 
+                  alt={f.username || "Ami"} 
+                />
+                <strong>{f.username}</strong>
+                <div className="status-indicator online"></div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+      </section>
+
+      {/* MODALE CHANGEMENT MOT DE PASSE */}
       {pwOpen && (
         <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Modifier le mot de passe</h3>
-            {pwError && <div className="error-msg" style={{color: 'red'}}>{pwError}</div>}
-            <input className="modern-input" type="password" placeholder="Ancien" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-            <input className="modern-input" type="password" placeholder="Nouveau" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <h3>Sécurité du compte</h3>
+            <p className="muted">Saisis ton ancien mot de passe pour définir le nouveau.</p>
+            
+            {pwError && <div className="error-msg" style={{color: 'var(--danger)', marginBottom: '10px'}}>{pwError}</div>}
+            
+            <input 
+              className="modern-input" 
+              type="password" 
+              placeholder="Ancien mot de passe" 
+              value={oldPassword} 
+              onChange={(e) => setOldPassword(e.target.value)} 
+            />
+            <input 
+              className="modern-input" 
+              type="password" 
+              placeholder="Nouveau mot de passe" 
+              value={newPassword} 
+              onChange={(e) => setNewPassword(e.target.value)} 
+            />
+            
             <div className="modal-actions">
-              <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>Sauver</button>
+              <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>
+                {pwSaving ? "Mise à jour..." : "Mettre à jour"}
+              </button>
               <button className="btn ghost" onClick={() => setPwOpen(false)}>Annuler</button>
             </div>
           </div>
