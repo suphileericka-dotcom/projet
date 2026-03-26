@@ -11,7 +11,7 @@ type Story = {
   user_id: string;
   author_avatar?: string;
   likes: number;
-  liked_by_me?: boolean; // Pour savoir si l'utilisateur actuel a déjà liké
+  liked_by_me?: boolean;
 };
 
 export default function Stories() {
@@ -25,27 +25,19 @@ export default function Stories() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
 
-  // Suggestion de recherche
-  const searchSuggestions = searchInput.trim()
-    ? stories
-        .filter((s) => s.title.toLowerCase().includes(searchInput.toLowerCase()))
-        .slice(0, 5)
-    : [];
-
   useEffect(() => {
     async function fetchStories() {
       try {
         const params = new URLSearchParams();
         if (search) params.append("q", search);
         if (tagFilter) params.append("tag", tagFilter);
-
         const res = await fetch(`${API}/stories?${params}`, {
-            headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
         setStories(data);
       } catch (err) {
-        console.error("Erreur fetch stories:", err);
+        console.error("Erreur stories:", err);
       }
     }
     fetchStories();
@@ -56,35 +48,44 @@ export default function Stories() {
     return () => window.clearTimeout(timeoutId);
   }, [searchInput]);
 
-  // LOGIQUE TOGGLE LIKE (Liker / Enlever le like)
+  // LOGIQUE LIKE / DISLIKE (Toggle)
   async function handleLike(id: string) {
     if (!token) return;
-    
-    // Optimistic UI : on change l'état localement tout de suite
-    setStories(prev => prev.map(s => {
-        if (s.id === id) {
-            const isLiked = s.liked_by_me;
-            return { 
-                ...s, 
-                likes: isLiked ? s.likes - 1 : s.likes + 1, 
-                liked_by_me: !isLiked 
-            };
-        }
-        return s;
-    }));
+
+    // Mise à jour locale immédiate (Optimistic UI)
+    const updateState = (prev: Story[]) => prev.map(s => {
+      if (s.id === id) {
+        const isCurrentlyLiked = s.liked_by_me;
+        return { 
+          ...s, 
+          likes: isCurrentlyLiked ? s.likes - 1 : s.likes + 1, 
+          liked_by_me: !isCurrentlyLiked 
+        };
+      }
+      return s;
+    });
+
+    setStories(updateState);
+    if (activeStory?.id === id) {
+        setActiveStory(prev => prev ? { 
+            ...prev, 
+            likes: prev.liked_by_me ? prev.likes - 1 : prev.likes + 1, 
+            liked_by_me: !prev.liked_by_me 
+        } : null);
+    }
 
     try {
       await fetch(`${API}/stories/${id}/like`, {
-        method: "POST", // ou PATCH selon ton API
+        method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (err) {
-      console.error("Erreur like:", err);
+      console.error("Erreur toggle like:", err);
     }
   }
 
   async function deleteStory(id: string) {
-    if (!token || !confirm("Supprimer cette histoire ?")) return;
+    if (!token || !confirm("Supprimer définitivement cette histoire ?")) return;
     try {
       await fetch(`${API}/stories/${id}`, {
         method: "DELETE",
@@ -92,9 +93,7 @@ export default function Stories() {
       });
       setStories(prev => prev.filter(s => s.id !== id));
       setActiveStory(null);
-    } catch (err) {
-      console.error("Erreur suppression:", err);
-    }
+    } catch (err) { console.error(err); }
   }
 
   return (
@@ -103,35 +102,24 @@ export default function Stories() {
 
       <header className="page-header">
         <h1>Histoires</h1>
-        <p>Découvrez les récits de la communauté</p>
+        <p>Découvrez les récits anonymes de la communauté</p>
       </header>
 
-      <div className="search-container">
-        <div className="search-bar">
-          <div className="search-field">
-            <span className="search-icon">🔎</span>
-            <input
-              placeholder="Rechercher une histoire..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-          </div>
-          {searchSuggestions.length > 0 && (
-            <div className="search-suggestions">
-              {searchSuggestions.map((s) => (
-                <div key={s.id} className="suggestion-item" onClick={() => {setActiveStory(s); setSearchInput("")}}>
-                  {s.title}
-                </div>
-              ))}
-            </div>
-          )}
+      <div className="search-section">
+        <div className="modern-search-bar">
+          <span className="search-emoji">🔎</span>
+          <input
+            placeholder="Rechercher par titre ou hashtag..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
 
-        <div className="filters">
+        <div className="tag-filters">
           {["burnout", "solitude", "rupture", "expatriation", "changement"].map((t) => (
             <button
               key={t}
-              className={tagFilter === t ? "active" : ""}
+              className={tagFilter === t ? "tag-btn active" : "tag-btn"}
               onClick={() => setTagFilter(tagFilter === t ? "" : t)}
             >
               #{t}
@@ -140,70 +128,53 @@ export default function Stories() {
         </div>
       </div>
 
-      {/* GRILLE DES HISTOIRES */}
       <div className="stories-grid">
         {stories.map((s) => (
           <div key={s.id} className="story-card" onClick={() => setActiveStory(s)}>
-            <div className="card-top">
-                <img src={s.author_avatar || "/avatar.png"} className="avatar-card" alt="" />
-                <span className="card-tag">#{s.tags[0]}</span>
+            <div className="card-header">
+              <img src={s.author_avatar || "/avatar.png"} className="card-avatar" alt="" />
+              <span className="card-tag">#{s.tags[0]}</span>
             </div>
             <h3>{s.title}</h3>
             <div className="card-footer">
-                <span>🤍 {s.likes}</span>
-                <span className="read-more">Lire l'histoire →</span>
+              <span className={`likes-badge ${s.liked_by_me ? 'is-liked' : ''}`}>
+                {s.liked_by_me ? "❤️" : "🤍"} {s.likes}
+              </span>
+              <span className="btn-read">Lire l'histoire →</span>
             </div>
           </div>
         ))}
       </div>
 
-      {/* MODALE DE LECTURE */}
       {activeStory && (
         <div className="modal-overlay" onClick={() => setActiveStory(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-modal" onClick={() => setActiveStory(null)}>×</button>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setActiveStory(null)}>✕</button>
             
-            <div className="modal-header">
-              <h2>{activeStory.title}</h2>
-              <div className="modal-meta">
-                {activeStory.tags.map(t => <span key={t} className="tag-pill">#{t}</span>)}
-              </div>
+            <div className="modal-content-scroll">
+              <span className="modal-category">#{activeStory.tags.join(" #")}</span>
+              <h2 className="modal-title">{activeStory.title}</h2>
+              <div className="modal-divider"></div>
+              <p className="modal-body-text">{activeStory.body}</p>
             </div>
 
-            <div className="modal-body">
-              <p>{activeStory.body}</p>
-            </div>
-
-            <div className="modal-footer">
-              <div className="actions-left">
-                  <button 
-                    className={`btn-action btn-like ${activeStory.liked_by_me ? 'is-liked' : ''}`}
-                    onClick={() => handleLike(activeStory.id)}
-                  >
-                    {activeStory.liked_by_me ? "❤️" : "🤍"} {activeStory.likes}
-                  </button>
-                  <button className="btn-action btn-chat" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>
-                    Discussion
-                  </button>
-              </div>
+            <div className="modal-actions-bar">
+              <button 
+                className={`action-pill like-pill ${activeStory.liked_by_me ? 'liked' : ''}`}
+                onClick={() => handleLike(activeStory.id)}
+              >
+                {activeStory.liked_by_me ? "❤️" : "🤍"} {activeStory.liked_by_me ? "Aimé" : "Soutenir"} ({activeStory.likes})
+              </button>
               
+              <button className="action-pill chat-pill" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>
+                Discussion liée
+              </button>
+
               {activeStory.user_id === myUserId && (
-                <button className="btn-danger" onClick={() => deleteStory(activeStory.id)}>
+                <button className="delete-btn-modal" onClick={() => deleteStory(activeStory.id)}>
                   Supprimer
                 </button>
               )}
-            </div>
-
-            {/* SECTION COMMENTAIRES */}
-            <div className="comments-section">
-                <h3>Commentaires</h3>
-                <div className="comment-input-wrapper">
-                    <textarea placeholder="Écrire un commentaire bienveillant..."></textarea>
-                    <button className="btn-send">Envoyer</button>
-                </div>
-                <div className="comments-list">
-                    <p className="no-comments">Aucun commentaire pour le moment.</p>
-                </div>
             </div>
           </div>
         </div>
