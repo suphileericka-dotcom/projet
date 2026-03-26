@@ -6,63 +6,38 @@
   font-family: 'Inter', sans-serif;
 }
 
-/* SEARCH & FILTERS */
-.search-section { max-width: 700px; margin: 0 auto 40px; display: flex; flex-direction: column; gap: 15px; }
+.search-section { max-width: 700px; margin: 0 auto 40px; }
 .modern-search-bar { 
-  display: flex; align-items: center; background: rgba(255, 255, 255, 0.05); 
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50px; padding: 10px 20px;
+  display: flex; align-items: center; background: rgba(255,255,255,0.05); 
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 50px; padding: 12px 25px;
 }
-.modern-search-bar input { background: transparent !important; border: none !important; color: white !important; width: 100%; outline: none !important; padding: 5px 10px; }
-.tag-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.tag-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #9ca3af; padding: 6px 15px; border-radius: 20px; cursor: pointer; font-size: 13px; }
-.tag-btn.active { background: #3b82f6; color: white; border-color: transparent; }
+.modern-search-bar input { background: transparent !important; border: none !important; color: white !important; width: 100%; outline: none; }
+.tag-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 15px; }
+.tag-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #9ca3af; padding: 8px 16px; border-radius: 20px; cursor: pointer; }
+.tag-btn.active { background: #3b82f6; color: white; }
 
-/* GRID */
 .stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
-.story-card { background: rgba(255, 255, 255, 0.03); border-radius: 20px; padding: 20px; cursor: pointer; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
-.story-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.08); }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.card-avatar { width: 35px; height: 35px; border-radius: 10px; }
-.card-tag { color: #60a5fa; font-size: 12px; font-weight: 600; }
-.is-liked { color: #ef4444; font-weight: bold; }
+.story-card { background: rgba(255,255,255,0.03); border-radius: 20px; padding: 25px; cursor: pointer; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
+.story-card:hover { transform: translateY(-5px); border-color: #3b82f6; }
 
-/* MODAL XXL */
-.modal-overlay { 
-  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); 
-  backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; 
-}
-.modal-card { 
-  background: white; color: #111827; width: 100%; max-width: 900px; height: 85vh; 
-  border-radius: 30px; display: flex; flex-direction: column; position: relative; overflow: hidden;
-}
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; }
+.modal-card { background: white; color: #111827; width: 100%; max-width: 900px; height: 85vh; border-radius: 35px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .modal-content-scroll { padding: 60px; overflow-y: auto; flex-grow: 1; }
-.modal-title { font-size: 40px; font-weight: 900; margin: 10px 0; color: #000; }
-.modal-divider { width: 50px; height: 5px; background: #3b82f6; border-radius: 10px; margin-bottom: 30px; }
-.modal-body-text { font-size: 1.2rem; line-height: 1.8; font-family: 'Georgia', serif; color: #374151; white-space: pre-wrap; }
-.modal-actions-bar { padding: 20px 60px; background: #f9fafb; display: flex; gap: 15px; align-items: center; }
-.action-pill { padding: 12px 25px; border-radius: 50px; border: 1px solid #e5e7eb; font-weight: 700; cursor: pointer; background: white; }
-.action-pill.liked { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
-.chat-pill { background: #3b82f6; color: white; border: none; }
-.modal-close-btn { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%; border: none; background: #f3f4f6; cursor: pointer; font-size: 18px; z-index: 10; }
+.modal-title { font-size: 38px; font-weight: 900; margin: 10px 0; }
+.modal-divider { width: 60px; height: 5px; background: #3b82f6; border-radius: 10px; margin-bottom: 30px; }
+.modal-body-text { font-size: 1.2rem; line-height: 1.8; color: #374151; font-family: 'Georgia', serif; white-space: pre-wrap; }
 
-/* =============================================
-   RESPONSIVITÉ (MOBILE & TABLETTE)
-   ============================================= */
+.modal-actions-bar { padding: 25px 60px; background: #f9fafb; display: flex; gap: 15px; align-items: center; border-top: 1px solid #f1f5f9; }
+.action-pill { padding: 12px 25px; border-radius: 50px; border: 1px solid #e5e7eb; font-weight: 700; cursor: pointer; }
+.chat-pill { background: #3b82f6; color: white; border: none; }
+.delete-btn-modal { margin-left: auto; background: transparent; border: none; color: #ef4444; font-weight: 600; cursor: pointer; padding: 10px; }
+.delete-btn-modal:hover { text-decoration: underline; }
+
+.modal-close-btn { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%; border: none; background: #f1f5f9; cursor: pointer; }
 
 @media (max-width: 768px) {
-  .page.stories-page { padding: 60px 15px; }
-  .modal-card { height: 95vh; border-radius: 20px; } /* Plus haut sur mobile */
-  .modal-content-scroll { padding: 40px 25px; } /* Moins de padding sur les côtés */
-  .modal-title { font-size: 28px; } /* Titre plus petit */
-  .modal-actions-bar { padding: 15px 25px; flex-wrap: wrap; } /* Boutons l'un au dessus de l'autre si besoin */
-  .modal-close-btn { top: 15px; right: 15px; }
-  
-  .search-section { margin-bottom: 30px; }
-  .stories-grid { grid-template-columns: 1fr; } /* Une seule colonne sur mobile */
-}
-
-@media (max-width: 480px) {
-  .page-header h1 { font-size: 28px; }
-  .modern-search-bar { padding: 8px 15px; }
-  .action-pill { width: 100%; justify-content: center; } /* Boutons pleine largeur */
+  .modal-card { height: 95vh; border-radius: 20px; }
+  .modal-content-scroll { padding: 40px 25px; }
+  .modal-actions-bar { padding: 15px 25px; flex-wrap: wrap; }
+  .delete-btn-modal { margin-left: 0; width: 100%; text-align: center; }
 }

@@ -11,7 +11,7 @@ type Story = {
   user_id: string;
   author_avatar?: string;
   likes: number;
-  liked_by_me?: boolean;
+  liked_by_me: boolean;
 };
 
 export default function Stories() {
@@ -35,66 +35,58 @@ export default function Stories() {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
-        setStories(data);
-      } catch (err) {
-        console.error("Erreur stories:", err);
-      }
+        if (Array.isArray(data)) setStories(data);
+      } catch (err) { console.error(err); }
     }
     fetchStories();
   }, [search, tagFilter, token]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => setSearch(searchInput.trim()), 200);
-    return () => window.clearTimeout(timeoutId);
+    const timeoutId = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timeoutId);
   }, [searchInput]);
 
-  // LOGIQUE LIKE / DISLIKE (Toggle)
-  async function handleLike(id: string) {
+  const handleToggleLike = async (story: Story) => {
     if (!token) return;
 
-    // Mise à jour locale immédiate (Optimistic UI)
-    const updateState = (prev: Story[]) => prev.map(s => {
-      if (s.id === id) {
-        const isCurrentlyLiked = s.liked_by_me;
-        return { 
-          ...s, 
-          likes: isCurrentlyLiked ? s.likes - 1 : s.likes + 1, 
-          liked_by_me: !isCurrentlyLiked 
-        };
-      }
-      return s;
-    });
+    const isLiked = story.liked_by_me;
+    const method = isLiked ? "DELETE" : "POST";
+    const endpoint = isLiked ? "unlike" : "like";
 
-    setStories(updateState);
-    if (activeStory?.id === id) {
-        setActiveStory(prev => prev ? { 
-            ...prev, 
-            likes: prev.liked_by_me ? prev.likes - 1 : prev.likes + 1, 
-            liked_by_me: !prev.liked_by_me 
-        } : null);
+    // Mise à jour UI Optimiste
+    const newStories = stories.map(s => 
+      s.id === story.id 
+      ? { ...s, liked_by_me: !isLiked, likes: isLiked ? s.likes - 1 : s.likes + 1 } 
+      : s
+    );
+    setStories(newStories);
+    if (activeStory?.id === story.id) {
+        setActiveStory({ ...activeStory, liked_by_me: !isLiked, likes: isLiked ? activeStory.likes - 1 : activeStory.likes + 1 });
     }
 
     try {
-      await fetch(`${API}/stories/${id}/like`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+      await fetch(`${API}/stories/${story.id}/${endpoint}`, {
+        method: method,
+        headers: { Authorization: `Bearer ${token}` }
       });
     } catch (err) {
-      console.error("Erreur toggle like:", err);
+      console.error("Erreur like:", err);
     }
-  }
+  };
 
-  async function deleteStory(id: string) {
-    if (!token || !confirm("Supprimer définitivement cette histoire ?")) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm("Supprimer cette histoire ?")) return;
     try {
-      await fetch(`${API}/stories/${id}`, {
+      const res = await fetch(`${API}/stories/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }
       });
-      setStories(prev => prev.filter(s => s.id !== id));
-      setActiveStory(null);
+      if (res.ok) {
+        setStories(stories.filter(s => s.id !== id));
+        setActiveStory(null);
+      }
     } catch (err) { console.error(err); }
-  }
+  };
 
   return (
     <div className="page stories-page">
@@ -102,78 +94,56 @@ export default function Stories() {
 
       <header className="page-header">
         <h1>Histoires</h1>
-        <p>Découvrez les récits anonymes de la communauté</p>
+        <p>Découvrez et soutenez les témoignages</p>
       </header>
 
       <div className="search-section">
         <div className="modern-search-bar">
-          <span className="search-emoji">🔎</span>
-          <input
-            placeholder="Rechercher par titre ou hashtag..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+          <input 
+            placeholder="Rechercher une histoire..." 
+            value={searchInput} 
+            onChange={(e) => setSearchInput(e.target.value)} 
           />
         </div>
-
         <div className="tag-filters">
-          {["burnout", "solitude", "rupture", "expatriation", "changement"].map((t) => (
-            <button
-              key={t}
-              className={tagFilter === t ? "tag-btn active" : "tag-btn"}
-              onClick={() => setTagFilter(tagFilter === t ? "" : t)}
-            >
-              #{t}
-            </button>
+          {["burnout", "solitude", "rupture", "expatriation"].map(t => (
+            <button key={t} className={`tag-btn ${tagFilter === t ? 'active' : ''}`} onClick={() => setTagFilter(tagFilter === t ? "" : t)}>#{t}</button>
           ))}
         </div>
       </div>
 
       <div className="stories-grid">
-        {stories.map((s) => (
+        {stories.map(s => (
           <div key={s.id} className="story-card" onClick={() => setActiveStory(s)}>
             <div className="card-header">
-              <img src={s.author_avatar || "/avatar.png"} className="card-avatar" alt="" />
               <span className="card-tag">#{s.tags[0]}</span>
+              <span className={s.liked_by_me ? "is-liked" : ""}>{s.liked_by_me ? "❤️" : "🤍"} {s.likes}</span>
             </div>
             <h3>{s.title}</h3>
-            <div className="card-footer">
-              <span className={`likes-badge ${s.liked_by_me ? 'is-liked' : ''}`}>
-                {s.liked_by_me ? "❤️" : "🤍"} {s.likes}
-              </span>
-              <span className="btn-read">Lire l'histoire →</span>
-            </div>
+            <span className="btn-read">Lire l'histoire</span>
           </div>
         ))}
       </div>
 
       {activeStory && (
         <div className="modal-overlay" onClick={() => setActiveStory(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
             <button className="modal-close-btn" onClick={() => setActiveStory(null)}>✕</button>
-            
             <div className="modal-content-scroll">
-              <span className="modal-category">#{activeStory.tags.join(" #")}</span>
               <h2 className="modal-title">{activeStory.title}</h2>
               <div className="modal-divider"></div>
               <p className="modal-body-text">{activeStory.body}</p>
             </div>
-
             <div className="modal-actions-bar">
               <button 
-                className={`action-pill like-pill ${activeStory.liked_by_me ? 'liked' : ''}`}
-                onClick={() => handleLike(activeStory.id)}
+                className={`action-pill ${activeStory.liked_by_me ? 'liked' : ''}`} 
+                onClick={() => handleToggleLike(activeStory)}
               >
-                {activeStory.liked_by_me ? "❤️" : "🤍"} {activeStory.liked_by_me ? "Aimé" : "Soutenir"} ({activeStory.likes})
+                {activeStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} ({activeStory.likes})
               </button>
-              
-              <button className="action-pill chat-pill" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>
-                Discussion liée
-              </button>
-
+              <button className="action-pill chat-pill" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>Chat</button>
               {activeStory.user_id === myUserId && (
-                <button className="delete-btn-modal" onClick={() => deleteStory(activeStory.id)}>
-                  Supprimer
-                </button>
+                <button className="delete-btn-modal" onClick={() => handleDelete(activeStory.id)}>Supprimer</button>
               )}
             </div>
           </div>
