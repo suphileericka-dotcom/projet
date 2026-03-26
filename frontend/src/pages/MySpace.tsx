@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/mySpace.css";
 import { API } from "../config/api";
+
+/* =====================
+   TYPES
+===================== */
 
 type SpaceProfile = {
   id: string;
@@ -27,27 +31,16 @@ type FriendLike = {
   common_tags?: string[];
 };
 
-type ThreadPreview = {
-  id: string;
-  otherUserId?: string;
-  otherName?: string | null;
-  otherAvatar?: string | null;
-  lastMessage?: string | null;
-  lastAt?: number | string | null;
-};
-
 type StoryPreview = {
   id: string;
   title?: string | null;
   body?: string | null;
-  tags?: string[];
   created_at?: number | string | null;
 };
 
 type JournalPreview = {
   id: string;
   body?: string | null;
-  mood?: string | null;
   created_at?: number | string | null;
 };
 
@@ -62,198 +55,118 @@ type SpacePayload = {
   profile?: SpaceProfile;
   stats?: SpaceStats;
   friends?: FriendLike[];
-  friend_requests_received?: FriendLike[];
-  friend_requests_sent?: FriendLike[];
-  recent_dm_threads?: ThreadPreview[];
   recent_stories?: StoryPreview[];
   recent_journal_entries?: JournalPreview[];
   daily_matches?: MatchPreview[];
-};
-
-type PaymentState = {
   dm_subscription?: {
+    status?: string;
     active?: boolean;
-    status?: string | null;
-    renews_at?: number | string | null;
-    canceled_at?: number | string | null;
-  };
-  unlocked_dms?: Array<{
-    targetUserId?: string;
-    target_user_id?: string;
-    expires_at?: number | string | null;
-  }>;
+  } | null;
 };
 
-function formatDate(value?: number | string | null) {
-  if (!value) return "—";
-
-  const date =
-    typeof value === "number" ? new Date(value) : new Date(String(value));
-
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString();
-}
+/* =====================
+   HELPERS
+===================== */
 
 function formatDateTime(value?: number | string | null) {
   if (!value) return "—";
-
-  const date =
-    typeof value === "number" ? new Date(value) : new Date(String(value));
-
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
 function resolveUpload(path?: string | null) {
   if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
-  }
-
+  if (path.startsWith("http")) return path;
   const base = API.replace("/api", "");
-  return `${base}/uploads/${path}`;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${cleanPath}`;
 }
+
+/* =====================
+   COMPOSANT
+===================== */
 
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
 
   const [space, setSpace] = useState<SpacePayload | null>(null);
-  const [payments, setPayments] = useState<PaymentState | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
-  const [relationBusyId, setRelationBusyId] = useState<string | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
     }
-
     try {
-      const [spaceRes, paymentsRes] = await Promise.all([
-        fetch(`${API}/user/me/space`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API}/payments/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (spaceRes.ok) {
-        const data: SpacePayload = await spaceRes.json();
+      const res = await fetch(`${API}/user/me/space`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: SpacePayload = await res.json();
         setSpace(data);
         setUsername(data.profile?.username ?? "");
         setEmail(data.profile?.email ?? "");
         setAvatarPreview(resolveUpload(data.profile?.avatar));
-      }
-
-      if (paymentsRes.ok) {
-        setPayments(await paymentsRes.json());
       }
     } catch (err) {
       console.error("Erreur dashboard:", err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     loadDashboard();
-  }, [token]);
-
-  const profile = space?.profile ?? null;
-  const createdLabel = useMemo(
-    () => formatDate(profile?.created_at),
-    [profile?.created_at]
-  );
-
-  const stats = [
-    { label: "Stories", value: space?.stats?.stories ?? 0 },
-    { label: "Amis", value: space?.stats?.friends ?? 0 },
-    { label: "Journal", value: space?.stats?.journal_entries ?? 0 },
-    { label: "DM", value: space?.stats?.dm_threads ?? 0 },
-    { label: "Matchs du jour", value: space?.stats?.matches_today ?? 0 },
-  ];
-
-  const friends = space?.friends ?? [];
-  const receivedRequests = space?.friend_requests_received ?? [];
-  const sentRequests = space?.friend_requests_sent ?? [];
-  const recentThreads = space?.recent_dm_threads ?? [];
-  const recentStories = space?.recent_stories ?? [];
-  const recentJournal = space?.recent_journal_entries ?? [];
-  const dailyMatches = space?.daily_matches ?? [];
-  const subscription = payments?.dm_subscription;
-  const unlockedDms = payments?.unlocked_dms ?? [];
-
-  if (loading) {
-    return <div className="page myspace-page">Chargement…</div>;
-  }
+  }, [loadDashboard]);
 
   async function saveProfile() {
     if (!token) return;
-
     setSavingProfile(true);
 
     try {
       const formData = new FormData();
       formData.append("username", username);
       formData.append("email", email);
-
       if (avatarFile) {
         formData.append("avatar", avatarFile);
       }
 
       const res = await fetch(`${API}/user/me`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data?.error || "Erreur sauvegarde profil");
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        setAvatarPreview(resolveUpload(data.avatar));
+        alert("Profil mis à jour !");
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Erreur de sauvegarde");
       }
-
-      setSpace((prev) => ({
-        ...prev,
-        profile: {
-          ...(prev?.profile ?? { id: data.id }),
-          ...data,
-        },
-      }));
-      setAvatarPreview(resolveUpload(data.avatar) || avatarPreview);
-      alert("Profil mis à jour");
+    } catch {
+      alert("Erreur réseau");
     } finally {
       setSavingProfile(false);
     }
   }
 
   async function submitPassword() {
-    if (!token) return;
-
-    if (!oldPassword || !newPassword) {
-      setPwError("Remplis les 2 champs.");
-      return;
-    }
-
+    if (!token || !oldPassword || !newPassword) return;
     setPwSaving(true);
     setPwError(null);
 
@@ -267,103 +180,47 @@ export default function MySpace() {
         body: JSON.stringify({ oldPassword, newPassword }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setPwError(data?.error || "Erreur mot de passe");
-        return;
+      if (res.ok) {
+        setPwOpen(false);
+        setOldPassword("");
+        setNewPassword("");
+        alert("Mot de passe modifié");
+      } else {
+        const data = await res.json();
+        setPwError(data.error || "Erreur mot de passe");
       }
-
-      setPwOpen(false);
-      setOldPassword("");
-      setNewPassword("");
-      alert("Mot de passe modifié");
+    } catch {
+      setPwError("Erreur lors de la modification");
     } finally {
       setPwSaving(false);
     }
   }
 
-  async function runRelationAction(
-    id: string,
-    method: "POST" | "DELETE",
-    suffix = ""
-  ) {
-    if (!token) return;
-
-    setRelationBusyId(id + suffix);
-
-    try {
-      const res = await fetch(`${API}/friends/${id}${suffix}`, {
-        method,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        alert("Action impossible");
-        return;
-      }
-
-      await loadDashboard();
-    } finally {
-      setRelationBusyId(null);
-    }
-  }
-
-  async function cancelSubscription() {
-    if (!token) return;
-
-    setSubscriptionLoading(true);
-
-    try {
-      const res = await fetch(`${API}/payments/dm/subscription/cancel`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        alert("Impossible d'annuler l'abonnement");
-        return;
-      }
-
-      await loadDashboard();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
+  if (loading) return <div className="page myspace-page">Chargement…</div>;
 
   return (
     <div className="page myspace-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>
-        ←
-      </button>
+      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
 
       <header className="page-header">
         <h1>Mon espace</h1>
-        <p>Vue d’ensemble de ton profil, de tes liens et de ton activité.</p>
+        <p>Gère ton profil et ton activité.</p>
       </header>
 
       <section className="block profile-block">
         <div className="block-head">
           <h2>Profil</h2>
-          <button
-            className="btn ghost"
-            onClick={saveProfile}
-            disabled={savingProfile}
-          >
+          <button className="btn ghost" onClick={saveProfile} disabled={savingProfile}>
             {savingProfile ? "Sauvegarde..." : "Sauvegarder"}
           </button>
         </div>
 
-        <div className="muted small">Inscrit le : {createdLabel}</div>
-
         <div className="avatar-section">
           <label className="avatar-upload">
             <img
-              src={
-                avatarPreview ||
-                `https://ui-avatars.com/api/?name=${username || "U"}`
-              }
+              src={avatarPreview || `https://ui-avatars.com/api/?name=${username || "U"}`}
               className="avatar-xl"
+              alt="Avatar"
             />
             <input
               type="file"
@@ -371,9 +228,10 @@ export default function MySpace() {
               hidden
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (!file) return;
-                setAvatarFile(file);
-                setAvatarPreview(URL.createObjectURL(file));
+                if (file) {
+                  setAvatarFile(file);
+                  setAvatarPreview(URL.createObjectURL(file));
+                }
               }}
             />
             <span>Changer la photo</span>
@@ -383,229 +241,54 @@ export default function MySpace() {
         <div className="profile-grid">
           <div className="field">
             <label>Nom d'utilisateur</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
-
           <div className="field">
             <label>Email</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
 
-        <button className="btn primary" onClick={() => setPwOpen(true)}>
-          Modifier le mot de passe
-        </button>
+        <button className="btn primary" onClick={() => setPwOpen(true)}>Modifier le mot de passe</button>
       </section>
 
       <section className="stats-grid">
-        {stats.map((item) => (
-          <article key={item.label} className="stat-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </article>
-        ))}
+        <article className="stat-card"><span>Stories</span><strong>{space?.stats?.stories ?? 0}</strong></article>
+        <article className="stat-card"><span>Amis</span><strong>{space?.stats?.friends ?? 0}</strong></article>
+        <article className="stat-card"><span>Journal</span><strong>{space?.stats?.journal_entries ?? 0}</strong></article>
+        <article className="stat-card"><span>Matchs</span><strong>{space?.stats?.matches_today ?? 0}</strong></article>
       </section>
 
-      <section className="block dashboard-grid">
+      <section className="dashboard-grid">
         <article className="dash-card">
-          <div className="block-head">
-            <h2>Amis</h2>
-            <span className="muted">{friends.length}</span>
-          </div>
-          {friends.length === 0 && <p className="muted">Aucun ami pour le moment.</p>}
-          {friends.map((friend) => (
-            <div key={friend.id} className="list-row">
-              <div>
-                <strong>{friend.username || "Profil anonyme"}</strong>
-                <p>{(friend.common_tags ?? []).map((t) => `#${t}`).join(" ") || "Aucun tag commun"}</p>
-              </div>
-              <button
-                className="btn ghost"
-                disabled={relationBusyId === `${friend.id}`}
-                onClick={() => runRelationAction(friend.id, "DELETE")}
-              >
-                Retirer
-              </button>
+          <div className="block-head"><h3>Stories récentes</h3></div>
+          {space?.recent_stories?.map((s) => (
+            <div key={s.id} className="list-row stacked">
+              <strong>{s.title}</strong>
+              <p>{s.body}</p>
+              <small>{formatDateTime(s.created_at)}</small>
             </div>
           ))}
         </article>
 
         <article className="dash-card">
-          <div className="block-head">
-            <h2>Demandes reçues</h2>
-            <span className="muted">{receivedRequests.length}</span>
-          </div>
-          {receivedRequests.length === 0 && (
-            <p className="muted">Aucune demande reçue.</p>
-          )}
-          {receivedRequests.map((friend) => (
-            <div key={friend.id} className="list-row">
-              <strong>{friend.username || "Profil anonyme"}</strong>
-              <div className="inline-actions">
-                <button
-                  className="btn primary"
-                  disabled={relationBusyId === `${friend.id}/accept`}
-                  onClick={() =>
-                    runRelationAction(friend.id, "POST", "/accept")
-                  }
-                >
-                  Accepter
-                </button>
-                <button
-                  className="btn ghost"
-                  disabled={relationBusyId === `${friend.id}/request`}
-                  onClick={() =>
-                    runRelationAction(friend.id, "DELETE", "/request")
-                  }
-                >
-                  Refuser
-                </button>
-              </div>
+          <div className="block-head"><h3>Journal récent</h3></div>
+          {space?.recent_journal_entries?.map((j) => (
+            <div key={j.id} className="list-row stacked">
+              <p>{j.body}</p>
+              <small>{formatDateTime(j.created_at)}</small>
             </div>
           ))}
         </article>
 
         <article className="dash-card">
-          <div className="block-head">
-            <h2>Demandes envoyées</h2>
-            <span className="muted">{sentRequests.length}</span>
-          </div>
-          {sentRequests.length === 0 && <p className="muted">Aucune demande envoyée.</p>}
-          {sentRequests.map((friend) => (
-            <div key={friend.id} className="list-row">
-              <strong>{friend.username || "Profil anonyme"}</strong>
-              <button
-                className="btn ghost"
-                disabled={relationBusyId === `${friend.id}/request`}
-                onClick={() => runRelationAction(friend.id, "DELETE", "/request")}
-              >
-                Annuler
-              </button>
+          <div className="block-head"><h3>Amis</h3></div>
+          {space?.friends?.map((f) => (
+            <div key={f.id} className="list-row">
+              <img src={resolveUpload(f.avatar) || `https://ui-avatars.com/api/?name=${f.username}`} className="avatar-sm" alt="Ami" />
+              <strong>{f.username}</strong>
             </div>
           ))}
-        </article>
-
-        <article className="dash-card">
-          <div className="block-head">
-            <h2>DM récents</h2>
-            <button className="btn ghost" onClick={() => navigate("/private-chat")}>
-              Ouvrir
-            </button>
-          </div>
-          {recentThreads.length === 0 && <p className="muted">Aucune conversation récente.</p>}
-          {recentThreads.map((thread) => (
-            <button
-              key={thread.id}
-              className="list-link"
-              onClick={() => navigate(`/private-chat?thread=${thread.id}`)}
-            >
-              <strong>{thread.otherName || thread.otherUserId || "Conversation"}</strong>
-              <span>{thread.lastMessage || "Aucun message"}</span>
-              <small>{formatDateTime(thread.lastAt)}</small>
-            </button>
-          ))}
-        </article>
-
-        <article className="dash-card">
-          <div className="block-head">
-            <h2>Stories récentes</h2>
-            <button className="btn ghost" onClick={() => navigate("/stories")}>
-              Voir tout
-            </button>
-          </div>
-          {recentStories.length === 0 && <p className="muted">Aucune story récente.</p>}
-          {recentStories.map((story) => (
-            <div key={story.id} className="list-row stacked">
-              <div>
-                <strong>{story.title || "Sans titre"}</strong>
-                <p>{story.body || "Pas de contenu"}</p>
-                <small>{formatDateTime(story.created_at)}</small>
-              </div>
-            </div>
-          ))}
-        </article>
-
-        <article className="dash-card">
-          <div className="block-head">
-            <h2>Journal récent</h2>
-          </div>
-          {recentJournal.length === 0 && <p className="muted">Aucune entrée récente.</p>}
-          {recentJournal.map((entry) => (
-            <div key={entry.id} className="list-row stacked">
-              <div>
-                <strong>{entry.mood || "Entrée"}</strong>
-                <p>{entry.body || "Sans contenu"}</p>
-                <small>{formatDateTime(entry.created_at)}</small>
-              </div>
-            </div>
-          ))}
-        </article>
-
-        <article className="dash-card">
-          <div className="block-head">
-            <h2>Matchs du jour</h2>
-            <button className="btn ghost" onClick={() => navigate("/match")}>
-              Voir
-            </button>
-          </div>
-          {dailyMatches.length === 0 && <p className="muted">Aucun match aujourd’hui.</p>}
-          {dailyMatches.map((match) => (
-            <div key={match.id} className="list-row">
-              <div>
-                <strong>{match.summary || "Connexion suggérée"}</strong>
-                <p>{(match.common_tags ?? []).map((t) => `#${t}`).join(" ") || "Aucun tag commun"}</p>
-              </div>
-              <button
-                className="btn primary"
-                onClick={() => navigate("/match")}
-              >
-                Ouvrir
-              </button>
-            </div>
-          ))}
-        </article>
-
-        <article className="dash-card">
-          <div className="block-head">
-            <h2>Abonnement / déblocages</h2>
-          </div>
-          <div className="subscription-box">
-            <strong>
-              {subscription?.active ? "Abonnement actif" : "Pas d'abonnement actif"}
-            </strong>
-            <p>
-              Statut : {subscription?.status || "aucun"} • Renouvellement :{" "}
-              {formatDate(subscription?.renews_at)}
-            </p>
-            {subscription?.active && (
-              <button
-                className="btn ghost"
-                onClick={cancelSubscription}
-                disabled={subscriptionLoading}
-              >
-                {subscriptionLoading ? "Annulation..." : "Annuler l'abonnement"}
-              </button>
-            )}
-          </div>
-
-          <div className="unlock-list">
-            <strong>DM débloqués</strong>
-            {unlockedDms.length === 0 && <p className="muted">Aucun déblocage actif.</p>}
-            {unlockedDms.map((item, index) => (
-              <div key={`${item.targetUserId || item.target_user_id}-${index}`} className="list-row">
-                <span>
-                  Utilisateur {item.targetUserId || item.target_user_id || "inconnu"}
-                </span>
-                <small>{formatDate(item.expires_at)}</small>
-              </div>
-            ))}
-          </div>
         </article>
       </section>
 
@@ -613,37 +296,12 @@ export default function MySpace() {
         <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Modifier le mot de passe</h3>
-
-            {pwError && <div className="pay-error">{pwError}</div>}
-
-            <input
-              className="modern-input"
-              type="password"
-              placeholder="Ancien mot de passe"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-            />
-
-            <input
-              className="modern-input"
-              type="password"
-              placeholder="Nouveau mot de passe"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-
+            {pwError && <div className="error-msg" style={{color: 'red'}}>{pwError}</div>}
+            <input className="modern-input" type="password" placeholder="Ancien" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+            <input className="modern-input" type="password" placeholder="Nouveau" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             <div className="modal-actions">
-              <button
-                className="btn primary"
-                onClick={submitPassword}
-                disabled={pwSaving}
-              >
-                {pwSaving ? "..." : "Sauvegarder"}
-              </button>
-
-              <button className="btn ghost" onClick={() => setPwOpen(false)}>
-                Annuler
-              </button>
+              <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>Sauver</button>
+              <button className="btn ghost" onClick={() => setPwOpen(false)}>Annuler</button>
             </div>
           </div>
         </div>
