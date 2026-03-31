@@ -124,11 +124,6 @@ export default function GroupChatRoom({
   const [note, setNote] = useState<EphemeralNote | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
-  const [viewportHeight, setViewportHeight] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    return Math.round(window.innerHeight);
-  });
-  const [bottomOffset, setBottomOffset] = useState(0);
   const [currentUsername, setCurrentUsername] = useState(() => {
     const storedUsername = localStorage.getItem("username")?.trim();
     return storedUsername && storedUsername.toLowerCase() !== "moi"
@@ -149,34 +144,6 @@ export default function GroupChatRoom({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const syncViewportHeight = () => {
-      const visibleHeight = window.visualViewport?.height || window.innerHeight;
-      const visibleOffsetTop = window.visualViewport?.offsetTop || 0;
-      const nextBottomOffset = Math.max(
-        0,
-        Math.round(window.innerHeight - visibleHeight - visibleOffsetTop)
-      );
-
-      setViewportHeight(Math.round(window.innerHeight));
-      setBottomOffset(nextBottomOffset);
-    };
-
-    syncViewportHeight();
-
-    window.addEventListener("resize", syncViewportHeight);
-    window.visualViewport?.addEventListener("resize", syncViewportHeight);
-    window.visualViewport?.addEventListener("scroll", syncViewportHeight);
-
-    return () => {
-      window.removeEventListener("resize", syncViewportHeight);
-      window.visualViewport?.removeEventListener("resize", syncViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", syncViewportHeight);
-    };
-  }, []);
 
   useEffect(() => {
     if (!userId || currentUsername) return;
@@ -766,14 +733,8 @@ export default function GroupChatRoom({
           ? `${visibleTypingUsers[0].name} et ${visibleTypingUsers[1].name} ecrivent...`
           : `${visibleTypingUsers.length} personnes ecrivent...`;
 
-  const groupChatStyle: GroupRoomTheme = {
-    ...config.theme,
-    "--chat-viewport-height": `${viewportHeight}px`,
-    "--chat-bottom-offset": `${bottomOffset}px`,
-  };
-
   return (
-    <div className="group-chat" style={groupChatStyle}>
+    <div className="group-chat" style={config.theme}>
       <div className="group-chat__shell">
         <header className="group-chat__header">
           <button
