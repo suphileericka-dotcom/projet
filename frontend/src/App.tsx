@@ -2,7 +2,16 @@ import "./index.css";
 import "./style/app.css";
 
 import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { API } from "./config/api";
+import {
+  buildCountryAccessError,
+  clearStoredCountry,
+  COUNTRY_STORAGE_KEY,
+  isAllowedCountry,
+  persistCountry,
+  storeCountryAccessError,
+} from "./config/countryAccess";
 
 // ✅ On garde uniquement ton hook custom
 import { useLang } from "./hooks/useLang";
@@ -53,6 +62,90 @@ export default function App() {
   const targetLang = lang;
 
   const [isAuth, setIsAuth] = useState<boolean>(isValidAuthToken);
+  const [accessCheckPending, setAccessCheckPending] = useState<boolean>(isValidAuthToken);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function resolveProfileCountry(token: string) {
+      try {
+        const res = await fetch(`${API}/user/me/space`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        return data?.profile?.country ?? data?.country ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    function denyCountryAccess(country?: string | null) {
+      storeCountryAccessError(buildCountryAccessError(country));
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("username");
+      localStorage.removeItem("avatar");
+      clearStoredCountry();
+      if (!isCancelled) {
+        setIsAuth(false);
+        setAccessCheckPending(false);
+        navigate("/login", { replace: true });
+      }
+    }
+
+    async function verifyCountryAccess() {
+      if (!isAuth) {
+        setAccessCheckPending(false);
+        return;
+      }
+
+      setAccessCheckPending(true);
+
+      const storedCountry = localStorage.getItem(COUNTRY_STORAGE_KEY);
+      if (storedCountry) {
+        if (isAllowedCountry(storedCountry)) {
+          persistCountry(storedCountry);
+          if (!isCancelled) {
+            setAccessCheckPending(false);
+          }
+          return;
+        }
+
+        denyCountryAccess(storedCountry);
+        return;
+      }
+
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        if (!isCancelled) {
+          setAccessCheckPending(false);
+        }
+        return;
+      }
+
+      const profileCountry = await resolveProfileCountry(token);
+      if (isCancelled) return;
+
+      if (profileCountry && !isAllowedCountry(profileCountry)) {
+        denyCountryAccess(profileCountry);
+        return;
+      }
+
+      persistCountry(profileCountry);
+      setAccessCheckPending(false);
+    }
+
+    verifyCountryAccess();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuth, navigate]);
 
   function logout() {
     localStorage.clear();
@@ -60,9 +153,16 @@ export default function App() {
     navigate("/");
   }
 
-  function Home() {
-    return (
-      <div className="app-container">
+  const canAccessPrivateSpaces = isAuth && !accessCheckPending;
+  const privateRouteFallback =
+    isAuth && accessCheckPending ? (
+      <div className="app-container">Verification du pays...</div>
+    ) : (
+      <Navigate to="/login" />
+    );
+
+  const homeElement = (
+    <div className="app-container">
         <header className="app-header">
           <h1>{t("welcome")}</h1>
 
@@ -134,7 +234,7 @@ export default function App() {
         </section>
 
         {/* ESPACES PRIVÉS */}
-        {isAuth && (
+        {canAccessPrivateSpaces && (
           <section className="spaces-grid">
             <ChatCard
               title={t("myStory")}
@@ -168,13 +268,12 @@ export default function App() {
 
         {/* Debug invisible */}
         <span style={{ display: "none" }}>{targetLang}</span>
-      </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={homeElement} />
 
       {/* PUBLIC */}
       <Route path="/login" element={<Login setIsAuth={setIsAuth} />} />
@@ -185,23 +284,23 @@ export default function App() {
       {/* PRIVÉ */}
       <Route
         path="/story"
-        element={isAuth ? <MyStory /> : <Navigate to="/login" />}
+        element={canAccessPrivateSpaces ? <MyStory /> : privateRouteFallback}
       />
       <Route
         path="/my-space"
-        element={isAuth ? <MySpace /> : <Navigate to="/login" />}
+        element={canAccessPrivateSpaces ? <MySpace /> : privateRouteFallback}
       />
       <Route
         path="/match"
-        element={isAuth ? <Match /> : <Navigate to="/login" />}
+        element={canAccessPrivateSpaces ? <Match /> : privateRouteFallback}
       />
       <Route
         path="/private-chat"
-        element={isAuth ? <PrivateChat /> : <Navigate to="/login" />}
+        element={canAccessPrivateSpaces ? <PrivateChat /> : privateRouteFallback}
       />
       <Route
         path="/journal"
-        element={isAuth ? <Journal /> : <Navigate to="/login" />}
+        element={canAccessPrivateSpaces ? <Journal /> : privateRouteFallback}
       />
 
       {/* CHATS */}

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/mySpace.css";
 import { API } from "../config/api";
+import { persistCountry } from "../config/countryAccess";
 
 /* =====================
    TYPES
@@ -12,6 +13,7 @@ type SpaceProfile = {
   username?: string | null;
   email?: string | null;
   avatar?: string | null;
+  country?: string | null;
   dark_mode?: boolean;
   created_at?: number | string | null;
 };
@@ -116,6 +118,9 @@ export default function MySpace() {
         setAvatarPreview(resolveUpload(data.profile?.avatar));
         localStorage.setItem("username", data.profile?.username ?? "");
         localStorage.setItem("avatar", resolveUpload(data.profile?.avatar) ?? "");
+        if (data.profile?.country) {
+          persistCountry(data.profile.country);
+        }
       }
     } catch (err) {
       console.error("Erreur dashboard:", err);
@@ -152,6 +157,9 @@ export default function MySpace() {
         setAvatarPreview(resolveUpload(data.avatar));
         localStorage.setItem("username", username);
         localStorage.setItem("avatar", resolveUpload(data.avatar) ?? "");
+        if (data.country ?? data.profile?.country) {
+          persistCountry(data.country ?? data.profile?.country);
+        }
         alert("Profil mis à jour !");
       } else {
         const errData = await res.json();
@@ -282,7 +290,9 @@ export default function MySpace() {
         <article className="dash-card">
           <div className="block-head">
             <h3>Stories récentes</h3>
-            <button className="btn link" onClick={() => navigate("/stories/my")}>Voir tout</button>
+            <span className="story-counter">
+              Histoires publiees: {space?.stats?.stories ?? space?.recent_stories?.length ?? 0}
+            </span>
           </div>
           
           <div className="list-container">

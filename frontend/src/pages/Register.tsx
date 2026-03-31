@@ -2,6 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLang } from "../hooks/useLang";
 import "../style/register.css";
+import {
+  ALLOWED_COUNTRIES,
+  buildCountryAccessError,
+  isAllowedCountry,
+  persistCountry,
+} from "../config/countryAccess";
 
 /* =====================
    API BASE
@@ -25,6 +31,7 @@ type RegisterResponse = {
     id: string;
     username: string;
     email?: string;
+    country?: string;
   };
   error?: string;
 };
@@ -104,6 +111,11 @@ export default function Register({ setIsAuth }: RegisterProps) {
       return;
     }
 
+    if (!isAllowedCountry(form.country)) {
+      setError(buildCountryAccessError(form.country));
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -141,6 +153,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
       localStorage.setItem("userId", data.user.id);
       localStorage.setItem("username", data.user.username);
       localStorage.setItem("language", form.language);
+      persistCountry(data.user.country ?? form.country);
 
       setIsAuth(true);
       navigate("/");
@@ -226,10 +239,11 @@ export default function Register({ setIsAuth }: RegisterProps) {
             value={form.country}
             onChange={update}
           >
-            <option value="FR">France</option>
-            <option value="BE">Belgique</option>
-            <option value="CH">Suisse</option>
-            <option value="CA">Canada</option>
+            {ALLOWED_COUNTRIES.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.label}
+              </option>
+            ))}
           </select>
 
           <select

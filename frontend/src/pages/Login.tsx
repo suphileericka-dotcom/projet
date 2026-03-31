@@ -2,6 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "../hooks/useLang";
 import "../style/login.css";
+import {
+  buildCountryAccessError,
+  clearStoredCountry,
+  consumeCountryAccessError,
+  COUNTRY_STORAGE_KEY,
+  isAllowedCountry,
+  persistCountry,
+} from "../config/countryAccess";
 
 /* =====================
    API BASE
@@ -26,6 +34,7 @@ type LoginResponse = {
     username: string;
     email?: string;
     language?: string;
+    country?: string;
   };
   error?: string;
 };
@@ -43,7 +52,33 @@ export default function Login({ setIsAuth }: LoginProps) {
   const [remember, setRemember] = useState(false);
 
   const [loading, setLoading] = useState(false);
-  const [errorGlobal, setErrorGlobal] = useState<string | null>(null);
+  const [errorGlobal, setErrorGlobal] = useState<string | null>(() => consumeCountryAccessError());
+
+  async function resolveLoginCountry(token: string, responseCountry?: string | null) {
+    if (responseCountry) {
+      return responseCountry;
+    }
+
+    const storedCountry = localStorage.getItem(COUNTRY_STORAGE_KEY);
+    if (storedCountry) {
+      return storedCountry;
+    }
+
+    try {
+      const profileRes = await fetch(`${API}/api/user/me/space`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!profileRes.ok) return null;
+
+      const profileData = await profileRes.json();
+      return profileData?.profile?.country ?? profileData?.country ?? null;
+    } catch {
+      return null;
+    }
+  }
 
   async function handleLogin(e?: React.FormEvent) {
     e?.preventDefault();
@@ -95,6 +130,18 @@ export default function Login({ setIsAuth }: LoginProps) {
       if (data.user.language) {
         localStorage.setItem("language", data.user.language);
       }
+
+      const resolvedCountry = await resolveLoginCountry(data.token, data.user.country);
+
+      if (resolvedCountry && !isAllowedCountry(resolvedCountry)) {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("username");
+        clearStoredCountry();
+        throw new Error(buildCountryAccessError(resolvedCountry));
+      }
+
+      persistCountry(resolvedCountry);
 
       if (remember) {
         localStorage.setItem("rememberMe", "true");
