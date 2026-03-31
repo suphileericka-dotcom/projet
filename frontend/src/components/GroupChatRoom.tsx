@@ -113,7 +113,6 @@ export default function GroupChatRoom({
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
   const userId = isAuth ? localStorage.getItem("userId") : null;
-  const currentUsername = localStorage.getItem("username") || "Moi";
   const currentAvatar = localStorage.getItem("avatar");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -125,14 +124,43 @@ export default function GroupChatRoom({
   const [note, setNote] = useState<EphemeralNote | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState(() => {
+    const storedUsername = localStorage.getItem("username")?.trim();
+    return storedUsername && storedUsername.toLowerCase() !== "moi"
+      ? storedUsername
+      : "";
+  });
 
   const streamRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const typingTimeoutRef = useRef<number | null>(null);
   const typingSentRef = useRef(false);
+  const effectiveUsername = currentUsername || "Utilisateur";
 
   const editingMessage =
     (editingId && messages.find((message) => message.id === editingId)) || null;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!userId || currentUsername) return;
+
+    const ownMessage = messages.find(
+      (message) =>
+        message.sender.id === userId &&
+        message.sender.name.trim().length > 0 &&
+        message.sender.name.toLowerCase() !== "moi" &&
+        message.sender.name.toLowerCase() !== "utilisateur"
+    );
+
+    if (!ownMessage) return;
+
+    setCurrentUsername(ownMessage.sender.name);
+    localStorage.setItem("username", ownMessage.sender.name);
+  }, [currentUsername, messages, userId]);
 
   useEffect(() => {
     if (!flashMessage) return undefined;
@@ -197,7 +225,7 @@ export default function GroupChatRoom({
     (payload: unknown) => {
       const normalized = normalizeMessageList(payload, config.room, {
         currentUserId: userId,
-        currentUsername,
+        currentUsername: effectiveUsername,
         currentAvatar,
       });
 
@@ -206,7 +234,7 @@ export default function GroupChatRoom({
         return areMessageListsEqual(current, next) ? current : next;
       });
     },
-    [config.room, currentAvatar, currentUsername, userId]
+    [config.room, currentAvatar, effectiveUsername, userId]
   );
 
   const refreshMessages = useCallback(async () => {
@@ -274,7 +302,7 @@ export default function GroupChatRoom({
 
       const normalized = normalizeMessage(payload, config.room, {
         currentUserId: userId,
-        currentUsername,
+        currentUsername: effectiveUsername,
         currentAvatar,
       });
 
@@ -293,7 +321,7 @@ export default function GroupChatRoom({
         return areMessageListsEqual(current, next) ? current : next;
       });
     },
-    [config.room, currentAvatar, currentUsername, refreshMessages, userId]
+    [config.room, currentAvatar, effectiveUsername, refreshMessages, userId]
   );
 
   const handleSocketDelete = useCallback(
@@ -320,6 +348,15 @@ export default function GroupChatRoom({
       if (meta.userId && meta.userId === userId) return;
 
       const key = meta.userId || meta.name;
+      const knownAuthorName =
+        messagesRef.current.find((message) => message.sender.id === meta.userId)
+          ?.sender.name || "";
+      const resolvedTypingName =
+        meta.name.trim().length > 0 &&
+        meta.name.toLowerCase() !== "moi" &&
+        meta.name.toLowerCase() !== "utilisateur"
+          ? meta.name
+          : knownAuthorName || "Utilisateur";
 
       if (!meta.isTyping) {
         setTypingUsers((current) => current.filter((entry) => entry.key !== key));
@@ -330,7 +367,7 @@ export default function GroupChatRoom({
         const next = current.filter((entry) => entry.key !== key);
         next.push({
           key,
-          name: meta.name,
+          name: resolvedTypingName,
           expiresAt: Date.now() + 3200,
         });
         return next;
@@ -346,7 +383,7 @@ export default function GroupChatRoom({
       socket.emit("join-room", {
         room: config.room,
         userId,
-        username: currentUsername,
+        username: effectiveUsername,
       });
     };
 
@@ -354,7 +391,7 @@ export default function GroupChatRoom({
       const payload = {
         room: config.room,
         userId,
-        username: currentUsername,
+        username: effectiveUsername,
         isTyping: false,
         typing: false,
       };
@@ -397,7 +434,7 @@ export default function GroupChatRoom({
     };
   }, [
     config.room,
-    currentUsername,
+    effectiveUsername,
     handleSocketDelete,
     handleSocketMessage,
     handleSocketTyping,
@@ -412,7 +449,7 @@ export default function GroupChatRoom({
     const payload = {
       room: config.room,
       userId,
-      username: currentUsername,
+      username: effectiveUsername,
       isTyping,
       typing: isTyping,
     };
@@ -537,7 +574,7 @@ export default function GroupChatRoom({
 
         const normalized = normalizeMessage(successPayload, config.room, {
           currentUserId: userId,
-          currentUsername,
+          currentUsername: effectiveUsername,
           currentAvatar,
         });
 
@@ -570,7 +607,7 @@ export default function GroupChatRoom({
         body: JSON.stringify({
           room: config.room,
           userId,
-          username: currentUsername,
+          username: effectiveUsername,
           content: trimmedInput,
         }),
       });
@@ -582,7 +619,7 @@ export default function GroupChatRoom({
       const payload = await safeJson(response);
       const normalized = normalizeMessage(payload, config.room, {
         currentUserId: userId,
-        currentUsername,
+        currentUsername: effectiveUsername,
         currentAvatar,
       });
 
@@ -751,6 +788,10 @@ export default function GroupChatRoom({
               ((canManage && message.type === "text") ||
                 (!!message.text && message.type === "text"));
             const messageTime = formatMessageTime(message.createdAt);
+            const authorLabel =
+              message.sender.name.trim().length > 0
+                ? message.sender.name
+                : effectiveUsername;
 
             return (
               <article
@@ -778,11 +819,9 @@ export default function GroupChatRoom({
                         current === message.id ? null : message.id
                       )
                     }
-                  >
+                    >
                     <div className="group-chat__message-head">
-                      <span className="group-chat__author">
-                        {isOwnMessage ? "Moi" : message.sender.name}
-                      </span>
+                      <span className="group-chat__author">{authorLabel}</span>
                     </div>
 
                     <div className="group-chat__bubble">{message.text}</div>
@@ -837,7 +876,11 @@ export default function GroupChatRoom({
                 </div>
 
                 {isOwnMessage ? (
-                  <img className="group-chat__avatar" src={message.sender.avatar} alt="Moi" />
+                  <img
+                    className="group-chat__avatar"
+                    src={message.sender.avatar}
+                    alt={authorLabel}
+                  />
                 ) : null}
               </article>
             );

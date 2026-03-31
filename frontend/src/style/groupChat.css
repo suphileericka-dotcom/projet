@@ -17,15 +17,21 @@
   --chat-translation-bg: rgba(255, 255, 255, 0.08);
   --chat-shadow: 0 20px 60px rgba(2, 6, 23, 0.34);
   --chat-danger: #fb7185;
+  height: 100vh;
   min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   background: var(--chat-bg);
   color: var(--chat-text);
+  overflow: hidden;
 }
 
 .group-chat__shell {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .group-chat__header {
@@ -104,6 +110,7 @@
   gap: 16px;
   padding: 20px 24px 28px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .group-chat__banner,
@@ -307,6 +314,9 @@
   background: var(--chat-panel);
   border-top: 1px solid var(--chat-panel-border);
   backdrop-filter: blur(18px);
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
 }
 
 .group-chat__editing {
@@ -386,6 +396,10 @@
 }
 
 @media (max-width: 900px) {
+  .group-chat__header {
+    gap: 12px;
+  }
+
   .group-chat__stream,
   .group-chat__footer,
   .group-chat__header {
@@ -405,12 +419,19 @@
   .group-chat__message-main {
     max-width: calc(100% - 52px);
   }
+
+  .group-chat__composer {
+    gap: 10px;
+  }
 }
 
 @media (max-width: 640px) {
   .group-chat__header {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+    padding-bottom: 14px;
   }
 
   .group-chat__back {
@@ -420,6 +441,16 @@
 
   .group-chat__heading {
     text-align: left;
+    padding-right: 0;
+  }
+
+  .group-chat__heading h1 {
+    font-size: 1.9rem;
+  }
+
+  .group-chat__presence,
+  .group-chat__subtitle {
+    font-size: 0.95rem;
   }
 
   .group-chat__message {
@@ -436,18 +467,45 @@
     max-width: calc(100% - 42px);
   }
 
+  .group-chat__stream {
+    gap: 14px;
+    padding: 14px 12px 20px;
+  }
+
+  .group-chat__banner,
+  .group-chat__note,
+  .group-chat__empty,
+  .group-chat__typing {
+    width: 100%;
+  }
+
   .group-chat__bubble,
   .group-chat__translated {
     padding: 12px 14px;
   }
 
+  .group-chat__footer {
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .group-chat__editing {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .group-chat__composer {
-    align-items: stretch;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .group-chat__composer input {
+    padding: 13px 14px;
+    font-size: 0.95rem;
   }
 
   .group-chat__send {
-    min-width: 92px;
-    padding-left: 16px;
-    padding-right: 16px;
+    min-width: 84px;
+    padding: 13px 14px;
+    font-size: 0.92rem;
   }
 }
