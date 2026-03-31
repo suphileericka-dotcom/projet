@@ -18,9 +18,13 @@
   --chat-shadow: 0 20px 60px rgba(2, 6, 23, 0.34);
   --chat-danger: #fb7185;
   height: 100vh;
+  height: 100svh;
   min-height: 100vh;
+  min-height: 100svh;
   height: 100dvh;
   min-height: 100dvh;
+  height: var(--chat-viewport-height, 100dvh);
+  min-height: var(--chat-viewport-height, 100dvh);
   background: var(--chat-bg);
   color: var(--chat-text);
   overflow: hidden;
@@ -314,10 +318,10 @@
   background: color-mix(in srgb, var(--chat-panel) 92%, black 8%);
   border-top: 1px solid color-mix(in srgb, var(--chat-accent) 18%, var(--chat-panel-border));
   backdrop-filter: blur(18px);
-  position: sticky;
-  bottom: 0;
-  z-index: 15;
+  position: relative;
+  z-index: 10;
   box-shadow: 0 -18px 40px rgba(2, 6, 23, 0.22);
+  flex-shrink: 0;
 }
 
 .group-chat__editing {
