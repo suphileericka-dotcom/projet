@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/journal.css";
 import { API } from "../config/api";
@@ -20,10 +26,12 @@ type JournalConversation = {
   messageCount?: number | null;
 };
 
-type RateLimitState = {
-  retryAt?: number | string | null;
+type JournalUsage = {
+  code?: string | null;
+  resetAt?: number | string | null;
   remaining?: number | null;
   limit?: number | null;
+  used?: number | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -266,44 +274,63 @@ function extractNamedMessage(
   return null;
 }
 
-function extractRateLimit(payload: unknown): RateLimitState | null {
+function extractUsage(payload: unknown): JournalUsage | null {
   if (!isRecord(payload)) return null;
 
   const candidates = [
+    payload.usage,
     payload.rate_limit,
     payload.rateLimit,
     payload,
+    isRecord(payload.conversation) ? payload.conversation.usage : null,
     isRecord(payload.conversation) ? payload.conversation.rate_limit : null,
   ];
 
   for (const candidate of candidates) {
     if (!isRecord(candidate)) continue;
 
-    const retryAt =
-      candidate.retry_at ??
-      candidate.retryAt ??
+    const resetAt =
       candidate.reset_at ??
       candidate.resetAt ??
+      candidate.retry_at ??
+      candidate.retryAt ??
       null;
 
     const remaining =
       readNumber(candidate.remaining) ??
       readNumber(candidate.remaining_requests) ??
-      readNumber(candidate.left);
+      readNumber(candidate.left) ??
+      readNumber(candidate.available);
 
     const limit =
       readNumber(candidate.limit) ??
       readNumber(candidate.max) ??
-      readNumber(candidate.total);
+      readNumber(candidate.total) ??
+      readNumber(candidate.daily_limit) ??
+      readNumber(candidate.dailyLimit);
 
-    if (retryAt !== null || remaining !== null || limit !== null) {
+    const used =
+      readNumber(candidate.used) ??
+      readNumber(candidate.count) ??
+      readNumber(candidate.consumed);
+
+    const code =
+      readText(candidate.code) ||
+      readText(payload.code) ||
+      readText(payload.error_code) ||
+      readText(payload.errorCode) ||
+      null;
+
+    if (resetAt !== null || remaining !== null || limit !== null || used !== null || code) {
       return {
-        retryAt:
-          typeof retryAt === "string" || typeof retryAt === "number"
-            ? retryAt
+        code,
+        resetAt:
+          typeof resetAt === "string" || typeof resetAt === "number"
+            ? resetAt
             : null,
         remaining,
         limit,
+        used,
       };
     }
   }
@@ -331,22 +358,6 @@ function shortenText(value: string, maxLength: number): string {
   return `${value.slice(0, Math.max(maxLength - 3, 1)).trim()}...`;
 }
 
-function buildConversationTitle(
-  messages: JournalMessage[],
-  fallbackTitle = "Nouvelle discussion"
-): string {
-  const source =
-    messages.find(
-      (message) => message.role === "user" && compactText(message.text).length > 0
-    ) ?? messages.find((message) => compactText(message.text).length > 0);
-
-  const candidate = compactText(source?.text ?? "");
-  if (!candidate) return fallbackTitle;
-
-  const firstLine = candidate.split(/[\n.!?]/)[0]?.trim() || candidate;
-  return shortenText(firstLine, 54);
-}
-
 function buildConversationPreview(messages: JournalMessage[]): string {
   const source = [...messages]
     .reverse()
@@ -362,17 +373,18 @@ function extractConversationTitle(
 ): string {
   if (!isRecord(payload)) return fallbackTitle;
 
-  const directTitle = readText(payload.title);
+  const directTitle =
+    readText(payload.conversation_title) ||
+    readText(payload.conversationTitle) ||
+    readText(payload.title);
   if (directTitle) return directTitle;
 
   if (isRecord(payload.conversation)) {
-    const nestedTitle = readText(payload.conversation.title);
+    const nestedTitle =
+      readText(payload.conversation.conversation_title) ||
+      readText(payload.conversation.conversationTitle) ||
+      readText(payload.conversation.title);
     if (nestedTitle) return nestedTitle;
-  }
-
-  const messages = extractMessages(payload);
-  if (messages.length > 0) {
-    return buildConversationTitle(messages, fallbackTitle);
   }
 
   return fallbackTitle;
@@ -457,6 +469,17 @@ function upsertConversation(
   });
 }
 
+function isUsageLocked(usage: JournalUsage | null): boolean {
+  const resetAt = toTimestamp(usage?.resetAt ?? null);
+  const remaining = usage?.remaining ?? null;
+
+  if (!resetAt || resetAt <= Date.now()) return false;
+  if (usage?.code === "JOURNAL_DAILY_LIMIT") return true;
+  if (remaining !== null && remaining <= 0) return true;
+
+  return false;
+}
+
 export default function Journal() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
@@ -465,37 +488,37 @@ export default function Journal() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<JournalMessage[]>([]);
   const [input, setInput] = useState("");
-  const [compatInsight, setCompatInsight] = useState("");
   const [loadingList, setLoadingList] = useState(true);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [sending, setSending] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [rateLimit, setRateLimit] = useState<RateLimitState | null>(null);
+  const [usage, setUsage] = useState<JournalUsage | null>(null);
   const [showArchivePanel, setShowArchivePanel] = useState(true);
 
   const streamRef = useRef<HTMLDivElement>(null);
 
-  const retryAtTimestamp = toTimestamp(rateLimit?.retryAt ?? null);
-  const isRateLimited =
-    retryAtTimestamp !== null && retryAtTimestamp > Date.now();
+  const usageResetAtTimestamp = toTimestamp(usage?.resetAt ?? null);
+  const dailyLimitReached = isUsageLocked(usage);
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeConversationId) ??
     null;
-  const currentConversationTitle =
-    messages.length > 0
-      ? buildConversationTitle(
-          messages,
-          activeConversation?.title || "Nouvelle discussion"
-        )
-      : activeConversation?.title || "Nouvelle discussion";
+  const currentConversationTitle = activeConversation?.title || "Nouvelle discussion";
   const archiveCountLabel =
     conversations.length === 1
       ? "1 discussion"
       : `${conversations.length} discussions`;
   const canCreateNewDiscussion = !sending && !insightLoading;
+  const usageSummary =
+    usage?.limit !== null && usage?.limit !== undefined
+      ? usage?.remaining !== null && usage?.remaining !== undefined
+        ? `${usage.remaining} sur ${usage.limit} envois restants aujourd'hui`
+        : usage?.used !== null && usage?.used !== undefined
+          ? `${usage.used} sur ${usage.limit} envois utilises aujourd'hui`
+          : null
+      : null;
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     if (!token) {
       setLoadingList(false);
       setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir ton journal.");
@@ -530,11 +553,11 @@ export default function Journal() {
     } finally {
       setLoadingList(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     void loadConversations();
-  }, [token]);
+  }, [loadConversations]);
 
   useEffect(() => {
     streamRef.current?.scrollTo({
@@ -544,24 +567,74 @@ export default function Journal() {
   }, [messages, loadingConversation]);
 
   useEffect(() => {
-    if (!retryAtTimestamp || retryAtTimestamp <= Date.now()) return;
+    if (!usageResetAtTimestamp || usageResetAtTimestamp <= Date.now()) return;
 
     const timeoutId = window.setTimeout(() => {
-      setRateLimit((current) => {
-        const currentRetryAt = toTimestamp(current?.retryAt ?? null);
-        if (!currentRetryAt || currentRetryAt <= Date.now()) {
+      setUsage((current) => {
+        const currentResetAt = toTimestamp(current?.resetAt ?? null);
+        if (!currentResetAt || currentResetAt <= Date.now()) {
           if (!current) return null;
-          return { ...current, retryAt: null };
+          return { ...current, code: null, resetAt: null };
         }
 
         return current;
       });
-    }, retryAtTimestamp - Date.now() + 500);
+    }, usageResetAtTimestamp - Date.now() + 500);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [retryAtTimestamp]);
+  }, [usageResetAtTimestamp]);
+
+  function applySuccessfulJournalResponse(
+    data: unknown,
+    baseMessages: JournalMessage[],
+    optimisticMessage: JournalMessage
+  ) {
+    const nextUsage = extractUsage(data);
+    if (nextUsage) {
+      setUsage(nextUsage);
+    }
+
+    const nextConversationId = getConversationId(data) ?? activeConversationId;
+    const returnedMessages = extractMessages(data);
+    const persistedUser =
+      extractNamedMessage(data, ["user_message", "userMessage"], "user") ??
+      optimisticMessage;
+    const assistantMessage = extractNamedMessage(
+      data,
+      ["assistant_message", "assistantMessage", "reply", "insight"],
+      "assistant"
+    );
+    const nextMessages =
+      returnedMessages.length > 0
+        ? mergeMessages(returnedMessages)
+        : mergeMessages([
+            ...baseMessages,
+            persistedUser,
+            ...(assistantMessage ? [assistantMessage] : []),
+          ]);
+    const nextTitle = extractConversationTitle(
+      data,
+      activeConversation?.title || "Nouvelle discussion"
+    );
+
+    setMessages(nextMessages);
+
+    if (nextConversationId) {
+      setActiveConversationId(nextConversationId);
+      setConversations((current) =>
+        upsertConversation(current, {
+          id: nextConversationId,
+          title: nextTitle,
+          preview: buildConversationPreview(nextMessages),
+          updatedAt:
+            nextMessages[nextMessages.length - 1]?.createdAt ?? Date.now(),
+          messageCount: nextMessages.length,
+        })
+      );
+    }
+  }
 
   async function openConversation(id: string) {
     if (!token) return;
@@ -592,11 +665,13 @@ export default function Journal() {
         data,
         activeConversation?.title || "Nouvelle discussion"
       );
-      const nextRateLimit = extractRateLimit(data);
+      const nextUsage = extractUsage(data);
 
       setActiveConversationId(id);
       setMessages(nextMessages);
-      setRateLimit(nextRateLimit);
+      if (nextUsage) {
+        setUsage(nextUsage);
+      }
       setConversations((current) =>
         upsertConversation(current, {
           id,
@@ -619,8 +694,6 @@ export default function Journal() {
     setActiveConversationId(null);
     setMessages([]);
     setInput("");
-    setCompatInsight("");
-    setRateLimit(null);
     setErrorMessage("");
     setShowArchivePanel(false);
   }
@@ -656,8 +729,6 @@ export default function Journal() {
       if (activeConversationId === id) {
         setActiveConversationId(null);
         setMessages([]);
-        setRateLimit(null);
-        setCompatInsight("");
       }
 
       setShowArchivePanel(true);
@@ -668,7 +739,7 @@ export default function Journal() {
     }
   }
 
-  async function sendMessage() {
+  async function submitJournalMessage(mode: "journal" | "insight") {
     if (!token) {
       setErrorMessage("Session introuvable. Reconnecte-toi pour continuer.");
       return;
@@ -680,7 +751,7 @@ export default function Journal() {
       return;
     }
 
-    if (isRateLimited) return;
+    if (dailyLimitReached) return;
 
     const optimisticMessage: JournalMessage = {
       id: `local-user-${Date.now()}`,
@@ -692,35 +763,45 @@ export default function Journal() {
 
     setSending(true);
     setErrorMessage("");
-    setCompatInsight("");
     setMessages(mergeMessages([...baseMessages, optimisticMessage]));
     setInput("");
 
     try {
-      const res = await fetch(`${API}/journal`, {
+      const res = await fetch(
+        `${API}/${mode === "journal" ? "journal" : "journal/insight"}`,
+        {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          text,
+          ...(mode === "journal" ? { text } : { body: text }),
           conversationId: activeConversationId,
         }),
-      });
+        }
+      );
 
       const data = await res.json().catch(() => null);
-      const nextRateLimit = extractRateLimit(data);
-      const nextConversationId =
-        getConversationId(data) ?? activeConversationId;
+      const nextUsage = extractUsage(data);
 
-      if (nextRateLimit) {
-        setRateLimit(nextRateLimit);
+      if (nextUsage) {
+        setUsage(nextUsage);
       }
 
       if (res.status === 429) {
         setMessages(baseMessages);
         setInput(text);
+
+        if (nextUsage?.code === "JOURNAL_DAILY_LIMIT") {
+          setErrorMessage(
+            `Limite atteinte, reessaie apres ${formatDateTime(
+              nextUsage.resetAt ?? null
+            )}.`
+          );
+          return;
+        }
+
         setErrorMessage(
           extractErrorMessage(data, "Le journal est momentanement indisponible.")
         );
@@ -736,52 +817,26 @@ export default function Journal() {
         return;
       }
 
-      const returnedMessages = extractMessages(data);
-      const persistedUser =
-        extractNamedMessage(data, ["user_message", "userMessage"], "user") ??
-        optimisticMessage;
-      const assistantMessage = extractNamedMessage(
-        data,
-        ["assistant_message", "assistantMessage", "reply"],
-        "assistant"
-      );
-      const nextMessages =
-        returnedMessages.length > 0
-          ? mergeMessages(returnedMessages)
-          : mergeMessages([
-              ...baseMessages,
-              persistedUser,
-              ...(assistantMessage ? [assistantMessage] : []),
-            ]);
-      const nextTitle = extractConversationTitle(
-        data,
-        buildConversationTitle(nextMessages)
-      );
-
-      setMessages(nextMessages);
-      if (nextConversationId) {
-        setActiveConversationId(nextConversationId);
-        setConversations((current) =>
-          upsertConversation(current, {
-            id: nextConversationId,
-            title: nextTitle,
-            preview: buildConversationPreview(nextMessages),
-            updatedAt:
-              nextMessages[nextMessages.length - 1]?.createdAt ?? Date.now(),
-            messageCount: nextMessages.length,
-          })
-        );
-      }
-
-      void loadConversations();
+      applySuccessfulJournalResponse(data, baseMessages, optimisticMessage);
     } catch (error) {
-      console.error("Erreur envoi journal:", error);
+      console.error(
+        mode === "journal" ? "Erreur envoi journal:" : "Erreur insight journal:",
+        error
+      );
       setMessages(baseMessages);
       setInput(text);
-      setErrorMessage("Impossible d'envoyer le message pour le moment.");
+      setErrorMessage(
+        mode === "journal"
+          ? "Impossible d'envoyer le message pour le moment."
+          : "Impossible d'envoyer l'analyse pour le moment."
+      );
     } finally {
       setSending(false);
     }
+  }
+
+  async function sendMessage() {
+    await submitJournalMessage("journal");
   }
 
   async function generateCompatibilityInsight() {
@@ -790,14 +845,11 @@ export default function Journal() {
       return;
     }
 
-    const latestUserMessage = [...messages]
-      .reverse()
-      .find((message) => message.role === "user");
-    const sourceText = input.trim() || latestUserMessage?.text || "";
+    const sourceText = input.trim();
 
     if (!sourceText) {
       setErrorMessage(
-        "Ecris un brouillon ou envoie deja un message avant de demander une analyse."
+        "Ecris ton message avant de demander une analyse."
       );
       return;
     }
@@ -806,34 +858,7 @@ export default function Journal() {
     setErrorMessage("");
 
     try {
-      const res = await fetch(`${API}/journal/insight`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ body: sourceText }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setErrorMessage(
-          extractErrorMessage(data, "Impossible de generer l'analyse pour le moment.")
-        );
-        return;
-      }
-
-      const nextInsight =
-        readText(isRecord(data) ? data.insight : null) ||
-        readText(isRecord(data) ? data.message : null);
-
-      setCompatInsight(
-        nextInsight || "Aucune analyse complementaire n'a ete renvoyee."
-      );
-    } catch (error) {
-      console.error("Erreur insight journal:", error);
-      setErrorMessage("Impossible de joindre l'analyse pour le moment.");
+      await submitJournalMessage("insight");
     } finally {
       setInsightLoading(false);
     }
@@ -883,8 +908,8 @@ export default function Journal() {
               <div className="journal-sidebar-empty">
                 <strong>Aucune discussion archivee.</strong>
                 <p>
-                  Des que tu entames un echange, il s'enregistre ici avec un titre
-                  genere a partir de ton premier message.
+                  Des que tu entames un echange, il s'enregistre ici avec le titre
+                  fourni par le backend.
                 </p>
               </div>
             ) : (
@@ -953,6 +978,9 @@ export default function Journal() {
                 {activeConversation && (
                   <p>Retrouve ton echange et continue la discussion ici.</p>
                 )}
+                {usageSummary && !dailyLimitReached && (
+                  <p className="journal-usage-line">{usageSummary}</p>
+                )}
               </div>
             </header>
 
@@ -995,8 +1023,14 @@ export default function Journal() {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
-                placeholder="Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
-                disabled={!token || sending || isRateLimited || loadingConversation}
+                placeholder={
+                  dailyLimitReached
+                    ? `Limite atteinte, reessaie apres ${formatDateTime(
+                        usage?.resetAt ?? null
+                      )}.`
+                    : "Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
+                }
+                disabled={!token || sending || dailyLimitReached || loadingConversation}
               />
 
               <div className="journal-composer-actions">
@@ -1008,7 +1042,7 @@ export default function Journal() {
                   disabled={
                     !token ||
                     sending ||
-                    isRateLimited ||
+                    dailyLimitReached ||
                     loadingConversation ||
                     !input.trim()
                   }
@@ -1021,7 +1055,14 @@ export default function Journal() {
                   onClick={() => {
                     void generateCompatibilityInsight();
                   }}
-                  disabled={!token || insightLoading || loadingConversation}
+                  disabled={
+                    !token ||
+                    insightLoading ||
+                    sending ||
+                    dailyLimitReached ||
+                    loadingConversation ||
+                    !input.trim()
+                  }
                 >
                   {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
                 </button>
@@ -1029,17 +1070,10 @@ export default function Journal() {
 
               {errorMessage && <div className="journal-alert error">{errorMessage}</div>}
 
-              {isRateLimited && (
+              {dailyLimitReached && (
                 <div className="journal-alert warning">
-                  Tu pourras reprendre l'echange a partir de{" "}
-                  {formatDateTime(rateLimit?.retryAt ?? null)}.
-                </div>
-              )}
-
-              {compatInsight && (
-                <div className="journal-insight">
-                  <strong>Analyse ponctuelle</strong>
-                  <p>{compatInsight}</p>
+                  Limite atteinte, reessaie apres{" "}
+                  {formatDateTime(usage?.resetAt ?? null)}.
                 </div>
               )}
             </div>
