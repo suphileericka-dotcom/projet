@@ -314,7 +314,7 @@
 }
 
 .group-chat__footer {
-  padding: 14px 24px calc(16px + env(safe-area-inset-bottom));
+  padding: 14px 24px calc(16px + env(safe-area-inset-bottom) + var(--chat-bottom-offset, 0px));
   background: color-mix(in srgb, var(--chat-panel) 92%, black 8%);
   border-top: 1px solid color-mix(in srgb, var(--chat-accent) 18%, var(--chat-panel-border));
   backdrop-filter: blur(18px);
@@ -499,7 +499,7 @@
   }
 
   .group-chat__footer {
-    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom) + var(--chat-bottom-offset, 0px));
     box-shadow: 0 -14px 28px rgba(2, 6, 23, 0.2);
   }
 

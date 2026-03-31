@@ -126,8 +126,9 @@ export default function GroupChatRoom({
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
-    return Math.round(window.visualViewport?.height || window.innerHeight);
+    return Math.round(window.innerHeight);
   });
+  const [bottomOffset, setBottomOffset] = useState(0);
   const [currentUsername, setCurrentUsername] = useState(() => {
     const storedUsername = localStorage.getItem("username")?.trim();
     return storedUsername && storedUsername.toLowerCase() !== "moi"
@@ -153,9 +154,15 @@ export default function GroupChatRoom({
     if (typeof window === "undefined") return undefined;
 
     const syncViewportHeight = () => {
-      setViewportHeight(
-        Math.round(window.visualViewport?.height || window.innerHeight)
+      const visibleHeight = window.visualViewport?.height || window.innerHeight;
+      const visibleOffsetTop = window.visualViewport?.offsetTop || 0;
+      const nextBottomOffset = Math.max(
+        0,
+        Math.round(window.innerHeight - visibleHeight - visibleOffsetTop)
       );
+
+      setViewportHeight(Math.round(window.innerHeight));
+      setBottomOffset(nextBottomOffset);
     };
 
     syncViewportHeight();
@@ -762,6 +769,7 @@ export default function GroupChatRoom({
   const groupChatStyle: GroupRoomTheme = {
     ...config.theme,
     "--chat-viewport-height": `${viewportHeight}px`,
+    "--chat-bottom-offset": `${bottomOffset}px`,
   };
 
   return (
