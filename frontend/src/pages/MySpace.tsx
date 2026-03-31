@@ -114,6 +114,8 @@ export default function MySpace() {
         setUsername(data.profile?.username ?? "");
         setEmail(data.profile?.email ?? "");
         setAvatarPreview(resolveUpload(data.profile?.avatar));
+        localStorage.setItem("username", data.profile?.username ?? "");
+        localStorage.setItem("avatar", resolveUpload(data.profile?.avatar) ?? "");
       }
     } catch (err) {
       console.error("Erreur dashboard:", err);
@@ -148,6 +150,8 @@ export default function MySpace() {
       if (res.ok) {
         const data = await res.json();
         setAvatarPreview(resolveUpload(data.avatar));
+        localStorage.setItem("username", username);
+        localStorage.setItem("avatar", resolveUpload(data.avatar) ?? "");
         alert("Profil mis à jour !");
       } else {
         const errData = await res.json();

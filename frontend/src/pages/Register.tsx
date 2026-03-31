@@ -139,6 +139,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
 
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
+      localStorage.setItem("username", data.user.username);
       localStorage.setItem("language", form.language);
 
       setIsAuth(true);

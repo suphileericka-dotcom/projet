@@ -1,303 +1,36 @@
-// =====================
-// IMPORTS
-// =====================
-
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import "../style/expatriation.css";
-import { socket } from "../lib/socket";
-import { useTranslation } from "react-i18next";
-
-/* =====================
-   API BASE
-===================== */
-const API =
-  import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api`
-    : "http://localhost:8000/api";
-
-type Message = {
-  id: string;
-  type: "text" | "voice";
-  text?: string;
-  createdAt: number;
-  editedAt?: number;
-  translatedText?: string;
-};
+import GroupChatRoom from "./GroupChatRoom";
 
 type ExpatriationProps = {
   isAuth: boolean;
 };
 
-/* =====================
-   CONSTANTES
-===================== */
-const ROOM = "expatriation";
-const EDIT_WINDOW = 20 * 60 * 1000;
+const expatriationConfig = {
+  room: "expatriation",
+  title: "Expatriation",
+  subtitle: "Un espace pour partager le depart, le manque et l'adaptation",
+  banner: "Un espace pour parler du depart, du manque et de l'adaptation.",
+  placeholder: "Exprime ton ressenti d'expatriation...",
+  theme: {
+    "--chat-bg": "linear-gradient(180deg, #0b1320 0%, #111921 100%)",
+    "--chat-panel": "rgba(15, 23, 32, 0.94)",
+    "--chat-panel-border": "rgba(48, 140, 232, 0.16)",
+    "--chat-text": "#e6edf3",
+    "--chat-muted": "#93adc8",
+    "--chat-accent": "#308ce8",
+    "--chat-accent-contrast": "#031423",
+    "--chat-banner-bg": "rgba(48, 140, 232, 0.12)",
+    "--chat-banner-text": "#d4e8ff",
+    "--chat-note-bg": "rgba(48, 140, 232, 0.1)",
+    "--chat-note-text": "#d4e8ff",
+    "--chat-bubble-own": "linear-gradient(135deg, #308ce8 0%, #1d4ed8 100%)",
+    "--chat-bubble-own-text": "#edf6ff",
+    "--chat-bubble-other": "rgba(36, 54, 71, 0.92)",
+    "--chat-bubble-other-text": "#e6edf3",
+    "--chat-translation-bg": "rgba(48, 140, 232, 0.12)",
+    "--chat-danger": "#fb7185",
+  },
+} as const;
 
-/* =====================
-   COMPONENT
-===================== */
 export default function Expatriation({ isAuth }: ExpatriationProps) {
-  const navigate = useNavigate();
-  useTranslation();
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [onlineCount, setOnlineCount] = useState(0);
-  const [activeMessage, setActiveMessage] = useState<string | null>(null);
-
-  const userId = isAuth ? localStorage.getItem("userId") : null;
-  const streamRef = useRef<HTMLDivElement>(null);
-
-  /* =====================
-     SOCKET
-  ===================== */
-  useEffect(() => {
-    if (!isAuth || !userId) return;
-
-    if (!socket.connected) socket.connect();
-
-    socket.emit("join-room", { room: ROOM, userId });
-
-    socket.on("online-count", ({ room, count }) => {
-      if (room === ROOM) setOnlineCount(count);
-    });
-
-    return () => {
-      socket.off("online-count");
-      socket.emit("leave-room", { room: ROOM, userId });
-      socket.disconnect();
-    };
-  }, [isAuth, userId]);
-
-  /* =====================
-     LOAD MESSAGES
-  ===================== */
-  useEffect(() => {
-    fetch(`${API}/messages?room=${ROOM}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setMessages(
-          data.map((m: any) => ({
-            id: m.id,
-            type: m.audio_path ? "voice" : "text",
-            text: m.content ?? (m.audio_path ? "Ancien message vocal non disponible." : ""),
-            createdAt: m.created_at,
-          }))
-        );
-      });
-  }, []);
-
-  /* =====================
-     AUTOSCROLL
-  ===================== */
-  useEffect(() => {
-    streamRef.current?.scrollTo({
-      top: streamRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages]);
-
-  /* =====================
-     HELPERS
-  ===================== */
-  function canEdit(m: Message) {
-    return (
-      isAuth &&
-      m.type === "text" &&
-      Date.now() - m.createdAt <= EDIT_WINDOW
-    );
-  }
-
-  function formatTime(ts: number) {
-    return new Date(ts).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  /* =====================
-     SEND TEXT
-  ===================== */
-  async function handleSend() {
-    if (!isAuth || !userId || !input.trim()) return;
-
-    if (editingId) {
-      setMessages((msgs) =>
-        msgs.map((m) =>
-          m.id === editingId
-            ? { ...m, text: input, editedAt: Date.now() }
-            : m
-        )
-      );
-      setEditingId(null);
-      setInput("");
-      return;
-    }
-
-    const res = await fetch(`${API}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: ROOM, userId, content: input }),
-    });
-
-    const saved = await res.json();
-
-    setMessages((msgs) => [
-      ...msgs,
-      {
-        id: saved.id,
-        type: "text",
-        text: saved.content,
-        createdAt: saved.createdAt ?? Date.now(),
-      },
-    ]);
-
-    setInput("");
-  }
-
-  /* =====================
-     DELETE
-  ===================== */
-  async function handleDelete(id: string) {
-    if (!userId) return;
-
-    await fetch(`${API}/messages/${id}?userId=${userId}`, {
-      method: "DELETE",
-    });
-
-    setMessages((msgs) => msgs.filter((m) => m.id !== id));
-  }
-
-  /* =====================
-     TRANSLATION
-  ===================== */
-  async function translateMessage(m: Message) {
-    if (!m.text || m.translatedText) return;
-
-    const lang = localStorage.getItem("language") || "fr";
-
-    const res = await fetch(`${API}/translate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: m.text,
-        target: lang,
-      }),
-    });
-
-    if (!res.ok) return;
-
-    const data = await res.json();
-
-    setMessages((msgs) =>
-      msgs.map((msg) =>
-        msg.id === m.id
-          ? { ...msg, translatedText: data.translatedText }
-          : msg
-      )
-    );
-  }
-
-  /* =====================
-     RENDER
-   ===================== */
-  return (
-    <div className="chat-root expatriation">
-      <button
-        className="back-button-global"
-        onClick={() => navigate("/")}
-      >
-        ←
-      </button>
-
-      <header className="chat-header">
-        <h1>Expatriation</h1>
-        <span className="online">
-          <span className="dot" /> {onlineCount} en ligne
-        </span>
-        <span className="sub">
-          Un espace pour partager l’expérience de l’expatriation
-        </span>
-      </header>
-
-      <main className="chat-stream" ref={streamRef}>
-        <div className="secure-banner">
-          Un espace pour parler du depart, du manque et de l'adaptation.
-        </div>
-
-        {messages.map((m) => (
-          <div key={m.id} className="message-row">
-            <div
-              className="bubble-wrapper"
-              onClick={() =>
-                setActiveMessage(activeMessage === m.id ? null : m.id)
-              }
-            >
-              {m.type === "text" && (
-                <>
-                  <div className="bubble">{m.text}</div>
-                  {m.translatedText && (
-                    <div className="bubble translated">
-                      {m.translatedText}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {m.type === "voice" && (
-                <div className="bubble">
-                  {m.text || "Ancien message vocal non disponible."}
-                </div>
-              )}
-
-              <div className="meta">
-                <span>{formatTime(m.createdAt)}</span>
-                {m.editedAt && <span> (modifié)</span>}
-              </div>
-
-              {canEdit(m) && activeMessage === m.id && (
-                <div className="actions">
-                  <button
-                    onClick={() => {
-                      setInput(m.text ?? "");
-                      setEditingId(m.id);
-                    }}
-                  >
-                    ✏️
-                  </button>
-                  <button onClick={() => handleDelete(m.id)}>🗑</button>
-                  <button onClick={() => translateMessage(m)}>🌍</button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </main>
-
-      <footer className="chat-footer">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder={
-            isAuth
-              ? "Exprime ton ressenti d’expatriation…"
-              : "Connexion requise"
-          }
-          disabled={!isAuth}
-        />
-
-        <button
-          className="send-icon"
-          onClick={handleSend}
-          disabled={!isAuth}
-        >
-          ➤
-        </button>
-      </footer>
-    </div>
-  );
+  return <GroupChatRoom isAuth={isAuth} config={expatriationConfig} />;
 }

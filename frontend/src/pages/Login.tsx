@@ -90,6 +90,7 @@ export default function Login({ setIsAuth }: LoginProps) {
 
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
+      localStorage.setItem("username", data.user.username);
 
       if (data.user.language) {
         localStorage.setItem("language", data.user.language);
