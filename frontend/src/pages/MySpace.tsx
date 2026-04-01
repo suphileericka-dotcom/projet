@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "../style/mySpace.css";
 import { API } from "../config/api";
 import { persistCountry } from "../config/countryAccess";
+import { buildAvatarUrl, resolveAvatarUpload } from "../lib/avatar";
 
 /* =====================
    TYPES
@@ -66,14 +67,6 @@ function formatDateTime(value?: number | string | null) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
-function resolveUpload(path?: string | null) {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  const base = API.replace("/api", "");
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${cleanPath}`;
-}
-
 /* =====================
    COMPOSANT PRINCIPAL
 ===================== */
@@ -115,9 +108,12 @@ export default function MySpace() {
         setSpace(data);
         setUsername(data.profile?.username ?? "");
         setEmail(data.profile?.email ?? "");
-        setAvatarPreview(resolveUpload(data.profile?.avatar));
+        setAvatarPreview(resolveAvatarUpload(data.profile?.avatar));
         localStorage.setItem("username", data.profile?.username ?? "");
-        localStorage.setItem("avatar", resolveUpload(data.profile?.avatar) ?? "");
+        localStorage.setItem(
+          "avatar",
+          resolveAvatarUpload(data.profile?.avatar) ?? "",
+        );
         if (data.profile?.country) {
           persistCountry(data.profile.country);
         }
@@ -154,9 +150,9 @@ export default function MySpace() {
 
       if (res.ok) {
         const data = await res.json();
-        setAvatarPreview(resolveUpload(data.avatar));
+        setAvatarPreview(resolveAvatarUpload(data.avatar));
         localStorage.setItem("username", username);
-        localStorage.setItem("avatar", resolveUpload(data.avatar) ?? "");
+        localStorage.setItem("avatar", resolveAvatarUpload(data.avatar) ?? "");
         if (data.country ?? data.profile?.country) {
           persistCountry(data.country ?? data.profile?.country);
         }
@@ -227,7 +223,12 @@ export default function MySpace() {
         <div className="avatar-section">
           <label className="avatar-upload">
             <img
-              src={avatarPreview || `https://ui-avatars.com/api/?name=${username || "U"}`}
+              src={buildAvatarUrl({
+                name: username || "Membre",
+                avatarPath: avatarPreview,
+                seed: space?.profile?.id || username,
+                size: 256,
+              })}
               className="avatar-xl"
               alt="Profil"
             />
@@ -322,10 +323,15 @@ export default function MySpace() {
             )}
             {space?.friends?.map((f) => (
               <div key={f.id} className="list-row">
-                <img 
-                  src={resolveUpload(f.avatar) || `https://ui-avatars.com/api/?name=${f.username}`} 
-                  className="avatar-sm" 
-                  alt={f.username || "Ami"} 
+                <img
+                  src={buildAvatarUrl({
+                    name: f.username || "Ami",
+                    avatarPath: f.avatar,
+                    seed: f.id,
+                    size: 96,
+                  })}
+                  className="avatar-sm"
+                  alt={f.username || "Ami"}
                 />
                 <strong>{f.username}</strong>
                 <div className="status-indicator online"></div>

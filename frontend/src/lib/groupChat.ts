@@ -1,4 +1,4 @@
-import { API_BASE } from "../config/api";
+import { buildAvatarUrl as buildSharedAvatarUrl } from "./avatar";
 
 export const EDIT_WINDOW_MS = 20 * 60 * 1000;
 export const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -84,21 +84,13 @@ function toTimestamp(value: unknown): number | undefined {
   return undefined;
 }
 
-function resolveUpload(path?: string | null): string | null {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${cleanPath}`;
-}
-
 export function buildAvatarUrl(name: string, avatarPath?: string | null): string {
-  const resolved = resolveUpload(avatarPath);
-  if (resolved) return resolved;
-
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-    name || "M"
-  )}&background=0f172a&color=ffffff&size=96`;
+  return buildSharedAvatarUrl({
+    name: name || "Membre",
+    avatarPath,
+    seed: `${name || "Membre"}-${avatarPath || ""}`,
+    size: 96,
+  });
 }
 
 export function formatMessageTime(value?: number | null): string {

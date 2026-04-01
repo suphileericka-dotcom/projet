@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/match.css";
 import { API } from "../config/api";
+import { buildAvatarUrl } from "../lib/avatar";
 
 type MatchProfile = {
   id: string;
   summary: string;
   common_tags: string[];
   avatar?: string;
+  username?: string;
 };
 
 type MatchResponse = {
@@ -188,7 +190,16 @@ export default function Match() {
 
         {matches.map((m) => (
           <div key={m.id} className="match-card">
-            <img src={m.avatar || "/avatar.png"} className="avatar-lg" />
+            <img
+              src={buildAvatarUrl({
+                name: m.username || "Membre",
+                avatarPath: m.avatar,
+                seed: m.id,
+                size: 128,
+              })}
+              className="avatar-lg"
+              alt={m.username || "Profil"}
+            />
             <p className="summary">“{m.summary}”</p>
 
             <div className="tags">

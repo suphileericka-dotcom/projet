@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "../style/privateChat.css";
 import { API } from "../config/api";
+import { buildAvatarUrl } from "../lib/avatar";
 
 type Thread = {
   id: string;
@@ -155,8 +156,13 @@ export default function PrivateChat() {
               <div className="pc-thread-left">
                 <img
                   className="pc-avatar"
-                  src={t.otherAvatar || "/avatar.png"}
-                  alt=""
+                  src={buildAvatarUrl({
+                    name: t.otherName || "Membre",
+                    avatarPath: t.otherAvatar,
+                    seed: t.otherUserId || t.id,
+                    size: 96,
+                  })}
+                  alt={t.otherName || "Profil"}
                 />
                 <div className="pc-thread-meta">
                   <div className="pc-thread-name">
