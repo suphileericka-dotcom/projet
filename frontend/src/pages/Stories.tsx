@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
 
@@ -14,10 +14,17 @@ type Story = {
   liked_by_me: boolean;
 };
 
+type StoriesLocationState = {
+  publishedTitle?: string;
+};
+
 export default function Stories() {
   const navigate = useNavigate();
+  const location = useLocation();
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
+  const publishTitle =
+    (location.state as StoriesLocationState | null)?.publishedTitle ?? null;
 
   const [stories, setStories] = useState<Story[]>([]);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
@@ -32,11 +39,13 @@ export default function Stories() {
         if (search) params.append("q", search);
         if (tagFilter) params.append("tag", tagFilter);
         const res = await fetch(`${API}/stories?${params}`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (Array.isArray(data)) setStories(data);
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        console.error(err);
+      }
     }
     fetchStories();
   }, [search, tagFilter, token]);
@@ -46,6 +55,14 @@ export default function Stories() {
     return () => clearTimeout(timeoutId);
   }, [searchInput]);
 
+  useEffect(() => {
+    if (!publishTitle) return;
+    const timeoutId = window.setTimeout(() => {
+      navigate(location.pathname, { replace: true, state: null });
+    }, 5000);
+    return () => clearTimeout(timeoutId);
+  }, [location.pathname, navigate, publishTitle]);
+
   const handleToggleLike = async (story: Story) => {
     if (!token) return;
 
@@ -53,21 +70,28 @@ export default function Stories() {
     const method = isLiked ? "DELETE" : "POST";
     const endpoint = isLiked ? "unlike" : "like";
 
-    // Mise à jour UI Optimiste
-    const newStories = stories.map(s => 
-      s.id === story.id 
-      ? { ...s, liked_by_me: !isLiked, likes: isLiked ? s.likes - 1 : s.likes + 1 } 
-      : s
+    const newStories = stories.map((s) =>
+      s.id === story.id
+        ? {
+            ...s,
+            liked_by_me: !isLiked,
+            likes: isLiked ? s.likes - 1 : s.likes + 1,
+          }
+        : s,
     );
     setStories(newStories);
     if (activeStory?.id === story.id) {
-        setActiveStory({ ...activeStory, liked_by_me: !isLiked, likes: isLiked ? activeStory.likes - 1 : activeStory.likes + 1 });
+      setActiveStory({
+        ...activeStory,
+        liked_by_me: !isLiked,
+        likes: isLiked ? activeStory.likes - 1 : activeStory.likes + 1,
+      });
     }
 
     try {
       await fetch(`${API}/stories/${story.id}/${endpoint}`, {
-        method: method,
-        headers: { Authorization: `Bearer ${token}` }
+        method,
+        headers: { Authorization: `Bearer ${token}` },
       });
     } catch (err) {
       console.error("Erreur like:", err);
@@ -79,45 +103,63 @@ export default function Stories() {
     try {
       const res = await fetch(`${API}/stories/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setStories(stories.filter(s => s.id !== id));
+        setStories(stories.filter((s) => s.id !== id));
         setActiveStory(null);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
     <div className="page stories-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
+      <button className="back-button-global" onClick={() => navigate("/")}>
+        ←
+      </button>
 
       <header className="page-header">
         <h1>Histoires</h1>
-        <p>Découvrez et soutenez les témoignages</p>
+        <p>Decouvre et soutiens les temoignages</p>
       </header>
+
+      {publishTitle && (
+        <div className="publish-banner" role="status">
+          {`Ton histoire "${publishTitle}" est maintenant publiee.`}
+        </div>
+      )}
 
       <div className="search-section">
         <div className="modern-search-bar">
-          <input 
-            placeholder="Rechercher une histoire..." 
-            value={searchInput} 
-            onChange={(e) => setSearchInput(e.target.value)} 
+          <input
+            placeholder="Rechercher une histoire..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
         <div className="tag-filters">
-          {["burnout", "solitude", "rupture", "expatriation"].map(t => (
-            <button key={t} className={`tag-btn ${tagFilter === t ? 'active' : ''}`} onClick={() => setTagFilter(tagFilter === t ? "" : t)}>#{t}</button>
+          {["burnout", "solitude", "rupture", "expatriation"].map((t) => (
+            <button
+              key={t}
+              className={`tag-btn ${tagFilter === t ? "active" : ""}`}
+              onClick={() => setTagFilter(tagFilter === t ? "" : t)}
+            >
+              #{t}
+            </button>
           ))}
         </div>
       </div>
 
       <div className="stories-grid">
-        {stories.map(s => (
+        {stories.map((s) => (
           <div key={s.id} className="story-card" onClick={() => setActiveStory(s)}>
             <div className="card-header">
               <span className="card-tag">#{s.tags[0]}</span>
-              <span className={s.liked_by_me ? "is-liked" : ""}>{s.liked_by_me ? "❤️" : "🤍"} {s.likes}</span>
+              <span className={s.liked_by_me ? "is-liked" : ""}>
+                {s.liked_by_me ? "❤️" : "🤍"} {s.likes}
+              </span>
             </div>
             <h3>{s.title}</h3>
             <span className="btn-read">Lire l'histoire</span>
@@ -127,23 +169,36 @@ export default function Stories() {
 
       {activeStory && (
         <div className="modal-overlay" onClick={() => setActiveStory(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setActiveStory(null)}>✕</button>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setActiveStory(null)}>
+              ✕
+            </button>
             <div className="modal-content-scroll">
               <h2 className="modal-title">{activeStory.title}</h2>
               <div className="modal-divider"></div>
               <p className="modal-body-text">{activeStory.body}</p>
             </div>
             <div className="modal-actions-bar">
-              <button 
-                className={`action-pill ${activeStory.liked_by_me ? 'liked' : ''}`} 
+              <button
+                className={`action-pill ${activeStory.liked_by_me ? "liked" : ""}`}
                 onClick={() => handleToggleLike(activeStory)}
               >
-                {activeStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} ({activeStory.likes})
+                {activeStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} (
+                {activeStory.likes})
               </button>
-              <button className="action-pill chat-pill" onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}>Chat</button>
+              <button
+                className="action-pill chat-pill"
+                onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}
+              >
+                Chat
+              </button>
               {activeStory.user_id === myUserId && (
-                <button className="delete-btn-modal" onClick={() => handleDelete(activeStory.id)}>Supprimer</button>
+                <button
+                  className="delete-btn-modal"
+                  onClick={() => handleDelete(activeStory.id)}
+                >
+                  Supprimer
+                </button>
               )}
             </div>
           </div>

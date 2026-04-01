@@ -6,6 +6,17 @@
   font-family: 'Inter', sans-serif;
 }
 
+.publish-banner {
+  max-width: 700px;
+  margin: 0 auto 28px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(16, 185, 129, 0.18));
+  border: 1px solid rgba(147, 197, 253, 0.28);
+  color: #eff6ff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
 .search-section { max-width: 700px; margin: 0 auto 40px; }
 .modern-search-bar { 
   display: flex; align-items: center; background: rgba(255,255,255,0.05); 
@@ -36,6 +47,7 @@
 .modal-close-btn { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%; border: none; background: #f1f5f9; cursor: pointer; }
 
 @media (max-width: 768px) {
+  .publish-banner { margin-bottom: 22px; }
   .modal-card { height: 95vh; border-radius: 20px; }
   .modal-content-scroll { padding: 40px 25px; }
   .modal-actions-bar { padding: 15px 25px; flex-wrap: wrap; }

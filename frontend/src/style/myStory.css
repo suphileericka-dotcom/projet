@@ -84,6 +84,51 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
+.drafts-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.editor-feedback {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.editor-notice {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid transparent;
+  line-height: 1.5;
+}
+
+.editor-notice-success {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(134, 239, 172, 0.28);
+  color: #dcfce7;
+}
+
+.editor-notice-info {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(147, 197, 253, 0.28);
+  color: #dbeafe;
+}
+
+.editor-notice-error {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(252, 165, 165, 0.28);
+  color: #fee2e2;
+}
+
+.editor-draft-hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.5;
+}
+
 .title-input,
 .body-textarea {
   width: 100%;
@@ -205,6 +250,29 @@
   flex: 0 0 auto;
 }
 
+.story-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.story-btn-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: story-spin 0.75s linear infinite;
+}
+
 .story-btn-ghost {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -232,6 +300,12 @@
 
 .story-btn-primary:active {
   background: linear-gradient(135deg, #e2e8f0, #93c5fd);
+}
+
+@keyframes story-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal-backdrop {

@@ -28,7 +28,38 @@ type Draft = {
   tags: Tag[];
 };
 
+type Notice = {
+  kind: "success" | "info" | "error";
+  message: string;
+};
+
 const MYSTORY_API = `${API}/mystory`;
+
+function extractDraftId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+
+  const data = payload as Record<string, unknown>;
+  const directId = typeof data.id === "string" ? data.id : null;
+  if (directId) return directId;
+
+  const fallbackId = typeof data._id === "string" ? data._id : null;
+  if (fallbackId) return fallbackId;
+
+  for (const key of ["draft", "story", "data"]) {
+    const nested = data[key];
+    if (!nested || typeof nested !== "object") continue;
+
+    const nestedData = nested as Record<string, unknown>;
+    const nestedId = typeof nestedData.id === "string" ? nestedData.id : null;
+    if (nestedId) return nestedId;
+
+    const nestedFallbackId =
+      typeof nestedData._id === "string" ? nestedData._id : null;
+    if (nestedFallbackId) return nestedFallbackId;
+  }
+
+  return null;
+}
 
 export default function MyStory() {
   const navigate = useNavigate();
@@ -40,9 +71,63 @@ export default function MyStory() {
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [showDrafts, setShowDrafts] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   function toggleTag(tag: Tag) {
     setSelectedTag((prev) => (prev === tag ? null : tag));
+  }
+
+  function clearEditor() {
+    setCurrentDraftId(null);
+    setTitle("");
+    setBody("");
+    setSelectedTag(null);
+  }
+
+  function validateStory() {
+    if (!title.trim()) {
+      setNotice({
+        kind: "error",
+        message: "Ajoute un titre avant de continuer.",
+      });
+      return false;
+    }
+
+    if (!selectedTag) {
+      setNotice({
+        kind: "error",
+        message: "Ajoute au moins un tag avant de continuer.",
+      });
+      return false;
+    }
+
+    if (body.trim().length < 30) {
+      setNotice({
+        kind: "error",
+        message: "Ecris encore un peu pour que ton histoire soit complete.",
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  async function fetchDraftsList(headers: HeadersInit) {
+    let res = await fetch(`${MYSTORY_API}/drafts`, { headers });
+
+    if (res.status === 404) {
+      console.warn("Fallback vers /me");
+      res = await fetch(`${MYSTORY_API}/me`, { headers });
+    }
+
+    if (!res.ok) {
+      throw new Error("Erreur fetch drafts");
+    }
+
+    const data = await res.json();
+    return Array.isArray(data) ? (data as Draft[]) : [];
   }
 
   async function openDrafts() {
@@ -53,22 +138,15 @@ export default function MyStory() {
         Authorization: `Bearer ${token}`,
       };
 
-      let res = await fetch(`${MYSTORY_API}/drafts`, { headers });
-
-      if (res.status === 404) {
-        console.warn("Fallback vers /me");
-        res = await fetch(`${MYSTORY_API}/me`, { headers });
-      }
-
-      if (!res.ok) {
-        throw new Error("Erreur fetch drafts");
-      }
-
-      const data = await res.json();
+      const data = await fetchDraftsList(headers);
       setDrafts(data);
       setShowDrafts(true);
     } catch (err) {
       console.error("Erreur fetch drafts", err);
+      setNotice({
+        kind: "error",
+        message: "Impossible de charger les brouillons pour le moment.",
+      });
     }
   }
 
@@ -78,6 +156,10 @@ export default function MyStory() {
     setBody(draft.body);
     setSelectedTag(draft.tags[0] ?? null);
     setShowDrafts(false);
+    setNotice({
+      kind: "info",
+      message: "Brouillon charge. Tu peux le modifier ou le publier.",
+    });
   }
 
   async function deleteDraft(id: string) {
@@ -93,84 +175,172 @@ export default function MyStory() {
 
     if (currentDraftId === id) {
       clearEditor();
+      setNotice({
+        kind: "info",
+        message: "Le brouillon supprime a ete retire de l'editeur.",
+      });
+    }
+  }
+
+  async function persistDraft() {
+    if (!token || !selectedTag) return null;
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
+    try {
+      const res = await fetch(MYSTORY_API, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          id: currentDraftId,
+          title: title.trim(),
+          body,
+          tags: [selectedTag],
+        }),
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const payload = await res.json().catch(() => null);
+      let draftId = extractDraftId(payload) ?? currentDraftId;
+
+      if (!draftId) {
+        const latestDrafts = await fetchDraftsList({
+          Authorization: `Bearer ${token}`,
+        }).catch(() => []);
+
+        const matchingDraft =
+          latestDrafts.find(
+            (draft) =>
+              draft.title.trim() === title.trim() &&
+              draft.body.trim() === body.trim(),
+          ) ?? latestDrafts.find((draft) => draft.title.trim() === title.trim());
+
+        draftId = matchingDraft?.id ?? null;
+      }
+
+      if (!draftId) {
+        return null;
+      }
+
+      const nextDraft: Draft = {
+        id: draftId,
+        title: title.trim(),
+        body,
+        tags: selectedTag ? [selectedTag] : [],
+      };
+
+      setCurrentDraftId(draftId);
+      setDrafts((current) => {
+        const index = current.findIndex((draft) => draft.id === draftId);
+        if (index === -1) {
+          return [nextDraft, ...current];
+        }
+
+        const updated = [...current];
+        updated[index] = nextDraft;
+        return updated;
+      });
+
+      return draftId;
+    } catch (err) {
+      console.error("Erreur save draft", err);
+      return null;
     }
   }
 
   async function saveDraft() {
-    if (!token) return;
+    if (!token || isSavingDraft || isPublishing) return;
 
-    if (!title.trim()) {
-      alert("Le titre est obligatoire");
+    setNotice(null);
+
+    if (!validateStory()) {
       return;
     }
 
-    if (!selectedTag) {
-      alert("Ajoute au moins un tag");
-      return;
+    setIsSavingDraft(true);
+
+    try {
+      const draftId = await persistDraft();
+
+      if (!draftId) {
+        setNotice({
+          kind: "error",
+          message: "Erreur lors de l'enregistrement du brouillon.",
+        });
+        return;
+      }
+
+      setNotice({
+        kind: "success",
+        message:
+          "Brouillon enregistre. Tu peux continuer a modifier ou publier directement.",
+      });
+    } finally {
+      setIsSavingDraft(false);
     }
-
-    if (body.trim().length < 30) {
-      alert("Écris encore un peu.");
-      return;
-    }
-
-    const res = await fetch(MYSTORY_API, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        id: currentDraftId,
-        title,
-        body,
-        tags: [selectedTag],
-      }),
-    });
-
-    if (!res.ok) {
-      alert("Erreur lors de l’enregistrement");
-      return;
-    }
-
-    clearEditor();
-    alert("Brouillon enregistré");
-  }
-
-  function clearEditor() {
-    setCurrentDraftId(null);
-    setTitle("");
-    setBody("");
-    setSelectedTag(null);
   }
 
   async function publish() {
-    if (!token || !currentDraftId) {
-      alert("Sélectionne ou enregistre un brouillon d’abord.");
+    if (!token || isPublishing) return;
+
+    setNotice(null);
+
+    if (!validateStory()) {
       return;
     }
 
-    if (!title.trim()) {
-      alert("Le titre est obligatoire");
-      return;
-    }
-
-    if (!selectedTag) {
-      alert("Ajoute au moins un tag");
-      return;
-    }
-
-    const res = await fetch(`${MYSTORY_API}/${currentDraftId}/publish`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}` },
+    setIsPublishing(true);
+    setNotice({
+      kind: "info",
+      message: "Publication en cours...",
     });
 
-    if (!res.ok) {
-      alert("Erreur lors de la publication");
-      return;
-    }
+    try {
+      const draftId = await persistDraft();
 
-    navigate("/story");
+      if (!draftId) {
+        setNotice({
+          kind: "error",
+          message: "Impossible de preparer la publication.",
+        });
+        return;
+      }
+
+      const publishedTitle = title.trim();
+      const res = await fetch(`${MYSTORY_API}/${draftId}/publish`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        setNotice({
+          kind: "error",
+          message: "Erreur lors de la publication.",
+        });
+        return;
+      }
+
+      setDrafts((current) => current.filter((draft) => draft.id !== draftId));
+      clearEditor();
+      navigate("/stories", {
+        replace: true,
+        state: { publishedTitle },
+      });
+    } catch (err) {
+      console.error("Erreur publish", err);
+      setNotice({
+        kind: "error",
+        message: "Erreur lors de la publication.",
+      });
+    } finally {
+      setIsPublishing(false);
+    }
   }
 
   return (
@@ -184,14 +354,39 @@ export default function MyStory() {
           <div>
             <h1>Mon histoire</h1>
             <p className="editor-intro">
-              Prépare ton brouillon ici, puis publie-le quand il est prêt.
+              Ecris librement ici. Tu peux enregistrer en brouillon ou publier
+              directement quand ton texte est pret.
             </p>
           </div>
 
-          <button className="drafts-btn" onClick={openDrafts}>
+          <button
+            className="drafts-btn"
+            onClick={openDrafts}
+            disabled={isSavingDraft || isPublishing}
+          >
             Mes brouillons
           </button>
         </header>
+
+        {(notice || currentDraftId) && (
+          <div className="editor-feedback">
+            {notice && (
+              <div
+                className={`editor-notice editor-notice-${notice.kind}`}
+                role={notice.kind === "error" ? "alert" : "status"}
+              >
+                {notice.message}
+              </div>
+            )}
+
+            {currentDraftId && (
+              <p className="editor-draft-hint">
+                Brouillon actif. Un clic sur Publier enverra la version affichee
+                dans l'editeur.
+              </p>
+            )}
+          </div>
+        )}
 
         <input
           className="title-input"
@@ -202,7 +397,7 @@ export default function MyStory() {
 
         <textarea
           className="body-textarea"
-          placeholder="Écris ton histoire…"
+          placeholder="Ecris ton histoire..."
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
@@ -221,12 +416,28 @@ export default function MyStory() {
         </div>
 
         <div className="actions">
-          <button className="story-btn story-btn-ghost" onClick={saveDraft}>
-            Enregistrer
+          <button
+            className="story-btn story-btn-ghost"
+            onClick={saveDraft}
+            disabled={isSavingDraft || isPublishing}
+            type="button"
+          >
+            <span className="story-btn-content">
+              {isSavingDraft && <span className="btn-spinner" aria-hidden="true" />}
+              {currentDraftId ? "Mettre a jour le brouillon" : "Enregistrer en brouillon"}
+            </span>
           </button>
 
-          <button className="story-btn story-btn-primary" onClick={publish}>
-            Publier
+          <button
+            className="story-btn story-btn-primary"
+            onClick={publish}
+            disabled={isPublishing}
+            type="button"
+          >
+            <span className="story-btn-content">
+              {isPublishing && <span className="btn-spinner" aria-hidden="true" />}
+              {isPublishing ? "Publication..." : "Publier"}
+            </span>
           </button>
         </div>
       </div>
