@@ -1,7 +1,9 @@
 .match-root {
   min-height: 100vh;
   padding: 60px 20px;
-  background: radial-gradient(circle at top, #1e3a8a 0%, #020617 70%);
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.3), transparent 28%),
+    linear-gradient(180deg, #1e3a8a 0%, #020617 72%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -9,8 +11,22 @@
 }
 
 .match-header {
+  width: 100%;
+  max-width: 920px;
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 28px;
+}
+
+.match-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 1.3rem + 2vw, 2.8rem);
+  font-weight: 800;
+}
+
+.match-header p {
+  margin: 12px auto 0;
+  max-width: 620px;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .match-meta {
@@ -18,19 +34,20 @@
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  margin-top: 16px;
   color: rgba(255, 255, 255, 0.78);
   font-size: 13px;
 }
 
-.match-title h1 {
-  font-size: 32px;
-  font-weight: 800;
-}
-
-.match-title p {
-  margin-top: 12px;
-  opacity: 0.8;
+.match-meta span,
+.match-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .back-home {
@@ -38,46 +55,94 @@
   height: 46px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
   font-size: 20px;
   cursor: pointer;
   margin-bottom: 24px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .back-home:hover {
-  transform: scale(1.1);
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.match-usage-panel {
+  width: min(920px, 100%);
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 24px;
+  margin-bottom: 22px;
+  background: rgba(15, 23, 42, 0.42);
+  border: 1px solid rgba(191, 219, 254, 0.18);
+  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.22);
+}
+
+.match-usage-panel strong {
+  font-size: 1rem;
+}
+
+.match-usage-panel span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.95rem;
 }
 
 .match-list {
   width: 100%;
-  max-width: 900px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  max-width: 920px;
 }
 
-.match-card {
-  background: white;
+.match-viewer {
+  display: grid;
+  gap: 18px;
+}
+
+.match-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.match-progress-hint {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.95rem;
+}
+
+.match-card,
+.match-empty-card {
+  background: rgba(255, 255, 255, 0.96);
   color: #020617;
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+  border-radius: 28px;
+  padding: clamp(1.4rem, 2vw, 2rem);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.18);
   text-align: center;
 }
 
 .avatar-lg {
-  width: 90px;
-  height: 90px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
   object-fit: cover;
   margin-bottom: 16px;
+  box-shadow: 0 14px 28px rgba(30, 64, 175, 0.18);
+}
+
+.match-name {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
 }
 
 .summary {
+  max-width: 680px;
+  margin: 16px auto 18px;
   font-style: italic;
-  margin-bottom: 14px;
+  line-height: 1.7;
+  color: #334155;
 }
 
 .tags {
@@ -85,49 +150,103 @@
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .tag {
-  background: #6366f1;
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
   color: white;
-  padding: 6px 12px;
+  padding: 7px 13px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 700;
 }
 
-.actions {
+.actions,
+.match-navigation {
   display: flex;
   justify-content: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.actions button {
-  padding: 10px 16px;
-  border-radius: 12px;
+.actions button,
+.match-navigation button {
+  padding: 12px 18px;
+  border-radius: 14px;
   border: none;
   cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s ease;
+  font-weight: 700;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
 }
 
-.actions button:first-child {
-  background: #6366f1;
+.actions button:disabled,
+.match-navigation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
+.actions button:first-child,
+.match-navigation .primary {
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
   color: white;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.28);
 }
 
-.actions button:first-child:hover {
+.actions button:first-child:hover,
+.match-navigation .primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(99,102,241,0.4);
+  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.34);
 }
 
-.actions .ghost {
-  background: #f1f5f9;
+.actions .ghost,
+.match-navigation .ghost {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.match-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.match-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(191, 219, 254, 0.28);
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    width 0.2s ease;
+}
+
+.match-dot.is-active {
+  width: 34px;
+  background: #93c5fd;
 }
 
 .empty {
-  text-align: center;
-  opacity: 0.86;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.match-empty-note {
+  margin: 12px 0 0;
+  color: #475569;
+  line-height: 1.6;
 }
 
 .modal-backdrop {
@@ -179,4 +298,34 @@
   border-radius: 12px;
   background: #fee2e2;
   color: #991b1b;
+}
+
+@media (max-width: 720px) {
+  .match-root {
+    padding: 48px 16px;
+  }
+
+  .match-card,
+  .match-empty-card {
+    border-radius: 24px;
+  }
+
+  .avatar-lg {
+    width: 96px;
+    height: 96px;
+  }
+
+  .summary {
+    font-size: 0.98rem;
+  }
+
+  .actions,
+  .match-navigation {
+    flex-direction: column;
+  }
+
+  .actions button,
+  .match-navigation button {
+    width: 100%;
+  }
 }
