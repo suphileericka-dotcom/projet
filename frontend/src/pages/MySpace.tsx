@@ -301,9 +301,8 @@ export default function MySpace() {
               <p className="muted">Tu n'as pas encore publié de story.</p>
             )}
             {space?.recent_stories?.map((s) => (
-              <div key={s.id} className="list-row stacked">
-                <strong>{s.title || "Sans titre"}</strong>
-                <p className="truncate-2">{s.body}</p>
+              <div key={s.id} className="list-row story-list-row">
+                <strong className="story-list-title">{s.title || "Sans titre"}</strong>
                 <small>{formatDateTime(s.created_at)}</small>
               </div>
             ))}
