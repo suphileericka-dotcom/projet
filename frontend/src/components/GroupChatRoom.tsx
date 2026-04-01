@@ -64,6 +64,12 @@ type TypingUser = {
   expiresAt: number;
 };
 
+type ChatProfile = {
+  id: string;
+  name: string;
+  avatar: string;
+};
+
 type GroupRoomTheme = CSSProperties & Record<`--${string}`, string>;
 
 export type GroupRoomConfig = {
@@ -124,6 +130,8 @@ export default function GroupChatRoom({
   const [note, setNote] = useState<EphemeralNote | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<ChatProfile | null>(null);
+  const [isProfileActionLoading, setIsProfileActionLoading] = useState(false);
   const [currentUsername, setCurrentUsername] = useState(() => {
     const storedUsername = localStorage.getItem("username")?.trim();
     return storedUsername && storedUsername.toLowerCase() !== "moi"
@@ -720,6 +728,169 @@ export default function GroupChatRoom({
     }
   }
 
+  function toggleMessageActions(messageId: string) {
+    setActiveMessageId((current) => (current === messageId ? null : messageId));
+  }
+
+  function handleBubbleCardKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    messageId: string
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleMessageActions(messageId);
+  }
+
+  function openProfileCard(message: ChatMessage) {
+    if (!message.sender.id) return;
+    if (message.sender.id === userId) return;
+
+    setSelectedProfile({
+      id: message.sender.id,
+      name: message.sender.name || "Membre",
+      avatar: message.sender.avatar,
+    });
+    setActiveMessageId(null);
+    setFlashMessage(null);
+  }
+
+  function closeProfileCard() {
+    setSelectedProfile(null);
+    setIsProfileActionLoading(false);
+  }
+
+  async function openPrivateChatFromProfile(profile: ChatProfile) {
+    if (!token || isProfileActionLoading) return;
+
+    setIsProfileActionLoading(true);
+
+    try {
+      const accessRes = await fetch(`${API}/dm/access/${profile.id}`, {
+        headers: buildAuthHeaders(token),
+      });
+
+      if (!accessRes.ok) {
+        throw new Error("Impossible de verifier l'acces au prive.");
+      }
+
+      const accessPayload = await safeJson(accessRes);
+      const access =
+        accessPayload !== null && typeof accessPayload === "object"
+          ? (accessPayload as Record<string, unknown>)
+          : null;
+
+      if (access?.allowed) {
+        const threadRes = await fetch(`${API}/dm/threads`, {
+          method: "POST",
+          headers: buildJsonHeaders(token),
+          body: JSON.stringify({ targetUserId: profile.id }),
+        });
+
+        if (!threadRes.ok) {
+          throw new Error("Impossible d'ouvrir la conversation privee.");
+        }
+
+        const threadPayload = await safeJson(threadRes);
+        const threadId =
+          threadPayload !== null &&
+          typeof threadPayload === "object" &&
+          typeof (threadPayload as Record<string, unknown>).id === "string"
+            ? String((threadPayload as Record<string, unknown>).id)
+            : null;
+
+        if (!threadId) {
+          throw new Error("Conversation privee introuvable.");
+        }
+
+        closeProfileCard();
+        navigate(`/private-chat?thread=${threadId}`);
+        return;
+      }
+
+      closeProfileCard();
+      setFlashMessage(
+        "Le message prive n'est pas encore disponible avec cette personne."
+      );
+    } catch (error) {
+      closeProfileCard();
+      setFlashMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Impossible d'ouvrir le message prive pour le moment."
+      );
+    }
+  }
+
+  async function addFriendFromProfile(profile: ChatProfile) {
+    if (!token || isProfileActionLoading) return;
+
+    const requestBody = JSON.stringify({
+      targetUserId: profile.id,
+      friendId: profile.id,
+    });
+
+    const candidates = [
+      `${API}/friends`,
+      `${API}/friends/request`,
+      `${API}/friends/requests`,
+      `${API}/friends/add`,
+    ];
+
+    setIsProfileActionLoading(true);
+
+    try {
+      for (const endpoint of candidates) {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: buildJsonHeaders(token),
+          body: requestBody,
+        });
+
+        if (response.ok) {
+          closeProfileCard();
+          setFlashMessage(`Demande d'ami envoyee a ${profile.name}.`);
+          return;
+        }
+
+        if (response.status === 409) {
+          closeProfileCard();
+          setFlashMessage(`Une demande existe deja avec ${profile.name}.`);
+          return;
+        }
+
+        if (response.status !== 404 && response.status !== 405) {
+          const payload = await safeJson(response);
+          const message =
+            payload !== null &&
+            typeof payload === "object" &&
+            typeof (payload as Record<string, unknown>).error === "string"
+              ? String((payload as Record<string, unknown>).error)
+              : null;
+
+          throw new Error(message || "Ajout en ami indisponible pour le moment.");
+        }
+      }
+
+      throw new Error("Ajout en ami indisponible pour le moment.");
+    } catch (error) {
+      closeProfileCard();
+      setFlashMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Ajout en ami indisponible pour le moment."
+      );
+    }
+  }
+
+  function readStoriesFromProfile(profile: ChatProfile) {
+    closeProfileCard();
+    navigate(
+      `/stories?author=${encodeURIComponent(profile.id)}&authorName=${encodeURIComponent(
+        profile.name
+      )}`
+    );
+  }
+
   const visibleTypingUsers = typingUsers.filter(
     (entry) => entry.expiresAt > Date.now()
   );
@@ -801,27 +972,46 @@ export default function GroupChatRoom({
                 }`}
               >
                 {!isOwnMessage ? (
-                  <img
-                    className="group-chat__avatar"
-                    src={message.sender.avatar}
-                    alt={message.sender.name}
-                  />
+                  <button
+                    type="button"
+                    className="group-chat__profile-trigger"
+                    onClick={() => openProfileCard(message)}
+                    disabled={!message.sender.id}
+                    aria-label={`Voir le profil de ${authorLabel}`}
+                  >
+                    <img
+                      className="group-chat__avatar"
+                      src={message.sender.avatar}
+                      alt={message.sender.name}
+                    />
+                  </button>
                 ) : null}
 
                 <div className="group-chat__message-main">
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className={`group-chat__bubble-card ${
                       isOwnMessage ? "is-own" : "is-other"
                     } ${showActions ? "is-active" : ""}`}
-                    onClick={() =>
-                      setActiveMessageId((current) =>
-                        current === message.id ? null : message.id
-                      )
-                    }
-                    >
+                    onClick={() => toggleMessageActions(message.id)}
+                    onKeyDown={(event) => handleBubbleCardKeyDown(event, message.id)}
+                  >
                     <div className="group-chat__message-head">
-                      <span className="group-chat__author">{authorLabel}</span>
+                      {!isOwnMessage && message.sender.id ? (
+                        <button
+                          type="button"
+                          className="group-chat__author-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openProfileCard(message);
+                          }}
+                        >
+                          {authorLabel}
+                        </button>
+                      ) : (
+                        <span className="group-chat__author">{authorLabel}</span>
+                      )}
                     </div>
 
                     <div className="group-chat__bubble">{message.text}</div>
@@ -836,7 +1026,7 @@ export default function GroupChatRoom({
                       {messageTime ? <span>{messageTime}</span> : null}
                       {message.editedAt ? <span>modifie</span> : null}
                     </div>
-                  </button>
+                  </div>
 
                   {showActions ? (
                     <div
@@ -897,6 +1087,58 @@ export default function GroupChatRoom({
             </div>
           ) : null}
         </main>
+
+        {selectedProfile ? (
+          <div className="group-chat__profile-backdrop" onClick={closeProfileCard}>
+            <div
+              className="group-chat__profile-card"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="group-chat__profile-close"
+                onClick={closeProfileCard}
+                aria-label="Fermer la fiche profil"
+              >
+                ×
+              </button>
+
+              <img
+                className="group-chat__profile-avatar"
+                src={selectedProfile.avatar}
+                alt={selectedProfile.name}
+              />
+              <h3>{selectedProfile.name}</h3>
+              <p>Que veux-tu faire avec cette personne ?</p>
+
+              <div className="group-chat__profile-actions">
+                <button
+                  type="button"
+                  onClick={() => void openPrivateChatFromProfile(selectedProfile)}
+                  disabled={isProfileActionLoading}
+                >
+                  Ecrire en prive
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void addFriendFromProfile(selectedProfile)}
+                  disabled={isProfileActionLoading}
+                >
+                  Ajouter en ami
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => readStoriesFromProfile(selectedProfile)}
+                  disabled={isProfileActionLoading}
+                >
+                  Lire ses histoires
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <footer className="group-chat__footer">
           {editingMessage ? (

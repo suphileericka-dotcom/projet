@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
 
@@ -21,10 +21,13 @@ type StoriesLocationState = {
 export default function Stories() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
   const publishTitle =
     (location.state as StoriesLocationState | null)?.publishedTitle ?? null;
+  const authorFilterId = searchParams.get("author")?.trim() || "";
+  const authorFilterName = searchParams.get("authorName")?.trim() || "";
 
   const [stories, setStories] = useState<Story[]>([]);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
@@ -38,6 +41,8 @@ export default function Stories() {
         const params = new URLSearchParams();
         if (search) params.append("q", search);
         if (tagFilter) params.append("tag", tagFilter);
+        if (authorFilterId) params.append("author", authorFilterId);
+
         const res = await fetch(`${API}/stories?${params}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -47,8 +52,9 @@ export default function Stories() {
         console.error(err);
       }
     }
+
     fetchStories();
-  }, [search, tagFilter, token]);
+  }, [authorFilterId, search, tagFilter, token]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -62,6 +68,16 @@ export default function Stories() {
     }, 5000);
     return () => clearTimeout(timeoutId);
   }, [location.pathname, navigate, publishTitle]);
+
+  const visibleStories = useMemo(() => {
+    if (!authorFilterId) return stories;
+    return stories.filter((story) => story.user_id === authorFilterId);
+  }, [authorFilterId, stories]);
+
+  const activeVisibleStory =
+    activeStory && visibleStories.some((story) => story.id === activeStory.id)
+      ? activeStory
+      : null;
 
   const handleToggleLike = async (story: Story) => {
     if (!token) return;
@@ -80,11 +96,14 @@ export default function Stories() {
         : s,
     );
     setStories(newStories);
-    if (activeStory?.id === story.id) {
+
+    if (activeVisibleStory?.id === story.id) {
       setActiveStory({
-        ...activeStory,
+        ...activeVisibleStory,
         liked_by_me: !isLiked,
-        likes: isLiked ? activeStory.likes - 1 : activeStory.likes + 1,
+        likes: isLiked
+          ? activeVisibleStory.likes - 1
+          : activeVisibleStory.likes + 1,
       });
     }
 
@@ -125,6 +144,28 @@ export default function Stories() {
         <p>Decouvre et soutiens les temoignages</p>
       </header>
 
+      {authorFilterId && (
+        <div className="author-filter-banner">
+          <div>
+            <strong>
+              {authorFilterName
+                ? `Histoires de ${authorFilterName}`
+                : "Histoires de cette personne"}
+            </strong>
+            <p>
+              {visibleStories.length > 0
+                ? `${visibleStories.length} histoire${
+                    visibleStories.length > 1 ? "s" : ""
+                  } trouvee${visibleStories.length > 1 ? "s" : ""}.`
+                : "Aucune histoire publiee pour le moment."}
+            </p>
+          </div>
+          <button type="button" onClick={() => navigate("/stories")}>
+            Voir toutes les histoires
+          </button>
+        </div>
+      )}
+
       {publishTitle && (
         <div className="publish-banner" role="status">
           {`Ton histoire "${publishTitle}" est maintenant publiee.`}
@@ -140,62 +181,79 @@ export default function Stories() {
           />
         </div>
         <div className="tag-filters">
-          {["burnout", "solitude", "rupture", "expatriation"].map((t) => (
+          {["burnout", "solitude", "rupture", "expatriation"].map((tag) => (
             <button
-              key={t}
-              className={`tag-btn ${tagFilter === t ? "active" : ""}`}
-              onClick={() => setTagFilter(tagFilter === t ? "" : t)}
+              key={tag}
+              className={`tag-btn ${tagFilter === tag ? "active" : ""}`}
+              onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
             >
-              #{t}
+              #{tag}
             </button>
           ))}
         </div>
       </div>
 
       <div className="stories-grid">
-        {stories.map((s) => (
-          <div key={s.id} className="story-card" onClick={() => setActiveStory(s)}>
+        {visibleStories.map((story) => (
+          <div
+            key={story.id}
+            className="story-card"
+            onClick={() => setActiveStory(story)}
+          >
             <div className="card-header">
-              <span className="card-tag">#{s.tags[0]}</span>
-              <span className={s.liked_by_me ? "is-liked" : ""}>
-                {s.liked_by_me ? "❤️" : "🤍"} {s.likes}
+              <span className="card-tag">#{story.tags[0]}</span>
+              <span className={story.liked_by_me ? "is-liked" : ""}>
+                {story.liked_by_me ? "❤️" : "🤍"} {story.likes}
               </span>
             </div>
-            <h3>{s.title}</h3>
+            <h3>{story.title}</h3>
             <span className="btn-read">Lire l'histoire</span>
           </div>
         ))}
       </div>
 
-      {activeStory && (
+      {visibleStories.length === 0 && (
+        <div className="stories-empty-state">
+          {authorFilterId
+            ? "Cette personne n'a pas encore publie d'histoire."
+            : "Aucune histoire ne correspond a ta recherche."}
+        </div>
+      )}
+
+      {activeVisibleStory && (
         <div className="modal-overlay" onClick={() => setActiveStory(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setActiveStory(null)}>
+            <button
+              className="modal-close-btn"
+              onClick={() => setActiveStory(null)}
+            >
               ✕
             </button>
             <div className="modal-content-scroll">
-              <h2 className="modal-title">{activeStory.title}</h2>
+              <h2 className="modal-title">{activeVisibleStory.title}</h2>
               <div className="modal-divider"></div>
-              <p className="modal-body-text">{activeStory.body}</p>
+              <p className="modal-body-text">{activeVisibleStory.body}</p>
             </div>
             <div className="modal-actions-bar">
               <button
-                className={`action-pill ${activeStory.liked_by_me ? "liked" : ""}`}
-                onClick={() => handleToggleLike(activeStory)}
+                className={`action-pill ${
+                  activeVisibleStory.liked_by_me ? "liked" : ""
+                }`}
+                onClick={() => handleToggleLike(activeVisibleStory)}
               >
-                {activeStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} (
-                {activeStory.likes})
+                {activeVisibleStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} (
+                {activeVisibleStory.likes})
               </button>
               <button
                 className="action-pill chat-pill"
-                onClick={() => navigate(`/chat/${activeStory.tags[0]}`)}
+                onClick={() => navigate(`/chat/${activeVisibleStory.tags[0]}`)}
               >
                 Chat
               </button>
-              {activeStory.user_id === myUserId && (
+              {activeVisibleStory.user_id === myUserId && (
                 <button
                   className="delete-btn-modal"
-                  onClick={() => handleDelete(activeStory.id)}
+                  onClick={() => handleDelete(activeVisibleStory.id)}
                 >
                   Supprimer
                 </button>
