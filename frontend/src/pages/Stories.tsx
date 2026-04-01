@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
+
+const STORIES_RENDER_BATCH = 12;
+const STORIES_FETCH_LIMIT = 48;
 
 type Story = {
   id: string;
@@ -17,6 +20,20 @@ type Story = {
 type StoriesLocationState = {
   publishedTitle?: string;
 };
+
+type StoryWindowState = {
+  key: string;
+  count: number;
+};
+
+function mergeStories(current: Story[], incoming: Story[]) {
+  const knownIds = new Set(current.map((story) => story.id));
+  const appended = incoming.filter((story) => !knownIds.has(story.id));
+  return {
+    nextStories: [...current, ...appended],
+    appendedCount: appended.length,
+  };
+}
 
 export default function Stories() {
   const navigate = useNavigate();
@@ -34,27 +51,89 @@ export default function Stories() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [isLoadingStories, setIsLoadingStories] = useState(false);
+  const [hasMoreStoryPages, setHasMoreStoryPages] = useState(false);
+  const [loadedStoryPage, setLoadedStoryPage] = useState(1);
+  const [storyWindow, setStoryWindow] = useState<StoryWindowState>({
+    key: "",
+    count: STORIES_RENDER_BATCH,
+  });
 
-  useEffect(() => {
-    async function fetchStories() {
+  const storiesQueryKey = `${authorFilterId}|${search}|${tagFilter}`;
+  const visibleStoryCount =
+    storyWindow.key === storiesQueryKey
+      ? storyWindow.count
+      : STORIES_RENDER_BATCH;
+
+  const fetchStories = useCallback(
+    async (pageToLoad: number, replace: boolean) => {
+      setIsLoadingStories(true);
+
       try {
         const params = new URLSearchParams();
         if (search) params.append("q", search);
         if (tagFilter) params.append("tag", tagFilter);
         if (authorFilterId) params.append("author", authorFilterId);
+        params.append("limit", String(STORIES_FETCH_LIMIT));
+        params.append("page", String(pageToLoad));
 
         const res = await fetch(`${API}/stories?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
-        if (Array.isArray(data)) setStories(data);
+
+        if (!Array.isArray(data)) {
+          if (replace) {
+            setStories([]);
+            setHasMoreStoryPages(false);
+            setLoadedStoryPage(1);
+          }
+          return 0;
+        }
+
+        let appendedCount = data.length;
+
+        setStories((current) => {
+          if (replace) {
+            return data;
+          }
+
+          const merged = mergeStories(current, data);
+          appendedCount = merged.appendedCount;
+          return merged.nextStories;
+        });
+
+        setLoadedStoryPage(pageToLoad);
+        setHasMoreStoryPages(
+          data.length >= STORIES_FETCH_LIMIT && (replace || appendedCount > 0)
+        );
+
+        if (replace) {
+          setStoryWindow({
+            key: storiesQueryKey,
+            count: STORIES_RENDER_BATCH,
+          });
+        }
+
+        return appendedCount;
       } catch (err) {
         console.error(err);
+        if (replace) {
+          setStories([]);
+          setHasMoreStoryPages(false);
+          setLoadedStoryPage(1);
+        }
+        return 0;
+      } finally {
+        setIsLoadingStories(false);
       }
-    }
+    },
+    [authorFilterId, search, storiesQueryKey, tagFilter, token]
+  );
 
-    fetchStories();
-  }, [authorFilterId, search, tagFilter, token]);
+  useEffect(() => {
+    void fetchStories(1, true);
+  }, [fetchStories]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -69,15 +148,23 @@ export default function Stories() {
     return () => clearTimeout(timeoutId);
   }, [location.pathname, navigate, publishTitle]);
 
-  const visibleStories = useMemo(() => {
+  const filteredStories = useMemo(() => {
     if (!authorFilterId) return stories;
     return stories.filter((story) => story.user_id === authorFilterId);
   }, [authorFilterId, stories]);
 
+  const displayedStories = useMemo(
+    () => filteredStories.slice(0, visibleStoryCount),
+    [filteredStories, visibleStoryCount]
+  );
+
   const activeVisibleStory =
-    activeStory && visibleStories.some((story) => story.id === activeStory.id)
+    activeStory && filteredStories.some((story) => story.id === activeStory.id)
       ? activeStory
       : null;
+
+  const canLoadMoreVisibleStories = visibleStoryCount < filteredStories.length;
+  const canLoadMoreStories = canLoadMoreVisibleStories || hasMoreStoryPages;
 
   const handleToggleLike = async (story: Story) => {
     if (!token) return;
@@ -86,14 +173,14 @@ export default function Stories() {
     const method = isLiked ? "DELETE" : "POST";
     const endpoint = isLiked ? "unlike" : "like";
 
-    const newStories = stories.map((s) =>
-      s.id === story.id
+    const newStories = stories.map((currentStory) =>
+      currentStory.id === story.id
         ? {
-            ...s,
+            ...currentStory,
             liked_by_me: !isLiked,
-            likes: isLiked ? s.likes - 1 : s.likes + 1,
+            likes: isLiked ? currentStory.likes - 1 : currentStory.likes + 1,
           }
-        : s,
+        : currentStory
     );
     setStories(newStories);
 
@@ -118,14 +205,16 @@ export default function Stories() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette histoire ?")) return;
+    if (!window.confirm("Supprimer cette histoire ?")) return;
+
     try {
       const res = await fetch(`${API}/stories/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (res.ok) {
-        setStories(stories.filter((s) => s.id !== id));
+        setStories(stories.filter((story) => story.id !== id));
         setActiveStory(null);
       }
     } catch (err) {
@@ -133,10 +222,30 @@ export default function Stories() {
     }
   };
 
+  async function handleLoadMoreStories() {
+    if (canLoadMoreVisibleStories) {
+      setStoryWindow({
+        key: storiesQueryKey,
+        count: visibleStoryCount + STORIES_RENDER_BATCH,
+      });
+      return;
+    }
+
+    if (!hasMoreStoryPages || isLoadingStories) return;
+
+    const appendedCount = await fetchStories(loadedStoryPage + 1, false);
+    if (appendedCount > 0) {
+      setStoryWindow({
+        key: storiesQueryKey,
+        count: visibleStoryCount + STORIES_RENDER_BATCH,
+      });
+    }
+  }
+
   return (
     <div className="page stories-page">
       <button className="back-button-global" onClick={() => navigate("/")}>
-        ←
+        {"<"}
       </button>
 
       <header className="page-header">
@@ -153,10 +262,10 @@ export default function Stories() {
                 : "Histoires de cette personne"}
             </strong>
             <p>
-              {visibleStories.length > 0
-                ? `${visibleStories.length} histoire${
-                    visibleStories.length > 1 ? "s" : ""
-                  } trouvee${visibleStories.length > 1 ? "s" : ""}.`
+              {filteredStories.length > 0
+                ? `${filteredStories.length} histoire${
+                    filteredStories.length > 1 ? "s" : ""
+                  } trouvee${filteredStories.length > 1 ? "s" : ""}.`
                 : "Aucune histoire publiee pour le moment."}
             </p>
           </div>
@@ -177,7 +286,7 @@ export default function Stories() {
           <input
             placeholder="Rechercher une histoire..."
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(event) => setSearchInput(event.target.value)}
           />
         </div>
         <div className="tag-filters">
@@ -193,8 +302,18 @@ export default function Stories() {
         </div>
       </div>
 
+      {filteredStories.length > 0 && (
+        <div className="stories-results-bar">
+          <span>
+            {displayedStories.length} sur {filteredStories.length} histoire
+            {filteredStories.length > 1 ? "s" : ""} affichee
+            {filteredStories.length > 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
       <div className="stories-grid">
-        {visibleStories.map((story) => (
+        {displayedStories.map((story) => (
           <div
             key={story.id}
             className="story-card"
@@ -203,7 +322,7 @@ export default function Stories() {
             <div className="card-header">
               <span className="card-tag">#{story.tags[0]}</span>
               <span className={story.liked_by_me ? "is-liked" : ""}>
-                {story.liked_by_me ? "❤️" : "🤍"} {story.likes}
+                {story.liked_by_me ? "Aime" : "Soutien"} {story.likes}
               </span>
             </div>
             <h3>{story.title}</h3>
@@ -212,7 +331,19 @@ export default function Stories() {
         ))}
       </div>
 
-      {visibleStories.length === 0 && (
+      {canLoadMoreStories && (
+        <div className="stories-load-more">
+          <button
+            type="button"
+            onClick={() => void handleLoadMoreStories()}
+            disabled={isLoadingStories}
+          >
+            {isLoadingStories ? "Chargement..." : "Voir plus d'histoires"}
+          </button>
+        </div>
+      )}
+
+      {filteredStories.length === 0 && !isLoadingStories && (
         <div className="stories-empty-state">
           {authorFilterId
             ? "Cette personne n'a pas encore publie d'histoire."
@@ -222,12 +353,12 @@ export default function Stories() {
 
       {activeVisibleStory && (
         <div className="modal-overlay" onClick={() => setActiveStory(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <button
               className="modal-close-btn"
               onClick={() => setActiveStory(null)}
             >
-              ✕
+              X
             </button>
             <div className="modal-content-scroll">
               <h2 className="modal-title">{activeVisibleStory.title}</h2>
@@ -241,7 +372,7 @@ export default function Stories() {
                 }`}
                 onClick={() => handleToggleLike(activeVisibleStory)}
               >
-                {activeVisibleStory.liked_by_me ? "❤️ Soutenu" : "🤍 Soutenir"} (
+                {activeVisibleStory.liked_by_me ? "Soutenu" : "Soutenir"} (
                 {activeVisibleStory.likes})
               </button>
               <button

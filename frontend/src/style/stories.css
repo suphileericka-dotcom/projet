@@ -61,6 +61,34 @@
   background: rgba(255,255,255,0.03);
 }
 
+.stories-results-bar {
+  max-width: 1200px;
+  margin: 0 auto 18px;
+  color: #cbd5e1;
+}
+
+.stories-load-more {
+  max-width: 1200px;
+  margin: 22px auto 0;
+  display: flex;
+  justify-content: center;
+}
+
+.stories-load-more button {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.stories-load-more button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .search-section { max-width: 700px; margin: 0 auto 40px; }
 .modern-search-bar { 
   display: flex; align-items: center; background: rgba(255,255,255,0.05); 

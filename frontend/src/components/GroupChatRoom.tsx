@@ -1,6 +1,8 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -58,6 +60,10 @@ const typingEvents = [
   "user-typing",
 ] as const;
 
+const MESSAGE_FETCH_LIMIT = 40;
+const MESSAGE_RENDER_BATCH = 30;
+const MESSAGE_RECENT_CAP = 200;
+
 type TypingUser = {
   key: string;
   name: string;
@@ -112,6 +118,33 @@ async function safeJson(response: Response): Promise<unknown> {
   }
 }
 
+function keepRecentMessages(
+  messages: ChatMessage[],
+  limit = MESSAGE_RECENT_CAP
+): ChatMessage[] {
+  return messages.length > limit ? messages.slice(-limit) : messages;
+}
+
+function buildMessagesUrl(
+  room: string,
+  options: {
+    before?: ChatMessage | null;
+    limit?: number;
+  } = {}
+): string {
+  const params = new URLSearchParams({
+    room,
+    limit: String(options.limit ?? MESSAGE_FETCH_LIMIT),
+  });
+
+  if (options.before) {
+    params.set("before", String(options.before.createdAt));
+    params.set("beforeId", options.before.id);
+  }
+
+  return `${API}/messages?${params}`;
+}
+
 export default function GroupChatRoom({
   isAuth,
   config,
@@ -129,6 +162,11 @@ export default function GroupChatRoom({
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [note, setNote] = useState<EphemeralNote | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [visibleMessageCount, setVisibleMessageCount] = useState(
+    MESSAGE_RENDER_BATCH
+  );
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<ChatProfile | null>(null);
   const [isProfileActionLoading, setIsProfileActionLoading] = useState(false);
@@ -142,6 +180,10 @@ export default function GroupChatRoom({
   const streamRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
+  const pendingScrollRestoreRef = useRef<{
+    height: number;
+    top: number;
+  } | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const typingSentRef = useRef(false);
   const effectiveUsername = currentUsername || "Utilisateur";
@@ -198,12 +240,34 @@ export default function GroupChatRoom({
     }
   }, [config.noteStorageKey]);
 
-  useEffect(() => {
-    streamRef.current?.scrollTo({
-      top: streamRef.current.scrollHeight,
+  const visibleMessages = useMemo(
+    () => messages.slice(Math.max(0, messages.length - visibleMessageCount)),
+    [messages, visibleMessageCount]
+  );
+
+  const hiddenLoadedMessageCount = Math.max(
+    0,
+    messages.length - visibleMessageCount
+  );
+
+  useLayoutEffect(() => {
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    const pendingScrollRestore = pendingScrollRestoreRef.current;
+    if (pendingScrollRestore) {
+      stream.scrollTop =
+        pendingScrollRestore.top +
+        (stream.scrollHeight - pendingScrollRestore.height);
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+
+    stream.scrollTo({
+      top: stream.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, typingUsers.length]);
+  }, [typingUsers.length, visibleMessages.length]);
 
   useEffect(() => {
     const pruneTimer = window.setInterval(() => {
@@ -230,51 +294,88 @@ export default function GroupChatRoom({
   }, [activeMessageId, messages]);
 
   const applyServerMessages = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, options?: { appendOlder?: boolean }) => {
       const normalized = normalizeMessageList(payload, config.room, {
         currentUserId: userId,
         currentUsername: effectiveUsername,
         currentAvatar,
       });
 
+      let didAddOlderMessages = false;
+      let nextHasOlderMessages = false;
+
       setMessages((current) => {
-        const next = mergeLocalMessageState(normalized, current);
+        const merged = options?.appendOlder
+          ? mergeLocalMessageState([...normalized, ...current], current)
+          : mergeLocalMessageState([...current, ...normalized], current);
+        const next = options?.appendOlder ? merged : keepRecentMessages(merged);
+
+        if (options?.appendOlder) {
+          const oldestBefore = current[0]?.createdAt ?? Number.POSITIVE_INFINITY;
+          const oldestAfter = next[0]?.createdAt ?? oldestBefore;
+          didAddOlderMessages =
+            next.length > current.length || oldestAfter < oldestBefore;
+          nextHasOlderMessages =
+            didAddOlderMessages && normalized.length >= MESSAGE_FETCH_LIMIT;
+        } else {
+          nextHasOlderMessages = normalized.length >= MESSAGE_FETCH_LIMIT;
+        }
+
         return areMessageListsEqual(current, next) ? current : next;
       });
+
+      setHasOlderMessages(nextHasOlderMessages);
+      return options?.appendOlder ? didAddOlderMessages : normalized.length > 0;
     },
     [config.room, currentAvatar, effectiveUsername, userId]
   );
 
-  const refreshMessages = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `${API}/messages?room=${encodeURIComponent(config.room)}`,
-        {
-          headers: buildAuthHeaders(token),
-        }
-      );
+  const refreshMessages = useCallback(
+    async (options?: { before?: ChatMessage | null }) => {
+      try {
+        const response = await fetch(
+          buildMessagesUrl(config.room, {
+            before: options?.before ?? null,
+          }),
+          {
+            headers: buildAuthHeaders(token),
+          }
+        );
 
-      if (!response.ok) return;
+        if (!response.ok) return false;
 
-      const payload = await safeJson(response);
-      applyServerMessages(payload);
-    } catch {
-      // ignore network spikes during polling
-    }
-  }, [applyServerMessages, config.room, token]);
+        const payload = await safeJson(response);
+        return applyServerMessages(payload, {
+          appendOlder: Boolean(options?.before),
+        });
+      } catch {
+        return false;
+      }
+    },
+    [applyServerMessages, config.room, token]
+  );
 
   useEffect(() => {
     void refreshMessages();
   }, [refreshMessages]);
 
   useEffect(() => {
-    const pollId = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void refreshMessages();
-      }
-    }, 4000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshMessages();
+    };
 
-    return () => window.clearInterval(pollId);
+    const handleOnline = () => {
+      void refreshMessages();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
+    };
   }, [refreshMessages]);
 
   const syncOnlineCount = useCallback(
@@ -315,16 +416,22 @@ export default function GroupChatRoom({
       });
 
       if (!normalized) {
+        try {
         void refreshMessages();
+        } catch {
+          // ignore socket fallback refresh issues
+        }
         return;
       }
 
       setMessages((current) => {
         const existing = current.find((message) => message.id === normalized.id);
-        const next = upsertMessage(current, {
-          ...normalized,
-          translatedText: existing?.translatedText,
-        });
+        const next = keepRecentMessages(
+          upsertMessage(current, {
+            ...normalized,
+            translatedText: existing?.translatedText,
+          })
+        );
 
         return areMessageListsEqual(current, next) ? current : next;
       });
@@ -395,6 +502,11 @@ export default function GroupChatRoom({
       });
     };
 
+    const connectAndRefresh = () => {
+      joinRoom();
+      void refreshMessages();
+    };
+
     const stopTyping = () => {
       const payload = {
         room: config.room,
@@ -412,7 +524,7 @@ export default function GroupChatRoom({
       socket.connect();
     }
 
-    socket.on("connect", joinRoom);
+    socket.on("connect", connectAndRefresh);
     socket.on("online-count", syncOnlineCount);
     messageEvents.forEach((eventName) => socket.on(eventName, handleSocketMessage));
     updateEvents.forEach((eventName) => socket.on(eventName, handleSocketMessage));
@@ -420,7 +532,7 @@ export default function GroupChatRoom({
     typingEvents.forEach((eventName) => socket.on(eventName, handleSocketTyping));
 
     if (socket.connected) {
-      joinRoom();
+      connectAndRefresh();
     }
 
     return () => {
@@ -431,7 +543,7 @@ export default function GroupChatRoom({
       typingSentRef.current = false;
       stopTyping();
 
-      socket.off("connect", joinRoom);
+      socket.off("connect", connectAndRefresh);
       socket.off("online-count", syncOnlineCount);
       messageEvents.forEach((eventName) => socket.off(eventName, handleSocketMessage));
       updateEvents.forEach((eventName) => socket.off(eventName, handleSocketMessage));
@@ -447,6 +559,7 @@ export default function GroupChatRoom({
     handleSocketMessage,
     handleSocketTyping,
     isAuth,
+    refreshMessages,
     syncOnlineCount,
     userId,
   ]);
@@ -519,6 +632,16 @@ export default function GroupChatRoom({
     setFlashMessage(null);
   }
 
+  function preserveScrollPosition() {
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    pendingScrollRestoreRef.current = {
+      height: stream.scrollHeight,
+      top: stream.scrollTop,
+    };
+  }
+
   async function handleSend() {
     const trimmedInput = input.trim();
     if (!trimmedInput || !isAuth || !userId || isSubmitting) return;
@@ -542,7 +665,9 @@ export default function GroupChatRoom({
         updatedAt: Date.now(),
       };
 
-      setMessages((current) => upsertMessage(current, optimisticMessage));
+      setMessages((current) =>
+        keepRecentMessages(upsertMessage(current, optimisticMessage))
+      );
       setInput("");
       setEditingId(null);
 
@@ -588,10 +713,12 @@ export default function GroupChatRoom({
 
         if (normalized) {
           setMessages((current) =>
-            upsertMessage(current, {
-              ...normalized,
-              translatedText: previous.translatedText,
-            })
+            keepRecentMessages(
+              upsertMessage(current, {
+                ...normalized,
+                translatedText: previous.translatedText,
+              })
+            )
           );
         } else {
           await refreshMessages();
@@ -632,7 +759,9 @@ export default function GroupChatRoom({
       });
 
       if (normalized) {
-        setMessages((current) => upsertMessage(current, normalized));
+        setMessages((current) =>
+          keepRecentMessages(upsertMessage(current, normalized))
+        );
       } else {
         await refreshMessages();
       }
@@ -725,6 +854,38 @@ export default function GroupChatRoom({
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void handleSend();
+    }
+  }
+
+  async function handleLoadOlderMessages() {
+    if (isLoadingHistory) return;
+
+    if (hiddenLoadedMessageCount > 0) {
+      preserveScrollPosition();
+      setVisibleMessageCount((current) =>
+        Math.min(messages.length, current + MESSAGE_RENDER_BATCH)
+      );
+      return;
+    }
+
+    if (!hasOlderMessages || messages.length === 0) return;
+
+    preserveScrollPosition();
+    setIsLoadingHistory(true);
+
+    try {
+      const loadedOlderMessages = await refreshMessages({
+        before: messages[0],
+      });
+
+      if (!loadedOlderMessages) {
+        setHasOlderMessages(false);
+        return;
+      }
+
+      setVisibleMessageCount((current) => current + MESSAGE_RENDER_BATCH);
+    } finally {
+      setIsLoadingHistory(false);
     }
   }
 
@@ -938,6 +1099,27 @@ export default function GroupChatRoom({
         <main className="group-chat__stream" ref={streamRef}>
           <div className="group-chat__banner">{config.banner}</div>
 
+          {(hiddenLoadedMessageCount > 0 || hasOlderMessages) && (
+            <div className="group-chat__history-controls">
+              <button
+                type="button"
+                onClick={() => void handleLoadOlderMessages()}
+                disabled={isLoadingHistory}
+              >
+                {isLoadingHistory
+                  ? "Chargement..."
+                  : hiddenLoadedMessageCount > 0
+                    ? "Afficher plus anciens"
+                    : "Charger plus anciens"}
+              </button>
+              <span>
+                {visibleMessages.length} message
+                {visibleMessages.length > 1 ? "s" : ""} affiche
+                {visibleMessages.length > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+
           {note ? (
             <section className="group-chat__note">
               <strong>{config.noteLabel || "Note ephemere"}</strong>
@@ -951,7 +1133,7 @@ export default function GroupChatRoom({
             </div>
           ) : null}
 
-          {messages.map((message) => {
+          {visibleMessages.map((message) => {
             const isOwnMessage = !!userId && message.sender.id === userId;
             const canManage = canManageMessage(message, userId);
             const showActions =
