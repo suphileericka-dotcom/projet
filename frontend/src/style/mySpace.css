@@ -420,26 +420,75 @@
   }
 
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
+  .page.myspace-page {
+    padding: 88px 14px 48px;
+    gap: 24px;
+  }
+
   .block {
-    padding: 24px;
+    padding: 20px;
   }
 
   .profile-grid {
     grid-template-columns: 1fr;
   }
 
+  .stats-grid,
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card,
+  .dash-card {
+    padding: 16px;
+  }
+
+  .stat-card strong {
+    font-size: clamp(1.5rem, 7vw, 1.9rem);
+  }
+
   .stats-grid {
-    grid-template-columns: 1fr;
+    max-width: 100%;
   }
 
   .block-head,
   .list-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .page.myspace-page .back-button-global {
+    top: 16px;
+    left: 16px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .block {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .stats-grid,
+  .dashboard-grid {
+    gap: 10px;
+  }
+
+  .stat-card,
+  .dash-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .story-counter {
+    font-size: 11px;
   }
 }
