@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import "../index.css";
 import "../style/groupChat.css";
 import { API } from "../config/api";
+import { buildPrivateChatPath } from "../lib/dmCheckout";
 import { socket } from "../lib/socket";
 import {
   type ChatMessage,
@@ -920,66 +921,17 @@ export default function GroupChatRoom({
     setIsProfileActionLoading(false);
   }
 
-  async function openPrivateChatFromProfile(profile: ChatProfile) {
-    if (!token || isProfileActionLoading) return;
+  function openPrivateChatFromProfile(profile: ChatProfile) {
+    if (isProfileActionLoading) return;
 
-    setIsProfileActionLoading(true);
+    closeProfileCard();
 
-    try {
-      const accessRes = await fetch(`${API}/dm/access/${profile.id}`, {
-        headers: buildAuthHeaders(token),
-      });
-
-      if (!accessRes.ok) {
-        throw new Error("Impossible de verifier l'acces au prive.");
-      }
-
-      const accessPayload = await safeJson(accessRes);
-      const access =
-        accessPayload !== null && typeof accessPayload === "object"
-          ? (accessPayload as Record<string, unknown>)
-          : null;
-
-      if (access?.allowed) {
-        const threadRes = await fetch(`${API}/dm/threads`, {
-          method: "POST",
-          headers: buildJsonHeaders(token),
-          body: JSON.stringify({ targetUserId: profile.id }),
-        });
-
-        if (!threadRes.ok) {
-          throw new Error("Impossible d'ouvrir la conversation privee.");
-        }
-
-        const threadPayload = await safeJson(threadRes);
-        const threadId =
-          threadPayload !== null &&
-          typeof threadPayload === "object" &&
-          typeof (threadPayload as Record<string, unknown>).id === "string"
-            ? String((threadPayload as Record<string, unknown>).id)
-            : null;
-
-        if (!threadId) {
-          throw new Error("Conversation privee introuvable.");
-        }
-
-        closeProfileCard();
-        navigate(`/private-chat?thread=${threadId}`);
-        return;
-      }
-
-      closeProfileCard();
-      setFlashMessage(
-        "Le message prive n'est pas encore disponible avec cette personne."
-      );
-    } catch (error) {
-      closeProfileCard();
-      setFlashMessage(
-        error instanceof Error && error.message
-          ? error.message
-          : "Impossible d'ouvrir le message prive pour le moment."
-      );
+    if (!token) {
+      navigate("/login");
+      return;
     }
+
+    navigate(buildPrivateChatPath(profile.id));
   }
 
   async function addFriendFromProfile(profile: ChatProfile) {

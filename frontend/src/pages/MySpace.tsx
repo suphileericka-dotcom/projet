@@ -1,13 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/mySpace.css";
 import { API } from "../config/api";
 import { persistCountry } from "../config/countryAccess";
 import { buildAvatarUrl, resolveAvatarUpload } from "../lib/avatar";
-
-/* =====================
-   TYPES
-===================== */
 
 type SpaceProfile = {
   id: string;
@@ -57,14 +53,10 @@ type SpacePayload = {
   } | null;
 };
 
-/* =====================
-   HELPERS
-===================== */
-
 function formatDateTime(value?: number | string | null) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
 }
 
 function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) {
@@ -85,7 +77,6 @@ function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) 
       detail:
         "Tu peux ecrire en prive a tout le monde tant que Stripe confirme le renouvellement mensuel.",
       statusLabel: rawStatus || "active",
-      statValue: "Actif",
     } as const;
   }
 
@@ -101,9 +92,8 @@ function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) 
       badge: "A verifier",
       label: "Abonnement DM inactif",
       detail:
-        "Les conversations deja ouvertes restent dans ton archive. Pour de nouveaux DM, le statut de paiement devra etre a nouveau confirme.",
+        "Les conversations deja ouvertes restent dans ton archive. Pour de nouveaux DM, le statut de paiement devra etre confirme par le backend.",
       statusLabel: rawStatus,
-      statValue: "Pause",
     } as const;
   }
 
@@ -112,49 +102,42 @@ function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) 
     badge: "A la carte",
     label: "Paiements unitaires ou abonnement",
     detail:
-      "Chaque paiement unique debloque un seul profil. L'abonnement te donne un acces prive illimite tant qu'il est actif.",
+      "Chaque paiement unique debloque un seul profil. L'abonnement donne un acces prive illimite tant qu'il est actif.",
     statusLabel: rawStatus || null,
-    statValue: "Carte",
   } as const;
 }
-
-/* =====================
-   COMPOSANT PRINCIPAL
-===================== */
 
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
 
-  // États des données
   const [space, setSpace] = useState<SpacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const dmSubscriptionSummary = describeDmSubscription(space?.dm_subscription);
 
-  // États du formulaire profil
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // États de la modale Password
   const [pwOpen, setPwOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
-  // Chargement des données
   const loadDashboard = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
     }
+
     try {
       const res = await fetch(`${API}/user/me/space`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (res.ok) {
         const data: SpacePayload = await res.json();
         setSpace(data);
@@ -164,7 +147,7 @@ export default function MySpace() {
         localStorage.setItem("username", data.profile?.username ?? "");
         localStorage.setItem(
           "avatar",
-          resolveAvatarUpload(data.profile?.avatar) ?? "",
+          resolveAvatarUpload(data.profile?.avatar) ?? ""
         );
         if (data.profile?.country) {
           persistCountry(data.profile.country);
@@ -178,10 +161,9 @@ export default function MySpace() {
   }, [token]);
 
   useEffect(() => {
-    loadDashboard();
+    void loadDashboard();
   }, [loadDashboard]);
 
-  // Sauvegarder le profil (Texte + Image)
   async function saveProfile() {
     if (!token) return;
     setSavingProfile(true);
@@ -208,19 +190,18 @@ export default function MySpace() {
         if (data.country ?? data.profile?.country) {
           persistCountry(data.country ?? data.profile?.country);
         }
-        alert("Profil mis à jour !");
+        alert("Profil mis a jour !");
       } else {
         const errData = await res.json();
         alert(errData.error || "Erreur de sauvegarde");
       }
     } catch {
-      alert("Erreur réseau");
+      alert("Erreur reseau");
     } finally {
       setSavingProfile(false);
     }
   }
 
-  // Changer le mot de passe
   async function submitPassword() {
     if (!token || !oldPassword || !newPassword) return;
     setPwSaving(true);
@@ -240,7 +221,7 @@ export default function MySpace() {
         setPwOpen(false);
         setOldPassword("");
         setNewPassword("");
-        alert("Mot de passe modifié avec succès");
+        alert("Mot de passe modifie avec succes");
       } else {
         const data = await res.json();
         setPwError(data.error || "Erreur mot de passe");
@@ -252,21 +233,24 @@ export default function MySpace() {
     }
   }
 
-  if (loading) return <div className="page myspace-page">Chargement du dashboard...</div>;
+  if (loading) {
+    return <div className="page myspace-page">Chargement du dashboard...</div>;
+  }
 
   return (
     <div className="page myspace-page">
-      <button className="back-button-global" onClick={() => navigate("/")}>←</button>
+      <button className="back-button-global" onClick={() => navigate("/")}>
+        {"<"}
+      </button>
 
       <header className="page-header">
         <h1>Mon espace</h1>
-        <p>Gère tes publications et tes informations personnelles.</p>
+        <p>Gere tes publications et tes informations personnelles.</p>
       </header>
 
-      {/* SECTION PROFIL & AVATAR */}
       <section className="block profile-block">
         <div className="block-head">
-          <h2>Mon Profil</h2>
+          <h2>Mon profil</h2>
           <button className="btn ghost" onClick={saveProfile} disabled={savingProfile}>
             {savingProfile ? "Enregistrement..." : "Enregistrer les modifications"}
           </button>
@@ -288,8 +272,8 @@ export default function MySpace() {
               type="file"
               accept="image/*"
               hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
+              onChange={(event) => {
+                const file = event.target.files?.[0];
                 if (file) {
                   setAvatarFile(file);
                   setAvatarPreview(URL.createObjectURL(file));
@@ -303,20 +287,21 @@ export default function MySpace() {
         <div className="profile-grid">
           <div className="field">
             <label>Nom d'utilisateur</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} />
+            <input value={username} onChange={(event) => setUsername(event.target.value)} />
           </div>
           <div className="field">
-            <label>Adresse Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label>Adresse email</label>
+            <input value={email} onChange={(event) => setEmail(event.target.value)} />
           </div>
         </div>
 
         <div className="profile-actions">
-           <button className="btn primary" onClick={() => setPwOpen(true)}>Changer le mot de passe</button>
+          <button className="btn primary" onClick={() => setPwOpen(true)}>
+            Changer le mot de passe
+          </button>
         </div>
       </section>
 
-      {/* STATS RAPIDES (JOURNAL RETIRÉ) */}
       <section className="stats-grid">
         <article className="stat-card">
           <span>Stories</span>
@@ -334,154 +319,132 @@ export default function MySpace() {
           <span>Matchs du jour</span>
           <strong>{space?.stats?.matches_today ?? 0}</strong>
         </article>
-        <article className="stat-card">
-          <span>DM</span>
-          <strong>{dmSubscriptionSummary.statValue}</strong>
-        </article>
-      </section>
-
-      {/* GRILLE DE CONTENU (JOURNAL RETIRÉ) */}
-      <section className="block">
-        <div className="block-head">
-          <h2>Messagerie privee</h2>
-          <span className={`status-pill ${dmSubscriptionSummary.tone}`}>
-            {dmSubscriptionSummary.badge}
-          </span>
-        </div>
-
-        <div className="subscription-box">
-          <strong>{dmSubscriptionSummary.label}</strong>
-          <p className="muted">{dmSubscriptionSummary.detail}</p>
-          {dmSubscriptionSummary.statusLabel && (
-            <span className="small muted">
-              Statut Stripe actuel : {dmSubscriptionSummary.statusLabel}
-            </span>
-          )}
-          <span className="small muted">
-            Les profils restent visibles dans l'archive et le texte visible des
-            messages disparait apres 24h.
-          </span>
-        </div>
-
-        <div className="subscription-rules">
-          <article className="subscription-rule">
-            <strong>Paiement unique</strong>
-            <p>
-              Debloque un seul profil. Pour ecrire a une autre personne, un autre
-              paiement peut etre demande.
-            </p>
-          </article>
-          <article className="subscription-rule">
-            <strong>Abonnement DM</strong>
-            <p>
-              Quand il est actif, tu peux ouvrir des conversations privees avec tout
-              le monde sans repayer.
-            </p>
-          </article>
-          <article className="subscription-rule">
-            <strong>Archive 24h</strong>
-            <p>
-              La messagerie privee garde les profils et les conversations, avec des
-              messages visibles seulement sur les dernieres 24h.
-            </p>
-          </article>
-        </div>
-
-        <div className="inline-actions">
-          <button className="btn primary" onClick={() => navigate("/private-chat")}>
-            Ouvrir l'archive DM
-          </button>
-          <button className="btn ghost" onClick={() => navigate("/match")}>
-            Trouver un profil
-          </button>
-        </div>
       </section>
 
       <section className="dashboard-grid no-journal">
-        
-        {/* COLONNE STORIES */}
         <article className="dash-card">
           <div className="block-head">
-            <h3>Stories récentes</h3>
+            <h3>Stories recentes</h3>
             <span className="story-counter">
-              Histoires publiees: {space?.stats?.stories ?? space?.recent_stories?.length ?? 0}
+              Histoires publiees:{" "}
+              {space?.stats?.stories ?? space?.recent_stories?.length ?? 0}
             </span>
           </div>
-          
+
           <div className="list-container">
             {(!space?.recent_stories || space.recent_stories.length === 0) && (
-              <p className="muted">Tu n'as pas encore publié de story.</p>
+              <p className="muted">Tu n'as pas encore publie de story.</p>
             )}
-            {space?.recent_stories?.map((s) => (
-              <div key={s.id} className="list-row story-list-row">
-                <strong className="story-list-title">{s.title || "Sans titre"}</strong>
-                <small>{formatDateTime(s.created_at)}</small>
+            {space?.recent_stories?.map((story) => (
+              <div key={story.id} className="list-row story-list-row">
+                <strong className="story-list-title">
+                  {story.title || "Sans titre"}
+                </strong>
+                <small>{formatDateTime(story.created_at)}</small>
               </div>
             ))}
           </div>
         </article>
 
-        {/* COLONNE AMIS */}
         <article className="dash-card">
-          <div className="block-head">
-            <h3>Amis connectés</h3>
-            <button className="btn link" onClick={() => navigate("/friends")}>Gérer</button>
+          <div className="friends-card-head">
+            <div>
+              <h3>Gerer amities</h3>
+              <p className="friends-card-note">
+                L'archive DM 24h est maintenant regroupee ici avec tes connexions.
+              </p>
+            </div>
+
+            <div className="friends-card-actions">
+              <span className={`status-pill ${dmSubscriptionSummary.tone}`}>
+                {dmSubscriptionSummary.badge}
+              </span>
+              <button className="btn ghost" onClick={() => navigate("/private-chat")}>
+                Archive DM
+              </button>
+              <button className="btn ghost" onClick={() => navigate("/match")}>
+                Trouver un profil
+              </button>
+            </div>
           </div>
-          
+
+          <div className="subscription-box friends-card-summary">
+            <strong>{dmSubscriptionSummary.label}</strong>
+            <p className="muted">{dmSubscriptionSummary.detail}</p>
+            {dmSubscriptionSummary.statusLabel && (
+              <span className="small muted">
+                Statut Stripe actuel : {dmSubscriptionSummary.statusLabel}
+              </span>
+            )}
+            <span className="small muted">
+              Les profils restent dans l'archive et le texte visible des messages
+              disparait apres 24h.
+            </span>
+          </div>
+
           <div className="list-container">
             {(!space?.friends || space.friends.length === 0) && (
               <p className="muted">Aucun ami pour le moment.</p>
             )}
-            {space?.friends?.map((f) => (
-              <div key={f.id} className="list-row">
+            {space?.friends?.map((friend) => (
+              <div key={friend.id} className="list-row">
                 <img
                   src={buildAvatarUrl({
-                    name: f.username || "Ami",
-                    avatarPath: f.avatar,
-                    seed: f.id,
+                    name: friend.username || "Ami",
+                    avatarPath: friend.avatar,
+                    seed: friend.id,
                     size: 96,
                   })}
                   className="avatar-sm"
-                  alt={f.username || "Ami"}
+                  alt={friend.username || "Ami"}
                 />
-                <strong>{f.username}</strong>
-                <div className="status-indicator online"></div>
+                <strong>{friend.username}</strong>
+                <div className="status-indicator online" />
               </div>
             ))}
           </div>
         </article>
-
       </section>
 
-      {/* MODALE CHANGEMENT MOT DE PASSE */}
       {pwOpen && (
         <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Sécurité du compte</h3>
-            <p className="muted">Saisis ton ancien mot de passe pour définir le nouveau.</p>
-            
-            {pwError && <div className="error-msg" style={{color: 'var(--danger)', marginBottom: '10px'}}>{pwError}</div>}
-            
-            <input 
-              className="modern-input" 
-              type="password" 
-              placeholder="Ancien mot de passe" 
-              value={oldPassword} 
-              onChange={(e) => setOldPassword(e.target.value)} 
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Securite du compte</h3>
+            <p className="muted">
+              Saisis ton ancien mot de passe pour definir le nouveau.
+            </p>
+
+            {pwError && (
+              <div
+                className="error-msg"
+                style={{ color: "var(--danger)", marginBottom: "10px" }}
+              >
+                {pwError}
+              </div>
+            )}
+
+            <input
+              className="modern-input"
+              type="password"
+              placeholder="Ancien mot de passe"
+              value={oldPassword}
+              onChange={(event) => setOldPassword(event.target.value)}
             />
-            <input 
-              className="modern-input" 
-              type="password" 
-              placeholder="Nouveau mot de passe" 
-              value={newPassword} 
-              onChange={(e) => setNewPassword(e.target.value)} 
+            <input
+              className="modern-input"
+              type="password"
+              placeholder="Nouveau mot de passe"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
             />
-            
+
             <div className="modal-actions">
               <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>
-                {pwSaving ? "Mise à jour..." : "Mettre à jour"}
+                {pwSaving ? "Mise a jour..." : "Mettre a jour"}
               </button>
-              <button className="btn ghost" onClick={() => setPwOpen(false)}>Annuler</button>
+              <button className="btn ghost" onClick={() => setPwOpen(false)}>
+                Annuler
+              </button>
             </div>
           </div>
         </div>

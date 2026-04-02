@@ -12,29 +12,18 @@ import {
   persistCountry,
   storeCountryAccessError,
 } from "./config/countryAccess";
-
-// ✅ On garde uniquement ton hook custom
 import { useLang } from "./hooks/useLang";
 
-/* =====================
-   PAGES
-===================== */
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Info from "./pages/Info";
 
-/* =====================
-   CHATS
-===================== */
 import Burnout from "./components/Burnout";
 import Rupture from "./components/Rupture";
 import Solitude from "./components/Solitude";
 import Expatriation from "./components/Expatriation";
 import Changement from "./components/Changement";
 
-/* =====================
-   ESPACES
-===================== */
 import MyStory from "./pages/MyStory";
 import MySpace from "./pages/MySpace";
 import Stories from "./pages/Stories";
@@ -42,9 +31,6 @@ import Match from "./pages/Match";
 import PrivateChat from "./pages/Privatechat";
 import Journal from "./pages/Journal";
 
-/* =====================
-   AUTH UTILS
-===================== */
 function isValidAuthToken(): boolean {
   const token = localStorage.getItem("authToken");
   if (!token) return false;
@@ -54,11 +40,7 @@ function isValidAuthToken(): boolean {
 
 export default function App() {
   const navigate = useNavigate();
-
-  // ✅ Ton système custom
   const { t, lang } = useLang();
-
-  // Langue actuelle (utile si API/IA en a besoin)
   const targetLang = lang;
 
   const [isAuth, setIsAuth] = useState<boolean>(isValidAuthToken);
@@ -163,79 +145,68 @@ export default function App() {
 
   const homeElement = (
     <div className="app-container">
-        <header className="app-header">
-          <h1>{t("welcome")}</h1>
+      <header className="app-header">
+        <h1>{t("welcome")}</h1>
 
-          <div className="header-actions">
-            <button onClick={() => navigate("/info")}>ℹ️</button>
+        <div className="header-actions">
+          <button onClick={() => navigate("/info")}>i</button>
 
-            {!isAuth && (
-              <>
-                <button onClick={() => navigate("/login")}>
-                  {t("login")}
-                </button>
-                <button onClick={() => navigate("/register")}>
-                  {t("register")}
-                </button>
-              </>
-            )}
+          {!isAuth && (
+            <>
+              <button onClick={() => navigate("/login")}>{t("login")}</button>
+              <button onClick={() => navigate("/register")}>{t("register")}</button>
+            </>
+          )}
 
-            {isAuth && (
-              <button onClick={logout}>
-                {t("logout")}
-              </button>
-            )}
-          </div>
-        </header>
+          {isAuth && <button onClick={logout}>{t("logout")}</button>}
+        </div>
+      </header>
 
-        {/* ESPACES COMMUNS */}
-        <section className="spaces-grid">
-          <ChatCard
-            title={t("stories")}
-            description={t("storiesDesc")}
-            variant="stories"
-            onClick={() => navigate("/stories")}
-          />
+      <section className="spaces-grid">
+        <ChatCard
+          title={t("stories")}
+          description={t("storiesDesc")}
+          variant="stories"
+          onClick={() => navigate("/stories")}
+        />
 
-          <ChatCard
-            title={t("burnoutTitle")}
-            description={t("burnoutDesc")}
-            variant="burnout"
-            onClick={() => navigate("/chat/burnout")}
-          />
+        <ChatCard
+          title={t("burnoutTitle")}
+          description={t("burnoutDesc")}
+          variant="burnout"
+          onClick={() => navigate("/chat/burnout")}
+        />
 
-          <ChatCard
-            title={t("solitudeTitle")}
-            description={t("solitudeDesc")}
-            variant="solitude"
-            onClick={() => navigate("/chat/solitude")}
-          />
+        <ChatCard
+          title={t("solitudeTitle")}
+          description={t("solitudeDesc")}
+          variant="solitude"
+          onClick={() => navigate("/chat/solitude")}
+        />
 
-          <ChatCard
-            title={t("ruptureTitle")}
-            description={t("ruptureDesc")}
-            variant="rupture"
-            onClick={() => navigate("/chat/rupture")}
-          />
+        <ChatCard
+          title={t("ruptureTitle")}
+          description={t("ruptureDesc")}
+          variant="rupture"
+          onClick={() => navigate("/chat/rupture")}
+        />
 
-          <ChatCard
-            title={t("expatriationTitle")}
-            description={t("expatriationDesc")}
-            variant="expatriation"
-            onClick={() => navigate("/chat/expatriation")}
-          />
+        <ChatCard
+          title={t("expatriationTitle")}
+          description={t("expatriationDesc")}
+          variant="expatriation"
+          onClick={() => navigate("/chat/expatriation")}
+        />
 
-          <ChatCard
-            title={t("changementTitle")}
-            description={t("changementDesc")}
-            variant="changement"
-            onClick={() => navigate("/chat/changement")}
-          />
-        </section>
+        <ChatCard
+          title={t("changementTitle")}
+          description={t("changementDesc")}
+          variant="changement"
+          onClick={() => navigate("/chat/changement")}
+        />
 
-        {/* ESPACES PRIVÉS */}
         {canAccessPrivateSpaces && (
-          <section className="spaces-grid">
+          <>
             <ChatCard
               title={t("myStory")}
               description={t("myStoryDesc")}
@@ -263,11 +234,11 @@ export default function App() {
               variant="ai"
               onClick={() => navigate("/journal")}
             />
-          </section>
+          </>
         )}
+      </section>
 
-        {/* Debug invisible */}
-        <span style={{ display: "none" }}>{targetLang}</span>
+      <span style={{ display: "none" }}>{targetLang}</span>
     </div>
   );
 
@@ -275,13 +246,11 @@ export default function App() {
     <Routes>
       <Route path="/" element={homeElement} />
 
-      {/* PUBLIC */}
       <Route path="/login" element={<Login setIsAuth={setIsAuth} />} />
       <Route path="/register" element={<Register setIsAuth={setIsAuth} />} />
       <Route path="/info" element={<Info />} />
       <Route path="/stories" element={<Stories />} />
 
-      {/* PRIVÉ */}
       <Route
         path="/story"
         element={canAccessPrivateSpaces ? <MyStory /> : privateRouteFallback}
@@ -295,6 +264,10 @@ export default function App() {
         element={canAccessPrivateSpaces ? <Match /> : privateRouteFallback}
       />
       <Route
+        path="/private-chat/:targetUserId"
+        element={canAccessPrivateSpaces ? <PrivateChat /> : privateRouteFallback}
+      />
+      <Route
         path="/private-chat"
         element={canAccessPrivateSpaces ? <PrivateChat /> : privateRouteFallback}
       />
@@ -303,18 +276,11 @@ export default function App() {
         element={canAccessPrivateSpaces ? <Journal /> : privateRouteFallback}
       />
 
-      {/* CHATS */}
       <Route path="/chat/burnout" element={<Burnout isAuth={isAuth} />} />
       <Route path="/chat/solitude" element={<Solitude isAuth={isAuth} />} />
-      <Route
-        path="/chat/expatriation"
-        element={<Expatriation isAuth={isAuth} />}
-      />
+      <Route path="/chat/expatriation" element={<Expatriation isAuth={isAuth} />} />
       <Route path="/chat/rupture" element={<Rupture isAuth={isAuth} />} />
-      <Route
-        path="/chat/changement"
-        element={<Changement isAuth={isAuth} />}
-      />
+      <Route path="/chat/changement" element={<Changement isAuth={isAuth} />} />
     </Routes>
   );
 }

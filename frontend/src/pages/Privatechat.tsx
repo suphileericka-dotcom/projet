@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import "../style/privateChat.css";
 import { API } from "../config/api";
 import { buildAvatarUrl } from "../lib/avatar";
 import {
-  clearPendingDmCheckout,
-  readPendingDmCheckout,
+  buildDmCheckoutUrls,
+  buildPrivateChatPath,
 } from "../lib/dmCheckout";
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
 type Thread = {
   id: string;
@@ -27,27 +32,9 @@ type Msg = {
   created_at: number | string | null;
 };
 
-type CheckoutVerifyResult = {
-  confirmed: boolean;
-  threadId: string | null;
-  tokenExpired: boolean;
-};
-
-type DmAccessResult = {
-  allowed: boolean;
-  threadId: string | null;
-  tokenExpired: boolean;
-};
-
-type DmThreadResult = {
-  threadId: string | null;
-  tokenExpired: boolean;
-};
-
-const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
-
 function toTimestamp(value?: number | string | null) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+
   if (typeof value === "string") {
     const asNumber = Number(value);
     if (Number.isFinite(asNumber)) return asNumber;
@@ -62,7 +49,7 @@ function toTimestamp(value?: number | string | null) {
 function isRecent(value?: number | string | null, now = Date.now()) {
   const timestamp = toTimestamp(value);
   if (timestamp === null) return false;
-  return now - timestamp < MESSAGE_RETENTION_MS;
+  return now - timestamp <= MESSAGE_RETENTION_MS;
 }
 
 function formatThreadTime(value?: number | string | null) {
@@ -71,9 +58,12 @@ function formatThreadTime(value?: number | string | null) {
 
   const date = new Date(timestamp);
   const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
+  const isSameDay =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
 
-  return isToday
+  return isSameDay
     ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : date.toLocaleDateString();
 }
@@ -82,7 +72,9 @@ function formatMessageTime(value?: number | string | null) {
   const timestamp = toTimestamp(value);
   if (timestamp === null) return "";
 
-  return new Date(timestamp).toLocaleTimeString([], {
+  return new Date(timestamp).toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -115,23 +107,22 @@ function buildThreadPreview(thread: Thread) {
   return trimmedMessage || "Commencez votre discussion.";
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function getThreadIdFromPayload(payload: unknown) {
-  if (!payload || typeof payload !== "object") return null;
-
-  const record = payload as Record<string, unknown>;
-  const threadId = record.threadId ?? record.thread_id ?? record.id;
-
-  return typeof threadId === "string" && threadId.trim() ? threadId.trim() : null;
+function findThreadByTargetUserId(items: Thread[], targetUserId: string) {
+  return items.find((thread) => thread.otherUserId === targetUserId) ?? null;
 }
 
 function getPayloadRecord(payload: unknown) {
   return payload !== null && typeof payload === "object"
     ? (payload as Record<string, unknown>)
     : null;
+}
+
+function getThreadIdFromPayload(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return null;
+
+  const threadId = record.id ?? record.threadId ?? record.thread_id;
+  return typeof threadId === "string" && threadId.trim() ? threadId.trim() : null;
 }
 
 function getErrorCode(payload: unknown) {
@@ -149,86 +140,71 @@ function getErrorCode(payload: unknown) {
   return null;
 }
 
+function getErrorMessage(payload: unknown, fallback: string) {
+  const record = getPayloadRecord(payload);
+  if (!record) return fallback;
+
+  if (typeof record.message === "string" && record.message.trim()) {
+    return record.message.trim();
+  }
+
+  if (typeof record.error === "string" && record.error.trim()) {
+    return record.error.trim();
+  }
+
+  return fallback;
+}
+
+function getPaymentUrl(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return null;
+
+  return typeof record.url === "string" && record.url.trim() ? record.url.trim() : null;
+}
+
 function isTokenExpiredResponse(status: number, payload: unknown) {
   return status === 401 && getErrorCode(payload) === "TOKEN_EXPIRED";
 }
 
-function isCheckoutVerified(payload: unknown) {
-  if (!payload || typeof payload !== "object") return false;
-
-  const record = payload as Record<string, unknown>;
-
-  if (
-    record.paid === true ||
-    record.verified === true ||
-    record.active === true ||
-    record.subscriptionActive === true
-  ) {
-    return true;
-  }
-
-  const status =
-    typeof record.status === "string" ? record.status.trim().toLowerCase() : "";
-
-  return (
-    status === "paid" ||
-    status === "complete" ||
-    status === "completed" ||
-    status === "verified" ||
-    status === "active"
-  );
-}
-
-function findThreadByTargetUserId(items: Thread[], targetUserId: string) {
-  return items.find((thread) => thread.otherUserId === targetUserId) ?? null;
-}
-
 export default function PrivateChat() {
   const navigate = useNavigate();
+  const { targetUserId: routeTargetUserId } = useParams();
+  const [searchParams] = useSearchParams();
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
 
-  const [params] = useSearchParams();
-  const initialThread = params.get("thread");
-  const checkoutStatus = params.get("checkout");
-  const checkoutSessionId = params.get("session_id")?.trim() || "";
-  const targetUserIdFromParams = params.get("targetUserId")?.trim() || "";
+  const targetUserId = routeTargetUserId?.trim() || "";
+  const checkoutSessionId = searchParams.get("session_id")?.trim() || "";
+  const paid = searchParams.get("paid") === "1";
 
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(
-    initialThread
-  );
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<"threads" | "chat">(
-    initialThread ? "chat" : "threads"
-  );
-  const [isRestoringCheckout, setIsRestoringCheckout] = useState(() => {
-    return checkoutStatus === "success" || readPendingDmCheckout() !== null;
-  });
+  const [isOpeningTarget, setIsOpeningTarget] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"threads" | "chat">("threads");
   const [banner, setBanner] = useState<string | null>(
-    checkoutStatus === "success"
-      ? "Paiement confirme. Ouverture de la conversation..."
-      : null
+    paid ? "Paiement confirme. Ouverture de la conversation..." : null
   );
 
   const streamRef = useRef<HTMLDivElement>(null);
 
-  const openRecoveredThread = useCallback(
-    (threadId: string, message: string) => {
-      clearPendingDmCheckout();
-      setActiveThreadId(threadId);
-      setMobilePanel("chat");
-      setBanner(message);
-      navigate(`/private-chat?thread=${encodeURIComponent(threadId)}`, {
-        replace: true,
-      });
-    },
-    [navigate]
+  const activeThread = useMemo(
+    () => threads.find((thread) => thread.id === activeThreadId) || null,
+    [threads, activeThreadId]
   );
+  const activeThreadMatchesTarget =
+    !!targetUserId && activeThread?.otherUserId === targetUserId;
+  const visibleMessages = useMemo(() => pruneMessages(messages), [messages]);
+  const archiveCountLabel =
+    threads.length === 0
+      ? "Aucune conversation"
+      : `${threads.length} conversation${threads.length > 1 ? "s" : ""} archivee${
+          threads.length > 1 ? "s" : ""
+        }`;
 
   const redirectToLoginForRefresh = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -238,7 +214,6 @@ export default function PrivateChat() {
       );
     }
 
-    clearPendingDmCheckout();
     localStorage.removeItem("authToken");
     localStorage.removeItem("userId");
     localStorage.removeItem("username");
@@ -246,210 +221,64 @@ export default function PrivateChat() {
     navigate("/login", { replace: true });
   }, [navigate]);
 
-  const verifyCheckout = useCallback(
-    async (sessionId: string, targetUserId: string): Promise<CheckoutVerifyResult> => {
-      if (!token || !sessionId) {
-        return {
-          confirmed: false,
-          threadId: null,
-          tokenExpired: false,
-        };
+  const loadThreads = useCallback(
+    async (preferredThreadId?: string | null) => {
+      if (!token) {
+        setThreadsLoading(false);
+        return [];
       }
 
-      try {
-        const searchParams = new URLSearchParams({
-          session_id: sessionId,
-        });
-
-        if (targetUserId) {
-          searchParams.set("targetUserId", targetUserId);
-        }
-
-        const res = await fetch(`${API}/payments/verify?${searchParams.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const payload = await res.json().catch(() => null);
-        const threadId = getThreadIdFromPayload(payload);
-
-        if (isTokenExpiredResponse(res.status, payload)) {
-          return {
-            confirmed: false,
-            threadId,
-            tokenExpired: true,
-          };
-        }
-
-        if (!res.ok) {
-          return {
-            confirmed: false,
-            threadId,
-            tokenExpired: false,
-          };
-        }
-
-        return {
-          confirmed: payload === null ? true : isCheckoutVerified(payload) || !!threadId,
-          threadId,
-          tokenExpired: false,
-        };
-      } catch {
-        return {
-          confirmed: false,
-          threadId: null,
-          tokenExpired: false,
-        };
-      }
-    },
-    [token]
-  );
-
-  const checkDmAccess = useCallback(
-    async (targetUserId: string, sessionId: string): Promise<DmAccessResult> => {
-      if (!token || !targetUserId) {
-        return {
-          allowed: false,
-          threadId: null,
-          tokenExpired: false,
-        };
-      }
-
-      try {
-        const searchParams = new URLSearchParams();
-        if (sessionId) {
-          searchParams.set("session_id", sessionId);
-        }
-
-        const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
-        const res = await fetch(`${API}/dm/access/${targetUserId}${suffix}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const payload = await res.json().catch(() => null);
-        const record = getPayloadRecord(payload);
-
-        if (isTokenExpiredResponse(res.status, payload)) {
-          return {
-            allowed: false,
-            threadId: getThreadIdFromPayload(payload),
-            tokenExpired: true,
-          };
-        }
-
-        if (!res.ok) {
-          return {
-            allowed: false,
-            threadId: getThreadIdFromPayload(payload),
-            tokenExpired: false,
-          };
-        }
-
-        return {
-          allowed: record?.allowed === true,
-          threadId: getThreadIdFromPayload(payload),
-          tokenExpired: false,
-        };
-      } catch {
-        return {
-          allowed: false,
-          threadId: null,
-          tokenExpired: false,
-        };
-      }
-    },
-    [token]
-  );
-
-  const openThreadAfterVerification = useCallback(
-    async (targetUserId: string, sessionId: string): Promise<DmThreadResult> => {
-      if (!token || !targetUserId) {
-        return {
-          threadId: null,
-          tokenExpired: false,
-        };
-      }
+      setThreadsLoading(true);
 
       try {
         const res = await fetch(`${API}/dm/threads`, {
-          method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(
-            sessionId
-              ? { targetUserId, session_id: sessionId }
-              : { targetUserId }
-          ),
         });
 
         const payload = await res.json().catch(() => null);
-        const threadId = getThreadIdFromPayload(payload);
 
         if (isTokenExpiredResponse(res.status, payload)) {
-          return {
-            threadId,
-            tokenExpired: true,
-          };
+          redirectToLoginForRefresh();
+          return [];
         }
 
-        if (!res.ok) {
-          return {
-            threadId,
-            tokenExpired: false,
-          };
+        if (!res.ok || !Array.isArray(payload)) {
+          return [];
         }
 
-        return {
-          threadId,
-          tokenExpired: false,
-        };
+        const nextThreads = sortThreads(payload as Thread[]);
+        setThreads(nextThreads);
+        setActiveThreadId((current) => {
+          if (
+            preferredThreadId &&
+            nextThreads.some((thread) => thread.id === preferredThreadId)
+          ) {
+            return preferredThreadId;
+          }
+
+          if (targetUserId) {
+            const matchingThread = findThreadByTargetUserId(nextThreads, targetUserId);
+            if (matchingThread) return matchingThread.id;
+          }
+
+          if (current && nextThreads.some((thread) => thread.id === current)) {
+            return current;
+          }
+
+          return nextThreads[0]?.id ?? null;
+        });
+
+        return nextThreads;
       } catch {
-        return {
-          threadId: null,
-          tokenExpired: false,
-        };
+        return [];
+      } finally {
+        setThreadsLoading(false);
       }
     },
-    [token]
+    [redirectToLoginForRefresh, targetUserId, token]
   );
-
-  const loadThreads = useCallback(async () => {
-    if (!token) {
-      setThreadsLoading(false);
-      return [];
-    }
-
-    try {
-      const res = await fetch(`${API}/dm/threads`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) return [];
-
-      const data: Thread[] = await res.json();
-      const nextThreads = sortThreads(Array.isArray(data) ? data : []);
-      setThreads(nextThreads);
-
-      setActiveThreadId((current) => {
-        if (current && nextThreads.some((thread) => thread.id === current)) {
-          return current;
-        }
-
-        return nextThreads[0]?.id ?? null;
-      });
-
-      return nextThreads;
-    } finally {
-      setThreadsLoading(false);
-    }
-  }, [token]);
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -464,138 +293,155 @@ export default function PrivateChat() {
           },
         });
 
-        if (!res.ok) return;
+        const payload = await res.json().catch(() => null);
 
-        const data: Msg[] = await res.json();
-        setMessages(pruneMessages(Array.isArray(data) ? data : []));
+        if (isTokenExpiredResponse(res.status, payload)) {
+          redirectToLoginForRefresh();
+          return;
+        }
+
+        if (!res.ok || !Array.isArray(payload)) {
+          setMessages([]);
+          return;
+        }
+
+        setMessages(pruneMessages(payload as Msg[]));
       } finally {
         setMessagesLoading(false);
       }
     },
+    [redirectToLoginForRefresh, token]
+  );
+
+  const openPrivateChat = useCallback(
+    async (nextTargetUserId: string, sessionId?: string) => {
+      if (!token) {
+        throw new Error("TOKEN_EXPIRED");
+      }
+
+      const res = await fetch(`${API}/dm/threads`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          targetUserId: nextTargetUserId,
+          ...(sessionId ? { session_id: sessionId } : {}),
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (isTokenExpiredResponse(res.status, payload)) {
+        throw new Error("TOKEN_EXPIRED");
+      }
+
+      if (res.ok) {
+        const threadId = getThreadIdFromPayload(payload);
+        if (!threadId) {
+          throw new Error("Conversation privee introuvable.");
+        }
+
+        return threadId;
+      }
+
+      if (res.status === 403) {
+        const { successUrl, cancelUrl } = buildDmCheckoutUrls(nextTargetUserId);
+        const payRes = await fetch(`${API}/payments/dm`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            targetUserId: nextTargetUserId,
+            successUrl,
+            cancelUrl,
+          }),
+        });
+
+        const payPayload = await payRes.json().catch(() => null);
+
+        if (isTokenExpiredResponse(payRes.status, payPayload)) {
+          throw new Error("TOKEN_EXPIRED");
+        }
+
+        if (!payRes.ok) {
+          throw new Error(
+            getErrorMessage(
+              payPayload,
+              "Impossible de lancer le paiement du chat prive."
+            )
+          );
+        }
+
+        const paymentUrl = getPaymentUrl(payPayload);
+        if (!paymentUrl) {
+          throw new Error("Lien de paiement introuvable.");
+        }
+
+        setBanner("Redirection vers le paiement...");
+        window.location.href = paymentUrl;
+        return null;
+      }
+
+      throw new Error(getErrorMessage(payload, "Impossible d'ouvrir le chat prive."));
+    },
     [token]
   );
 
-  const restorePendingCheckout = useCallback(async () => {
-    if (!token) return;
+  const openTargetConversation = useCallback(async () => {
+    if (!targetUserId) return;
 
-    const pendingCheckout = readPendingDmCheckout();
-    const targetUserId = targetUserIdFromParams || pendingCheckout?.targetUserId || "";
-    const successMessage =
-      pendingCheckout?.mode === "subscription"
-        ? "Abonnement DM actif. Tu peux maintenant ecrire en prive."
-        : "Paiement confirme. La conversation est ouverte.";
-
-    if (!targetUserId) {
-      if (checkoutStatus === "success") {
-        if (checkoutSessionId) {
-          const verifyResult = await verifyCheckout(checkoutSessionId, "");
-          if (verifyResult.tokenExpired) {
-            redirectToLoginForRefresh();
-            return;
-          }
-        }
-
-        setBanner(
-          pendingCheckout?.mode === "subscription"
-            ? "Abonnement DM actif. Ouvre maintenant une conversation depuis un profil."
-            : "Paiement confirme. Ouvre une conversation depuis un profil."
-        );
-      }
-      setIsRestoringCheckout(false);
-      return;
-    }
-
-    setIsRestoringCheckout(true);
+    setIsOpeningTarget(true);
     setBanner(
-      checkoutStatus === "success"
-        ? "Paiement recu. Finalisation de la messagerie privee..."
+      paid
+        ? "Paiement confirme. Ouverture de la conversation..."
         : "Ouverture de la conversation privee..."
     );
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      if (checkoutStatus === "success" && checkoutSessionId) {
-        const verifyResult = await verifyCheckout(checkoutSessionId, targetUserId);
+    try {
+      const threadId = await openPrivateChat(
+        targetUserId,
+        checkoutSessionId || undefined
+      );
 
-        if (verifyResult.tokenExpired) {
-          redirectToLoginForRefresh();
-          return;
-        }
+      if (!threadId) return;
 
-        if (verifyResult.threadId) {
-          openRecoveredThread(verifyResult.threadId, successMessage);
-          await loadThreads();
-          setIsRestoringCheckout(false);
-          return;
-        }
+      setActiveThreadId(threadId);
+      setMobilePanel("chat");
+      await loadThreads(threadId);
 
-        if (verifyResult.confirmed) {
-          setBanner("Paiement confirme. Verification de l'acces prive...");
-        }
+      if (paid || checkoutSessionId) {
+        setBanner("Paiement confirme. La conversation est ouverte.");
+        navigate(buildPrivateChatPath(targetUserId), { replace: true });
+      } else {
+        setBanner(null);
       }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Impossible d'ouvrir le chat prive.";
 
-      const accessResult = await checkDmAccess(targetUserId, checkoutSessionId);
-
-      if (accessResult.tokenExpired) {
+      if (message === "TOKEN_EXPIRED") {
         redirectToLoginForRefresh();
         return;
       }
 
-      if (accessResult.threadId) {
-        openRecoveredThread(accessResult.threadId, successMessage);
-        await loadThreads();
-        setIsRestoringCheckout(false);
-        return;
-      }
-
-      if (accessResult.allowed) {
-        const threadResult = await openThreadAfterVerification(
-          targetUserId,
-          checkoutSessionId
-        );
-
-        if (threadResult.tokenExpired) {
-          redirectToLoginForRefresh();
-          return;
-        }
-
-        if (threadResult.threadId) {
-          openRecoveredThread(threadResult.threadId, successMessage);
-          await loadThreads();
-          setIsRestoringCheckout(false);
-          return;
-        }
-      }
-
-      const refreshedThreads = await loadThreads();
-      const refreshedThread = findThreadByTargetUserId(refreshedThreads, targetUserId);
-
-      if (refreshedThread?.id) {
-        openRecoveredThread(refreshedThread.id, successMessage);
-        setIsRestoringCheckout(false);
-        return;
-      }
-
-      await wait(1200);
+      setBanner(message);
+    } finally {
+      setIsOpeningTarget(false);
     }
-
-    setBanner(
-      checkoutStatus === "success"
-        ? "Le paiement est revenu sur la messagerie. La verification continue encore. Recharge la page dans quelques instants si la conversation n'apparait pas."
-        : "La conversation n'a pas pu s'ouvrir automatiquement pour le moment."
-    );
-    await loadThreads();
-    setIsRestoringCheckout(false);
   }, [
-    checkDmAccess,
     checkoutSessionId,
-    checkoutStatus,
     loadThreads,
-    openThreadAfterVerification,
-    openRecoveredThread,
+    navigate,
+    openPrivateChat,
+    paid,
     redirectToLoginForRefresh,
-    targetUserIdFromParams,
-    token,
-    verifyCheckout,
+    targetUserId,
   ]);
 
   useEffect(() => {
@@ -603,9 +449,17 @@ export default function PrivateChat() {
   }, [loadThreads]);
 
   useEffect(() => {
-    if (checkoutStatus !== "success" && !readPendingDmCheckout()) return;
-    void restorePendingCheckout();
-  }, [checkoutStatus, restorePendingCheckout]);
+    if (!targetUserId) return;
+    if (!paid && !checkoutSessionId && activeThreadMatchesTarget) return;
+
+    void openTargetConversation();
+  }, [
+    activeThreadMatchesTarget,
+    checkoutSessionId,
+    openTargetConversation,
+    paid,
+    targetUserId,
+  ]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -645,38 +499,37 @@ export default function PrivateChat() {
         body: JSON.stringify({ body: text }),
       });
 
-      if (!res.ok) {
-        throw new Error("send_failed");
+      const payload = await res.json().catch(() => null);
+
+      if (isTokenExpiredResponse(res.status, payload)) {
+        redirectToLoginForRefresh();
+        return;
       }
 
-      await Promise.all([loadMessages(activeThreadId), loadThreads()]);
+      if (!res.ok) {
+        throw new Error("Message non envoye");
+      }
+
+      await Promise.all([loadMessages(activeThreadId), loadThreads(activeThreadId)]);
       setMobilePanel("chat");
-    } catch {
-      alert("Message non envoye");
+      setBanner(null);
+    } catch (error) {
+      alert(
+        error instanceof Error && error.message
+          ? error.message
+          : "Message non envoye"
+      );
       setInput(text);
     } finally {
       setSendLoading(false);
     }
   }
 
-  const activeThread = useMemo(
-    () => threads.find((thread) => thread.id === activeThreadId) || null,
-    [threads, activeThreadId]
-  );
-
-  const visibleMessages = useMemo(() => pruneMessages(messages), [messages]);
-  const archiveCountLabel =
-    threads.length === 0
-      ? "Aucune conversation"
-      : `${threads.length} conversation${threads.length > 1 ? "s" : ""} archivee${
-          threads.length > 1 ? "s" : ""
-        }`;
-
   return (
     <div className={`pc-root ${mobilePanel === "chat" ? "show-chat" : "show-threads"}`}>
       <header className="pc-topbar">
-        <button className="pc-back" onClick={() => navigate("/")}>
-          {"<"} Accueil
+        <button className="pc-back" onClick={() => navigate("/my-space")}>
+          {"<"} Mon espace
         </button>
         <div className="pc-title">
           <h1>Messages prives</h1>
@@ -695,25 +548,25 @@ export default function PrivateChat() {
       <div className="pc-layout">
         <aside className="pc-sidebar">
           <div className="pc-sidebar-head">
-            <div className="pc-sidebar-title">Conversations</div>
+            <div className="pc-sidebar-title">Archive DM</div>
             <div className="pc-sidebar-actions">
               <button className="pc-home-link" onClick={() => navigate("/match")}>
                 Profils
               </button>
-              <button className="pc-home-link" onClick={() => navigate("/")}>
-                Accueil
+              <button className="pc-home-link" onClick={() => navigate("/private-chat")}>
+                Archive
               </button>
             </div>
           </div>
 
           <div className="pc-archive-card">
-            <span className="pc-archive-kicker">Archive privee</span>
+            <span className="pc-archive-kicker">Messages 24h</span>
             <strong>
-              {isRestoringCheckout ? "Finalisation du paiement..." : archiveCountLabel}
+              {isOpeningTarget ? "Ouverture du chat..." : archiveCountLabel}
             </strong>
             <span>
-              Les profils restent ici et le texte visible des messages s'efface apres
-              24h.
+              Les profils restent archives ici et le texte visible des messages
+              disparait apres 24h.
             </span>
           </div>
 
@@ -721,8 +574,8 @@ export default function PrivateChat() {
 
           {!threadsLoading && threads.length === 0 && (
             <div className="pc-empty">
-              Aucune conversation pour le moment. Quand tu ecris a quelqu'un en prive,
-              son profil apparait ici avec l'archive des derniers messages visibles.
+              Aucune conversation pour le moment. Lance un chat prive depuis un profil
+              pour le retrouver ensuite ici.
             </div>
           )}
 
@@ -733,6 +586,10 @@ export default function PrivateChat() {
               onClick={() => {
                 setActiveThreadId(thread.id);
                 setMobilePanel("chat");
+
+                if (thread.otherUserId && thread.otherUserId !== targetUserId) {
+                  navigate(buildPrivateChatPath(thread.otherUserId));
+                }
               }}
             >
               <div className="pc-thread-left">
@@ -835,7 +692,11 @@ export default function PrivateChat() {
             </>
           ) : (
             <div className="pc-empty pc-empty-panel">
-              <strong>Choisis une conversation dans l'archive.</strong>
+              <strong>
+                {targetUserId && isOpeningTarget
+                  ? "Ouverture de la conversation..."
+                  : "Choisis une conversation dans l'archive."}
+              </strong>
               <span>
                 Tu retrouveras ici le profil, l'historique recent et les messages
                 encore visibles pendant 24h.
@@ -844,8 +705,8 @@ export default function PrivateChat() {
                 <button className="pc-home-link" onClick={() => navigate("/match")}>
                   Voir les profils
                 </button>
-                <button className="pc-home-link" onClick={() => navigate("/")}>
-                  Retour accueil
+                <button className="pc-home-link" onClick={() => navigate("/my-space")}>
+                  Gerer amities
                 </button>
               </div>
             </div>

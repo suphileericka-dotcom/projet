@@ -3,11 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import "../style/match.css";
 import { API } from "../config/api";
 import { buildAvatarUrl } from "../lib/avatar";
-import {
-  buildDmCheckoutUrls,
-  clearPendingDmCheckout,
-  savePendingDmCheckout,
-} from "../lib/dmCheckout";
+import { buildPrivateChatPath } from "../lib/dmCheckout";
 
 type MatchProfile = {
   id: string;
@@ -81,11 +77,6 @@ function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) return error.message;
-  return fallback;
-}
-
 function formatResetAt(value?: string | null) {
   if (!value) return null;
 
@@ -105,7 +96,7 @@ function extractUsage(payload: MatchPayload): MatchUsage | null {
   const remaining = readNumber(
     source.remaining,
     source.remaining_matches,
-    source.remainingMatches,
+    source.remainingMatches
   );
   const limit = readNumber(source.limit, source.daily_limit, source.dailyLimit);
   const used = readNumber(source.used, source.count);
@@ -113,7 +104,7 @@ function extractUsage(payload: MatchPayload): MatchUsage | null {
     source.reset_at,
     source.resetAt,
     source.next_at,
-    source.nextAt,
+    source.nextAt
   );
   const code = readString(source.code);
 
@@ -168,16 +159,11 @@ export default function Match() {
   const [generated, setGenerated] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<MatchUsage | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [payTarget, setPayTarget] = useState<MatchProfile | null>(null);
-  const [payLoading, setPayLoading] = useState(false);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get("checkout") !== "cancelled") return;
-
-    clearPendingDmCheckout();
-    setPayError("Paiement annule. Tu peux reessayer quand tu veux.");
+    setPaymentNotice("Paiement annule. Tu peux reessayer quand tu veux.");
   }, [searchParams]);
 
   useEffect(() => {
@@ -227,143 +213,17 @@ export default function Match() {
       }
     }
 
-    fetchMatches();
+    void fetchMatches();
   }, [token]);
 
-  async function openPrivateChat(profile: MatchProfile) {
-    if (!token) return;
-
-    try {
-      const accessRes = await fetch(`${API}/dm/access/${profile.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!accessRes.ok) throw new Error("Erreur d'acces DM");
-
-      const access = (await accessRes.json()) as { allowed?: boolean };
-
-      if (access.allowed) {
-        const threadRes = await fetch(`${API}/dm/threads`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ targetUserId: profile.id }),
-        });
-
-        if (!threadRes.ok) throw new Error("Impossible d'ouvrir la conversation");
-
-        const thread = (await threadRes.json()) as { id: string };
-        navigate(`/private-chat?thread=${thread.id}`);
-        return;
-      }
-
-      setPayTarget(profile);
-      setPayError(null);
-    } catch (error) {
-      alert(getErrorMessage(error, "Erreur d'acces DM"));
+  function openPrivateChat(profile: MatchProfile) {
+    if (!token) {
+      navigate("/login");
+      return;
     }
-  }
 
-  async function payOnce() {
-    if (!token || !payTarget) return;
-
-    setPayLoading(true);
-    setPayError(null);
-
-    try {
-      const { successUrl, cancelUrl } = buildDmCheckoutUrls(payTarget.id);
-      const res = await fetch(`${API}/payments/dm`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          targetUserId: payTarget.id,
-          successUrl,
-          cancelUrl,
-        }),
-      });
-
-      const data = (await res.json()) as {
-        error?: string;
-        url?: string;
-        alreadyPaid?: boolean;
-      };
-      if (!res.ok) throw new Error(data.error || "Erreur paiement");
-
-      if (data.url) {
-        savePendingDmCheckout({
-          targetUserId: payTarget.id,
-          targetName: payTarget.username,
-          targetAvatar: payTarget.avatar,
-          mode: "single",
-          createdAt: Date.now(),
-        });
-        window.location.href = data.url;
-        return;
-      }
-
-      if (data.alreadyPaid) {
-        clearPendingDmCheckout();
-        await openPrivateChat(payTarget);
-      }
-    } catch (error) {
-      setPayError(getErrorMessage(error, "Erreur paiement"));
-    } finally {
-      setPayLoading(false);
-    }
-  }
-
-  async function subscribeDm() {
-    if (!token) return;
-
-    setSubscriptionLoading(true);
-    setPayError(null);
-
-    try {
-      const { successUrl, cancelUrl } = buildDmCheckoutUrls(payTarget?.id ?? null);
-      const res = await fetch(`${API}/payments/dm/subscription`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          successUrl,
-          cancelUrl,
-          targetUserId: payTarget?.id ?? null,
-        }),
-      });
-
-      const data = (await res.json()) as { error?: string; url?: string };
-      if (!res.ok) throw new Error(data.error || "Erreur abonnement");
-
-      if (data.url) {
-        if (payTarget) {
-          savePendingDmCheckout({
-            targetUserId: payTarget.id,
-            targetName: payTarget.username,
-            targetAvatar: payTarget.avatar,
-            mode: "subscription",
-            createdAt: Date.now(),
-          });
-        }
-        window.location.href = data.url;
-        return;
-      }
-
-      if (payTarget) {
-        clearPendingDmCheckout();
-        await openPrivateChat(payTarget);
-      }
-    } catch (error) {
-      setPayError(getErrorMessage(error, "Erreur abonnement"));
-    } finally {
-      setSubscriptionLoading(false);
-    }
+    setPaymentNotice(null);
+    navigate(buildPrivateChatPath(profile.id));
   }
 
   function showPreviousProfile() {
@@ -404,6 +264,13 @@ export default function Match() {
           </span>
         </div>
       </header>
+
+      {paymentNotice && (
+        <section className="match-usage-panel">
+          <strong>Messagerie privee</strong>
+          <span>{paymentNotice}</span>
+        </section>
+      )}
 
       {usageSummary && (
         <section className="match-usage-panel">
@@ -499,9 +366,7 @@ export default function Match() {
                   {matches.map((match, index) => (
                     <button
                       key={match.id}
-                      className={`match-dot ${
-                        index === currentIndex ? "is-active" : ""
-                      }`}
+                      className={`match-dot ${index === currentIndex ? "is-active" : ""}`}
                       onClick={() => setCurrentIndex(index)}
                       aria-label={`Voir le profil ${index + 1}`}
                       type="button"
@@ -513,38 +378,6 @@ export default function Match() {
           </section>
         )}
       </main>
-
-      {payTarget && (
-        <div className="modal-backdrop" onClick={() => setPayTarget(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Acces prive requis</h3>
-            <p>
-              Tu peux debloquer ce DM pour 4,99 EUR ou prendre l'abonnement DM a
-              9,75 EUR.
-            </p>
-
-            {payError && <div className="pay-error">{payError}</div>}
-
-            <div className="pay-options">
-              <button onClick={payOnce} disabled={payLoading}>
-                {payLoading ? "Redirection..." : "Paiement unique 4,99 EUR"}
-              </button>
-
-              <button
-                className="ghost"
-                onClick={subscribeDm}
-                disabled={subscriptionLoading}
-              >
-                {subscriptionLoading ? "Redirection..." : "Abonnement 9,75 EUR"}
-              </button>
-            </div>
-
-            <button className="ghost subtle" onClick={() => setPayTarget(null)}>
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
