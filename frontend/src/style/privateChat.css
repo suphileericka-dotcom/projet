@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px;
+  padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(12px);
 }
@@ -76,11 +76,46 @@
   margin-bottom: 12px;
 }
 
+.pc-sidebar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .pc-sidebar-title {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #c7d2fe;
+}
+
+.pc-archive-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  margin-bottom: 14px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.72));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 38px rgba(2, 6, 23, 0.24);
+}
+
+.pc-archive-card strong {
+  font-size: 1rem;
+}
+
+.pc-archive-card span {
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.pc-archive-kicker {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
 }
 
 .pc-thread {
@@ -257,7 +292,7 @@
 .pc-inputbar {
   display: flex;
   gap: 10px;
-  padding: 12px;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -297,6 +332,28 @@
   color: rgba(255, 255, 255, 0.74);
 }
 
+.pc-empty-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 28rem;
+}
+
+.pc-empty-panel strong {
+  color: #f8fafc;
+  font-size: 1.05rem;
+}
+
+.pc-empty-panel span {
+  line-height: 1.5;
+}
+
+.pc-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @media (max-width: 960px) {
   .pc-layout {
     grid-template-columns: 1fr;
@@ -323,7 +380,7 @@
 
 @media (max-width: 640px) {
   .pc-topbar {
-    padding: 14px;
+    padding: calc(14px + env(safe-area-inset-top)) 14px 14px;
   }
 
   .pc-title h1 {
@@ -349,5 +406,15 @@
 
   .pc-msg {
     max-width: 88%;
+  }
+
+  .pc-sidebar-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pc-sidebar-actions,
+  .pc-empty-actions {
+    width: 100%;
   }
 }

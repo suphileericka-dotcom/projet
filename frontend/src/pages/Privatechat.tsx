@@ -27,6 +27,11 @@ type Msg = {
   created_at: number | string | null;
 };
 
+type CheckoutVerifyResult = {
+  confirmed: boolean;
+  threadId: string | null;
+};
+
 function toTimestamp(value?: number | string | null) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -100,6 +105,45 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function getThreadIdFromPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+
+  const record = payload as Record<string, unknown>;
+  const threadId = record.threadId ?? record.thread_id ?? record.id;
+
+  return typeof threadId === "string" && threadId.trim() ? threadId.trim() : null;
+}
+
+function isCheckoutVerified(payload: unknown) {
+  if (!payload || typeof payload !== "object") return false;
+
+  const record = payload as Record<string, unknown>;
+
+  if (
+    record.paid === true ||
+    record.verified === true ||
+    record.active === true ||
+    record.subscriptionActive === true
+  ) {
+    return true;
+  }
+
+  const status =
+    typeof record.status === "string" ? record.status.trim().toLowerCase() : "";
+
+  return (
+    status === "paid" ||
+    status === "complete" ||
+    status === "completed" ||
+    status === "verified" ||
+    status === "active"
+  );
+}
+
+function findThreadByTargetUserId(items: Thread[], targetUserId: string) {
+  return items.find((thread) => thread.otherUserId === targetUserId) ?? null;
+}
+
 export default function PrivateChat() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
@@ -108,6 +152,7 @@ export default function PrivateChat() {
   const [params] = useSearchParams();
   const initialThread = params.get("thread");
   const checkoutStatus = params.get("checkout");
+  const checkoutSessionId = params.get("session_id")?.trim() || "";
   const targetUserIdFromParams = params.get("targetUserId")?.trim() || "";
 
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -122,6 +167,9 @@ export default function PrivateChat() {
   const [mobilePanel, setMobilePanel] = useState<"threads" | "chat">(
     initialThread ? "chat" : "threads"
   );
+  const [isRestoringCheckout, setIsRestoringCheckout] = useState(() => {
+    return checkoutStatus === "success" || readPendingDmCheckout() !== null;
+  });
   const [banner, setBanner] = useState<string | null>(
     checkoutStatus === "success"
       ? "Paiement confirme. Ouverture de la conversation..."
@@ -129,6 +177,67 @@ export default function PrivateChat() {
   );
 
   const streamRef = useRef<HTMLDivElement>(null);
+
+  const openRecoveredThread = useCallback(
+    (threadId: string, message: string) => {
+      clearPendingDmCheckout();
+      setActiveThreadId(threadId);
+      setMobilePanel("chat");
+      setBanner(message);
+      navigate(`/private-chat?thread=${encodeURIComponent(threadId)}`, {
+        replace: true,
+      });
+    },
+    [navigate]
+  );
+
+  const verifyCheckout = useCallback(
+    async (sessionId: string, targetUserId: string): Promise<CheckoutVerifyResult> => {
+      if (!token || !sessionId) {
+        return {
+          confirmed: false,
+          threadId: null,
+        };
+      }
+
+      try {
+        const searchParams = new URLSearchParams({
+          session_id: sessionId,
+        });
+
+        if (targetUserId) {
+          searchParams.set("targetUserId", targetUserId);
+        }
+
+        const res = await fetch(`${API}/payments/verify?${searchParams.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const payload = await res.json().catch(() => null);
+        const threadId = getThreadIdFromPayload(payload);
+
+        if (!res.ok) {
+          return {
+            confirmed: false,
+            threadId,
+          };
+        }
+
+        return {
+          confirmed: payload === null ? true : isCheckoutVerified(payload) || !!threadId,
+          threadId,
+        };
+      } catch {
+        return {
+          confirmed: false,
+          threadId: null,
+        };
+      }
+    },
+    [token]
+  );
 
   const loadThreads = useCallback(async () => {
     if (!token) {
@@ -192,15 +301,59 @@ export default function PrivateChat() {
 
     const pendingCheckout = readPendingDmCheckout();
     const targetUserId = targetUserIdFromParams || pendingCheckout?.targetUserId || "";
+    const successMessage =
+      pendingCheckout?.mode === "subscription"
+        ? "Abonnement DM actif. Tu peux maintenant ecrire en prive."
+        : "Paiement confirme. La conversation est ouverte.";
 
     if (!targetUserId) {
       if (checkoutStatus === "success") {
-        setBanner("Paiement confirme. Ouvre une conversation depuis un profil.");
+        if (checkoutSessionId) {
+          await verifyCheckout(checkoutSessionId, "");
+        }
+
+        setBanner(
+          pendingCheckout?.mode === "subscription"
+            ? "Abonnement DM actif. Ouvre maintenant une conversation depuis un profil."
+            : "Paiement confirme. Ouvre une conversation depuis un profil."
+        );
       }
+      setIsRestoringCheckout(false);
       return;
     }
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    setIsRestoringCheckout(true);
+    setBanner(
+      checkoutStatus === "success"
+        ? "Paiement recu. Finalisation de la messagerie privee..."
+        : "Ouverture de la conversation privee..."
+    );
+
+    const currentThreads = await loadThreads();
+    const currentThread = findThreadByTargetUserId(currentThreads, targetUserId);
+
+    if (currentThread?.id) {
+      openRecoveredThread(currentThread.id, successMessage);
+      setIsRestoringCheckout(false);
+      return;
+    }
+
+    if (checkoutStatus === "success" && checkoutSessionId) {
+      const verifyResult = await verifyCheckout(checkoutSessionId, targetUserId);
+
+      if (verifyResult.threadId) {
+        openRecoveredThread(verifyResult.threadId, successMessage);
+        await loadThreads();
+        setIsRestoringCheckout(false);
+        return;
+      }
+
+      if (verifyResult.confirmed) {
+        setBanner("Paiement confirme. Ouverture de la conversation...");
+      }
+    }
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         const res = await fetch(`${API}/dm/threads`, {
           method: "POST",
@@ -214,15 +367,9 @@ export default function PrivateChat() {
         if (res.ok) {
           const thread = (await res.json()) as { id?: string };
           if (thread.id) {
-            clearPendingDmCheckout();
-            setActiveThreadId(thread.id);
-            setMobilePanel("chat");
-            setBanner(
-              pendingCheckout?.mode === "subscription"
-                ? "Abonnement DM actif. Tu peux maintenant ecrire en prive."
-                : "Paiement confirme. La conversation est ouverte."
-            );
+            openRecoveredThread(thread.id, successMessage);
             await loadThreads();
+            setIsRestoringCheckout(false);
             return;
           }
         }
@@ -230,15 +377,34 @@ export default function PrivateChat() {
         // The payment webhook may still be finalizing access. Retry briefly.
       }
 
+      const refreshedThreads = await loadThreads();
+      const refreshedThread = findThreadByTargetUserId(refreshedThreads, targetUserId);
+
+      if (refreshedThread?.id) {
+        openRecoveredThread(refreshedThread.id, successMessage);
+        setIsRestoringCheckout(false);
+        return;
+      }
+
       await wait(1200);
     }
 
-    clearPendingDmCheckout();
     setBanner(
-      "Le paiement est revenu sur la messagerie, mais la conversation n'a pas pu s'ouvrir automatiquement."
+      checkoutStatus === "success"
+        ? "Le paiement est revenu sur la messagerie. La verification continue encore. Recharge la page dans quelques instants si la conversation n'apparait pas."
+        : "La conversation n'a pas pu s'ouvrir automatiquement pour le moment."
     );
     await loadThreads();
-  }, [checkoutStatus, loadThreads, targetUserIdFromParams, token]);
+    setIsRestoringCheckout(false);
+  }, [
+    checkoutSessionId,
+    checkoutStatus,
+    loadThreads,
+    openRecoveredThread,
+    targetUserIdFromParams,
+    token,
+    verifyCheckout,
+  ]);
 
   useEffect(() => {
     void loadThreads();
@@ -307,6 +473,12 @@ export default function PrivateChat() {
   );
 
   const visibleMessages = useMemo(() => pruneMessages(messages), [messages]);
+  const archiveCountLabel =
+    threads.length === 0
+      ? "Aucune conversation"
+      : `${threads.length} conversation${threads.length > 1 ? "s" : ""} archivee${
+          threads.length > 1 ? "s" : ""
+        }`;
 
   return (
     <div className={`pc-root ${mobilePanel === "chat" ? "show-chat" : "show-threads"}`}>
@@ -332,9 +504,25 @@ export default function PrivateChat() {
         <aside className="pc-sidebar">
           <div className="pc-sidebar-head">
             <div className="pc-sidebar-title">Conversations</div>
-            <button className="pc-home-link" onClick={() => navigate("/")}>
-              Accueil
-            </button>
+            <div className="pc-sidebar-actions">
+              <button className="pc-home-link" onClick={() => navigate("/match")}>
+                Profils
+              </button>
+              <button className="pc-home-link" onClick={() => navigate("/")}>
+                Accueil
+              </button>
+            </div>
+          </div>
+
+          <div className="pc-archive-card">
+            <span className="pc-archive-kicker">Archive privee</span>
+            <strong>
+              {isRestoringCheckout ? "Finalisation du paiement..." : archiveCountLabel}
+            </strong>
+            <span>
+              Les profils restent ici et le texte visible des messages s'efface apres
+              24h.
+            </span>
           </div>
 
           {threadsLoading && <div className="pc-empty">Chargement des discussions...</div>}
@@ -342,7 +530,7 @@ export default function PrivateChat() {
           {!threadsLoading && threads.length === 0 && (
             <div className="pc-empty">
               Aucune conversation pour le moment. Quand tu ecris a quelqu'un en prive,
-              l'archive apparait ici avec son profil.
+              son profil apparait ici avec l'archive des derniers messages visibles.
             </div>
           )}
 
@@ -454,9 +642,20 @@ export default function PrivateChat() {
               </footer>
             </>
           ) : (
-            <div className="pc-empty">
-              Choisis une conversation dans l'archive pour retrouver le profil et les
-              messages.
+            <div className="pc-empty pc-empty-panel">
+              <strong>Choisis une conversation dans l'archive.</strong>
+              <span>
+                Tu retrouveras ici le profil, l'historique recent et les messages
+                encore visibles pendant 24h.
+              </span>
+              <div className="pc-empty-actions">
+                <button className="pc-home-link" onClick={() => navigate("/match")}>
+                  Voir les profils
+                </button>
+                <button className="pc-home-link" onClick={() => navigate("/")}>
+                  Retour accueil
+                </button>
+              </div>
             </div>
           )}
         </main>

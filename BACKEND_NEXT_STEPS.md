@@ -4,6 +4,69 @@ Ce repo ne contient que le frontend. Les changements ci-dessous correspondent ex
 
 ## Priorite immediate
 
+### 0. Paiements DM: verification Stripe et statut d'abonnement
+
+Le frontend envoie maintenant un `successUrl` de ce type:
+
+```txt
+/private-chat?checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2
+```
+
+Le backend doit ajouter un vrai fallback de verification:
+
+```txt
+GET /api/payments/verify?session_id=cs_test_123&targetUserId=user_2
+```
+
+Comportement attendu:
+
+- verifier la Checkout Session Stripe avec `session_id`
+- si la session est payee, marquer le deblocage DM correspondant comme paye
+- si c'est un abonnement, mettre a jour le statut abonnement DM de l'utilisateur
+- rendre ensuite l'acces prive visible via `GET /api/dm/access/:targetUserId`
+- retourner optionnellement `threadId` si le backend ouvre deja le thread
+
+Reponse JSON recommandee:
+
+```json
+{
+  "verified": true,
+  "paid": true,
+  "status": "paid",
+  "threadId": null
+}
+```
+
+Le frontend accepte aussi une reponse avec seulement:
+
+```json
+{
+  "status": "active"
+}
+```
+
+Regles d'acces conseillees pour `GET /api/dm/access/:targetUserId`:
+
+- abonnement DM `active` ou `trialing` = acces prive illimite
+- paiement unique valide pour `targetUserId` = acces prive avec cette personne seulement
+- abonnement `inactive`, `past_due`, `unpaid`, `canceled` ou `cancelled` = ne plus ouvrir de nouveaux DM via l'abonnement
+- les conversations deja existantes peuvent rester visibles dans l'archive si c'est la regle metier voulue
+
+Webhooks Stripe a gerer au minimum:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.paid`
+- `invoice.payment_failed`
+
+Objectif metier:
+
+- abonnement actif = plus de paywall pour ouvrir un DM avec n'importe quel profil
+- paiement unique = acces prive uniquement avec le profil debloche
+- echec de renouvellement = le backend repasse le statut abonnement en inactif pour couper les nouveaux acces illimites
+
 ### 1. Messages: pagination reelle cote serveur
 
 Route attendue:

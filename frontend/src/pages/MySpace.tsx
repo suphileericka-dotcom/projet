@@ -67,6 +67,57 @@ function formatDateTime(value?: number | string | null) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
+function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) {
+  const rawStatus =
+    typeof subscription?.status === "string" ? subscription.status.trim() : "";
+  const normalizedStatus = rawStatus.toLowerCase();
+  const isActive =
+    subscription?.active === true ||
+    normalizedStatus === "active" ||
+    normalizedStatus === "trialing" ||
+    normalizedStatus === "paid";
+
+  if (isActive) {
+    return {
+      tone: "active",
+      badge: "Illimite",
+      label: "Abonnement DM actif",
+      detail:
+        "Tu peux ecrire en prive a tout le monde tant que Stripe confirme le renouvellement mensuel.",
+      statusLabel: rawStatus || "active",
+      statValue: "Actif",
+    } as const;
+  }
+
+  if (
+    normalizedStatus === "inactive" ||
+    normalizedStatus === "past_due" ||
+    normalizedStatus === "unpaid" ||
+    normalizedStatus === "canceled" ||
+    normalizedStatus === "cancelled"
+  ) {
+    return {
+      tone: "inactive",
+      badge: "A verifier",
+      label: "Abonnement DM inactif",
+      detail:
+        "Les conversations deja ouvertes restent dans ton archive. Pour de nouveaux DM, le statut de paiement devra etre a nouveau confirme.",
+      statusLabel: rawStatus,
+      statValue: "Pause",
+    } as const;
+  }
+
+  return {
+    tone: "neutral",
+    badge: "A la carte",
+    label: "Paiements unitaires ou abonnement",
+    detail:
+      "Chaque paiement unique debloque un seul profil. L'abonnement te donne un acces prive illimite tant qu'il est actif.",
+    statusLabel: rawStatus || null,
+    statValue: "Carte",
+  } as const;
+}
+
 /* =====================
    COMPOSANT PRINCIPAL
 ===================== */
@@ -78,6 +129,7 @@ export default function MySpace() {
   // États des données
   const [space, setSpace] = useState<SpacePayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const dmSubscriptionSummary = describeDmSubscription(space?.dm_subscription);
 
   // États du formulaire profil
   const [username, setUsername] = useState("");
@@ -282,9 +334,69 @@ export default function MySpace() {
           <span>Matchs du jour</span>
           <strong>{space?.stats?.matches_today ?? 0}</strong>
         </article>
+        <article className="stat-card">
+          <span>DM</span>
+          <strong>{dmSubscriptionSummary.statValue}</strong>
+        </article>
       </section>
 
       {/* GRILLE DE CONTENU (JOURNAL RETIRÉ) */}
+      <section className="block">
+        <div className="block-head">
+          <h2>Messagerie privee</h2>
+          <span className={`status-pill ${dmSubscriptionSummary.tone}`}>
+            {dmSubscriptionSummary.badge}
+          </span>
+        </div>
+
+        <div className="subscription-box">
+          <strong>{dmSubscriptionSummary.label}</strong>
+          <p className="muted">{dmSubscriptionSummary.detail}</p>
+          {dmSubscriptionSummary.statusLabel && (
+            <span className="small muted">
+              Statut Stripe actuel : {dmSubscriptionSummary.statusLabel}
+            </span>
+          )}
+          <span className="small muted">
+            Les profils restent visibles dans l'archive et le texte visible des
+            messages disparait apres 24h.
+          </span>
+        </div>
+
+        <div className="subscription-rules">
+          <article className="subscription-rule">
+            <strong>Paiement unique</strong>
+            <p>
+              Debloque un seul profil. Pour ecrire a une autre personne, un autre
+              paiement peut etre demande.
+            </p>
+          </article>
+          <article className="subscription-rule">
+            <strong>Abonnement DM</strong>
+            <p>
+              Quand il est actif, tu peux ouvrir des conversations privees avec tout
+              le monde sans repayer.
+            </p>
+          </article>
+          <article className="subscription-rule">
+            <strong>Archive 24h</strong>
+            <p>
+              La messagerie privee garde les profils et les conversations, avec des
+              messages visibles seulement sur les dernieres 24h.
+            </p>
+          </article>
+        </div>
+
+        <div className="inline-actions">
+          <button className="btn primary" onClick={() => navigate("/private-chat")}>
+            Ouvrir l'archive DM
+          </button>
+          <button className="btn ghost" onClick={() => navigate("/match")}>
+            Trouver un profil
+          </button>
+        </div>
+      </section>
+
       <section className="dashboard-grid no-journal">
         
         {/* COLONNE STORIES */}

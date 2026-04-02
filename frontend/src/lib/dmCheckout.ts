@@ -1,4 +1,5 @@
 const PENDING_DM_CHECKOUT_KEY = "pendingDmCheckout";
+const STRIPE_CHECKOUT_SESSION_PLACEHOLDER = "{CHECKOUT_SESSION_ID}";
 
 export type PendingDmCheckout = {
   targetUserId: string;
@@ -64,6 +65,10 @@ export function buildDmCheckoutUrls(targetUserId?: string | null) {
 
   const successUrl = new URL("/private-chat", origin);
   successUrl.searchParams.set("checkout", "success");
+  successUrl.searchParams.set(
+    "session_id",
+    STRIPE_CHECKOUT_SESSION_PLACEHOLDER
+  );
   if (targetUserId?.trim()) {
     successUrl.searchParams.set("targetUserId", targetUserId.trim());
   }
