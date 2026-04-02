@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import "../style/match.css";
 import { API } from "../config/api";
 import { buildAvatarUrl } from "../lib/avatar";
+import {
+  buildDmCheckoutUrls,
+  clearPendingDmCheckout,
+  savePendingDmCheckout,
+} from "../lib/dmCheckout";
 
 type MatchProfile = {
   id: string;
@@ -156,6 +161,7 @@ function buildUsageSummary(usage: MatchUsage | null, totalMatches: number) {
 export default function Match() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
+  const [searchParams] = useSearchParams();
 
   const [matches, setMatches] = useState<MatchProfile[]>([]);
   const [matchDate, setMatchDate] = useState<string | null>(null);
@@ -166,6 +172,13 @@ export default function Match() {
   const [payLoading, setPayLoading] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("checkout") !== "cancelled") return;
+
+    clearPendingDmCheckout();
+    setPayError("Paiement annule. Tu peux reessayer quand tu veux.");
+  }, [searchParams]);
 
   useEffect(() => {
     if (!token) return;
@@ -260,13 +273,18 @@ export default function Match() {
     setPayError(null);
 
     try {
+      const { successUrl, cancelUrl } = buildDmCheckoutUrls(payTarget.id);
       const res = await fetch(`${API}/payments/dm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ targetUserId: payTarget.id }),
+        body: JSON.stringify({
+          targetUserId: payTarget.id,
+          successUrl,
+          cancelUrl,
+        }),
       });
 
       const data = (await res.json()) as {
@@ -277,11 +295,19 @@ export default function Match() {
       if (!res.ok) throw new Error(data.error || "Erreur paiement");
 
       if (data.url) {
+        savePendingDmCheckout({
+          targetUserId: payTarget.id,
+          targetName: payTarget.username,
+          targetAvatar: payTarget.avatar,
+          mode: "single",
+          createdAt: Date.now(),
+        });
         window.location.href = data.url;
         return;
       }
 
       if (data.alreadyPaid) {
+        clearPendingDmCheckout();
         await openPrivateChat(payTarget);
       }
     } catch (error) {
@@ -298,20 +324,39 @@ export default function Match() {
     setPayError(null);
 
     try {
+      const { successUrl, cancelUrl } = buildDmCheckoutUrls(payTarget?.id ?? null);
       const res = await fetch(`${API}/payments/dm/subscription`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          successUrl,
+          cancelUrl,
+          targetUserId: payTarget?.id ?? null,
+        }),
       });
 
       const data = (await res.json()) as { error?: string; url?: string };
       if (!res.ok) throw new Error(data.error || "Erreur abonnement");
 
       if (data.url) {
+        if (payTarget) {
+          savePendingDmCheckout({
+            targetUserId: payTarget.id,
+            targetName: payTarget.username,
+            targetAvatar: payTarget.avatar,
+            mode: "subscription",
+            createdAt: Date.now(),
+          });
+        }
         window.location.href = data.url;
         return;
       }
 
       if (payTarget) {
+        clearPendingDmCheckout();
         await openPrivateChat(payTarget);
       }
     } catch (error) {
