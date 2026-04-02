@@ -30,7 +30,21 @@ type Msg = {
 type CheckoutVerifyResult = {
   confirmed: boolean;
   threadId: string | null;
+  tokenExpired: boolean;
 };
+
+type DmAccessResult = {
+  allowed: boolean;
+  threadId: string | null;
+  tokenExpired: boolean;
+};
+
+type DmThreadResult = {
+  threadId: string | null;
+  tokenExpired: boolean;
+};
+
+const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
 function toTimestamp(value?: number | string | null) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -114,6 +128,31 @@ function getThreadIdFromPayload(payload: unknown) {
   return typeof threadId === "string" && threadId.trim() ? threadId.trim() : null;
 }
 
+function getPayloadRecord(payload: unknown) {
+  return payload !== null && typeof payload === "object"
+    ? (payload as Record<string, unknown>)
+    : null;
+}
+
+function getErrorCode(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return null;
+
+  if (typeof record.code === "string" && record.code.trim()) {
+    return record.code.trim().toUpperCase();
+  }
+
+  if (typeof record.error === "string" && record.error.trim()) {
+    return record.error.trim().toUpperCase();
+  }
+
+  return null;
+}
+
+function isTokenExpiredResponse(status: number, payload: unknown) {
+  return status === 401 && getErrorCode(payload) === "TOKEN_EXPIRED";
+}
+
 function isCheckoutVerified(payload: unknown) {
   if (!payload || typeof payload !== "object") return false;
 
@@ -191,12 +230,29 @@ export default function PrivateChat() {
     [navigate]
   );
 
+  const redirectToLoginForRefresh = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(
+        POST_LOGIN_REDIRECT_KEY,
+        `${window.location.pathname}${window.location.search}`
+      );
+    }
+
+    clearPendingDmCheckout();
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("username");
+    localStorage.removeItem("avatar");
+    navigate("/login", { replace: true });
+  }, [navigate]);
+
   const verifyCheckout = useCallback(
     async (sessionId: string, targetUserId: string): Promise<CheckoutVerifyResult> => {
       if (!token || !sessionId) {
         return {
           confirmed: false,
           threadId: null,
+          tokenExpired: false,
         };
       }
 
@@ -218,21 +274,144 @@ export default function PrivateChat() {
         const payload = await res.json().catch(() => null);
         const threadId = getThreadIdFromPayload(payload);
 
+        if (isTokenExpiredResponse(res.status, payload)) {
+          return {
+            confirmed: false,
+            threadId,
+            tokenExpired: true,
+          };
+        }
+
         if (!res.ok) {
           return {
             confirmed: false,
             threadId,
+            tokenExpired: false,
           };
         }
 
         return {
           confirmed: payload === null ? true : isCheckoutVerified(payload) || !!threadId,
           threadId,
+          tokenExpired: false,
         };
       } catch {
         return {
           confirmed: false,
           threadId: null,
+          tokenExpired: false,
+        };
+      }
+    },
+    [token]
+  );
+
+  const checkDmAccess = useCallback(
+    async (targetUserId: string, sessionId: string): Promise<DmAccessResult> => {
+      if (!token || !targetUserId) {
+        return {
+          allowed: false,
+          threadId: null,
+          tokenExpired: false,
+        };
+      }
+
+      try {
+        const searchParams = new URLSearchParams();
+        if (sessionId) {
+          searchParams.set("session_id", sessionId);
+        }
+
+        const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+        const res = await fetch(`${API}/dm/access/${targetUserId}${suffix}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const payload = await res.json().catch(() => null);
+        const record = getPayloadRecord(payload);
+
+        if (isTokenExpiredResponse(res.status, payload)) {
+          return {
+            allowed: false,
+            threadId: getThreadIdFromPayload(payload),
+            tokenExpired: true,
+          };
+        }
+
+        if (!res.ok) {
+          return {
+            allowed: false,
+            threadId: getThreadIdFromPayload(payload),
+            tokenExpired: false,
+          };
+        }
+
+        return {
+          allowed: record?.allowed === true,
+          threadId: getThreadIdFromPayload(payload),
+          tokenExpired: false,
+        };
+      } catch {
+        return {
+          allowed: false,
+          threadId: null,
+          tokenExpired: false,
+        };
+      }
+    },
+    [token]
+  );
+
+  const openThreadAfterVerification = useCallback(
+    async (targetUserId: string, sessionId: string): Promise<DmThreadResult> => {
+      if (!token || !targetUserId) {
+        return {
+          threadId: null,
+          tokenExpired: false,
+        };
+      }
+
+      try {
+        const res = await fetch(`${API}/dm/threads`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(
+            sessionId
+              ? { targetUserId, session_id: sessionId }
+              : { targetUserId }
+          ),
+        });
+
+        const payload = await res.json().catch(() => null);
+        const threadId = getThreadIdFromPayload(payload);
+
+        if (isTokenExpiredResponse(res.status, payload)) {
+          return {
+            threadId,
+            tokenExpired: true,
+          };
+        }
+
+        if (!res.ok) {
+          return {
+            threadId,
+            tokenExpired: false,
+          };
+        }
+
+        return {
+          threadId,
+          tokenExpired: false,
+        };
+      } catch {
+        return {
+          threadId: null,
+          tokenExpired: false,
         };
       }
     },
@@ -309,7 +488,11 @@ export default function PrivateChat() {
     if (!targetUserId) {
       if (checkoutStatus === "success") {
         if (checkoutSessionId) {
-          await verifyCheckout(checkoutSessionId, "");
+          const verifyResult = await verifyCheckout(checkoutSessionId, "");
+          if (verifyResult.tokenExpired) {
+            redirectToLoginForRefresh();
+            return;
+          }
         }
 
         setBanner(
@@ -329,52 +512,58 @@ export default function PrivateChat() {
         : "Ouverture de la conversation privee..."
     );
 
-    const currentThreads = await loadThreads();
-    const currentThread = findThreadByTargetUserId(currentThreads, targetUserId);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      if (checkoutStatus === "success" && checkoutSessionId) {
+        const verifyResult = await verifyCheckout(checkoutSessionId, targetUserId);
 
-    if (currentThread?.id) {
-      openRecoveredThread(currentThread.id, successMessage);
-      setIsRestoringCheckout(false);
-      return;
-    }
+        if (verifyResult.tokenExpired) {
+          redirectToLoginForRefresh();
+          return;
+        }
 
-    if (checkoutStatus === "success" && checkoutSessionId) {
-      const verifyResult = await verifyCheckout(checkoutSessionId, targetUserId);
+        if (verifyResult.threadId) {
+          openRecoveredThread(verifyResult.threadId, successMessage);
+          await loadThreads();
+          setIsRestoringCheckout(false);
+          return;
+        }
 
-      if (verifyResult.threadId) {
-        openRecoveredThread(verifyResult.threadId, successMessage);
+        if (verifyResult.confirmed) {
+          setBanner("Paiement confirme. Verification de l'acces prive...");
+        }
+      }
+
+      const accessResult = await checkDmAccess(targetUserId, checkoutSessionId);
+
+      if (accessResult.tokenExpired) {
+        redirectToLoginForRefresh();
+        return;
+      }
+
+      if (accessResult.threadId) {
+        openRecoveredThread(accessResult.threadId, successMessage);
         await loadThreads();
         setIsRestoringCheckout(false);
         return;
       }
 
-      if (verifyResult.confirmed) {
-        setBanner("Paiement confirme. Ouverture de la conversation...");
-      }
-    }
+      if (accessResult.allowed) {
+        const threadResult = await openThreadAfterVerification(
+          targetUserId,
+          checkoutSessionId
+        );
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      try {
-        const res = await fetch(`${API}/dm/threads`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ targetUserId }),
-        });
-
-        if (res.ok) {
-          const thread = (await res.json()) as { id?: string };
-          if (thread.id) {
-            openRecoveredThread(thread.id, successMessage);
-            await loadThreads();
-            setIsRestoringCheckout(false);
-            return;
-          }
+        if (threadResult.tokenExpired) {
+          redirectToLoginForRefresh();
+          return;
         }
-      } catch {
-        // The payment webhook may still be finalizing access. Retry briefly.
+
+        if (threadResult.threadId) {
+          openRecoveredThread(threadResult.threadId, successMessage);
+          await loadThreads();
+          setIsRestoringCheckout(false);
+          return;
+        }
       }
 
       const refreshedThreads = await loadThreads();
@@ -397,10 +586,13 @@ export default function PrivateChat() {
     await loadThreads();
     setIsRestoringCheckout(false);
   }, [
+    checkDmAccess,
     checkoutSessionId,
     checkoutStatus,
     loadThreads,
+    openThreadAfterVerification,
     openRecoveredThread,
+    redirectToLoginForRefresh,
     targetUserIdFromParams,
     token,
     verifyCheckout,

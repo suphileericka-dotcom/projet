@@ -39,6 +39,8 @@ type LoginResponse = {
   error?: string;
 };
 
+const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
+
 /* =====================
    COMPONENT
 ===================== */
@@ -150,6 +152,16 @@ export default function Login({ setIsAuth }: LoginProps) {
       }
 
       setIsAuth(true);
+      const storedRedirect = window.sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
+      const redirectTarget =
+        storedRedirect && storedRedirect.startsWith("/") ? storedRedirect : null;
+
+      if (redirectTarget) {
+        window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+        navigate(redirectTarget);
+        return;
+      }
+
       navigate("/");
 
     } catch (err) {
