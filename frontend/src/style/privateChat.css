@@ -260,6 +260,11 @@
   max-width: min(75%, 36rem);
 }
 
+.pc-msg-main {
+  display: flex;
+  flex-direction: column;
+}
+
 .pc-msg.me {
   align-self: flex-end;
   text-align: right;
@@ -269,6 +274,20 @@
   align-self: flex-start;
 }
 
+.pc-bubble-card {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.pc-bubble-card.is-active .pc-bubble {
+  border-color: rgba(129, 140, 248, 0.72);
+}
+
 .pc-bubble {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -276,24 +295,92 @@
   border-radius: 18px;
   line-height: 1.5;
   font-size: 0.95rem;
+  word-break: break-word;
 }
 
-.pc-msg.me .pc-bubble {
+.pc-bubble-card.me .pc-bubble {
   background: rgba(99, 102, 241, 0.24);
   border-color: rgba(129, 140, 248, 0.42);
 }
 
-.pc-time {
+.pc-translated {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  border-left: 3px solid #93c5fd;
+}
+
+.pc-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.62);
-  margin-top: 4px;
+}
+
+.pc-msg.me .pc-meta {
+  justify-content: flex-end;
+}
+
+.pc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pc-actions.me {
+  justify-content: flex-end;
+}
+
+.pc-actions.them {
+  justify-content: flex-start;
+}
+
+.pc-actions button {
+  border: 1px solid rgba(129, 140, 248, 0.34);
+  background: rgba(15, 23, 42, 0.45);
+  color: #f8fafc;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.pc-actions button.danger {
+  border-color: rgba(251, 113, 133, 0.4);
+  color: #fda4af;
+}
+
+.pc-input-wrap {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.pc-editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #e0f2fe;
+}
+
+.pc-editing button {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .pc-inputbar {
   display: flex;
   gap: 10px;
-  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .pc-inputbar input {

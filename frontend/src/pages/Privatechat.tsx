@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import {
   useNavigate,
   useParams,
@@ -13,26 +20,63 @@ import {
 } from "../lib/dmCheckout";
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const EDIT_WINDOW_MS = 20 * 60 * 1000;
 const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
 type Thread = {
   id: string;
   otherUserId: string;
-  lastMessage?: string | null;
-  lastAt?: number | string | null;
-  otherName?: string;
-  otherAvatar?: string;
-  online?: boolean;
+  otherName: string;
+  otherAvatar?: string | null;
+  online: boolean;
+  lastMessage: string | null;
+  lastAt: number | string | null;
 };
 
 type Msg = {
   id: string;
-  sender_id: string | null;
+  senderId: string | null;
   body: string;
-  created_at: number | string | null;
+  createdAt: number;
+  updatedAt?: number;
+  editedAt?: number;
+  translatedText?: string;
 };
 
-function toTimestamp(value?: number | string | null) {
+type ThreadNormalizationOptions = {
+  currentUserId?: string | null;
+  fallbackTargetUserId?: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function readString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (normalized) return normalized;
+  }
+
+  return undefined;
+}
+
+function readBoolean(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+
+  return undefined;
+}
+
+function toTimestamp(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
 
   if (typeof value === "string") {
@@ -46,13 +90,13 @@ function toTimestamp(value?: number | string | null) {
   return null;
 }
 
-function isRecent(value?: number | string | null, now = Date.now()) {
+function isRecent(value: unknown, now = Date.now()) {
   const timestamp = toTimestamp(value);
   if (timestamp === null) return false;
   return now - timestamp <= MESSAGE_RETENTION_MS;
 }
 
-function formatThreadTime(value?: number | string | null) {
+function formatThreadTime(value: unknown) {
   const timestamp = toTimestamp(value);
   if (timestamp === null) return "";
 
@@ -68,11 +112,10 @@ function formatThreadTime(value?: number | string | null) {
     : date.toLocaleDateString();
 }
 
-function formatMessageTime(value?: number | string | null) {
-  const timestamp = toTimestamp(value);
-  if (timestamp === null) return "";
+function formatMessageTime(value?: number | null) {
+  if (!value || !Number.isFinite(value)) return "";
 
-  return new Date(timestamp).toLocaleString([], {
+  return new Date(value).toLocaleString([], {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -88,16 +131,6 @@ function sortThreads(items: Thread[]) {
   });
 }
 
-function pruneMessages(items: Msg[]) {
-  return [...items]
-    .filter((message) => isRecent(message.created_at))
-    .sort((left, right) => {
-      const leftAt = toTimestamp(left.created_at) ?? 0;
-      const rightAt = toTimestamp(right.created_at) ?? 0;
-      return leftAt - rightAt;
-    });
-}
-
 function buildThreadPreview(thread: Thread) {
   if (!isRecent(thread.lastAt)) {
     return "Les messages s'effacent apres 24h.";
@@ -111,18 +144,15 @@ function findThreadByTargetUserId(items: Thread[], targetUserId: string) {
   return items.find((thread) => thread.otherUserId === targetUserId) ?? null;
 }
 
-function getPayloadRecord(payload: unknown) {
-  return payload !== null && typeof payload === "object"
-    ? (payload as Record<string, unknown>)
-    : null;
+function getDisplayThreadName(thread: Thread) {
+  return thread.otherName.trim() || "Conversation privee";
 }
 
 function getThreadIdFromPayload(payload: unknown) {
   const record = getPayloadRecord(payload);
   if (!record) return null;
 
-  const threadId = record.id ?? record.threadId ?? record.thread_id;
-  return typeof threadId === "string" && threadId.trim() ? threadId.trim() : null;
+  return readString(record.id, record.threadId, record.thread_id, record._id) ?? null;
 }
 
 function getErrorCode(payload: unknown) {
@@ -166,6 +196,346 @@ function isTokenExpiredResponse(status: number, payload: unknown) {
   return status === 401 && getErrorCode(payload) === "TOKEN_EXPIRED";
 }
 
+function buildOptimisticThread(threadId: string, targetUserId: string): Thread {
+  return {
+    id: threadId,
+    otherUserId: targetUserId,
+    otherName: "Conversation privee",
+    otherAvatar: null,
+    online: false,
+    lastMessage: null,
+    lastAt: Date.now(),
+  };
+}
+
+function normalizeThread(
+  rawThread: unknown,
+  options: ThreadNormalizationOptions = {}
+): Thread | null {
+  const record = asRecord(rawThread);
+  if (!record) return null;
+
+  const threadId = readString(record.id, record.threadId, record.thread_id, record._id);
+  if (!threadId) return null;
+
+  const nestedOther =
+    asRecord(record.otherUser) ??
+    asRecord(record.other_user) ??
+    asRecord(record.targetUser) ??
+    asRecord(record.target_user) ??
+    asRecord(record.user) ??
+    asRecord(record.profile);
+
+  const participants = [
+    ...asArray(record.participants),
+    ...asArray(record.members),
+    ...asArray(record.users),
+    ...asArray(record.profiles),
+  ]
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  const otherParticipant =
+    participants.find((participant) => {
+      const participantId = readString(
+        participant.id,
+        participant.userId,
+        participant.user_id,
+        participant.targetUserId,
+        participant.target_user_id
+      );
+
+      return !!participantId && participantId !== options.currentUserId;
+    }) ?? participants[0] ?? null;
+
+  const participantUserId = readString(
+    otherParticipant?.id,
+    otherParticipant?.userId,
+    otherParticipant?.user_id
+  );
+
+  const directOtherUserId = readString(
+    record.otherUserId,
+    record.other_user_id,
+    record.targetUserId,
+    record.target_user_id,
+    record.other_id,
+    nestedOther?.id,
+    nestedOther?.userId,
+    nestedOther?.user_id
+  );
+
+  const otherUserId =
+    (directOtherUserId && directOtherUserId !== options.currentUserId
+      ? directOtherUserId
+      : participantUserId) ||
+    options.fallbackTargetUserId ||
+    "";
+
+  const otherName =
+    readString(
+      record.otherName,
+      record.other_name,
+      record.targetName,
+      record.target_name,
+      record.targetUsername,
+      record.target_username,
+      nestedOther?.username,
+      nestedOther?.name,
+      nestedOther?.displayName,
+      nestedOther?.display_name,
+      otherParticipant?.username,
+      otherParticipant?.name,
+      otherParticipant?.displayName,
+      otherParticipant?.display_name,
+      record.username,
+      record.displayName,
+      record.display_name
+    ) || "";
+
+  const otherAvatar =
+    readString(
+      record.otherAvatar,
+      record.other_avatar,
+      record.targetAvatar,
+      record.target_avatar,
+      nestedOther?.avatar,
+      nestedOther?.avatar_url,
+      nestedOther?.avatarUrl,
+      otherParticipant?.avatar,
+      otherParticipant?.avatar_url,
+      otherParticipant?.avatarUrl
+    ) || null;
+
+  const lastMessage =
+    readString(
+      record.lastMessage,
+      record.last_message,
+      record.preview,
+      record.body,
+      record.content,
+      record.message
+    ) || null;
+
+  const lastAt =
+    record.lastAt ??
+    record.last_at ??
+    record.updatedAt ??
+    record.updated_at ??
+    record.createdAt ??
+    record.created_at ??
+    null;
+
+  const online =
+    readBoolean(
+      record.online,
+      record.isOnline,
+      record.is_online,
+      nestedOther?.online,
+      nestedOther?.isOnline,
+      otherParticipant?.online,
+      otherParticipant?.isOnline
+    ) ?? false;
+
+  return {
+    id: threadId,
+    otherUserId,
+    otherName,
+    otherAvatar,
+    online,
+    lastMessage,
+    lastAt,
+  };
+}
+
+function normalizeThreadList(
+  payload: unknown,
+  options: ThreadNormalizationOptions = {}
+) {
+  const record = getPayloadRecord(payload);
+  const rawThreads = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.threads)
+      ? record.threads
+      : Array.isArray(record?.items)
+        ? record.items
+        : [];
+
+  const normalizedById = new Map<string, Thread>();
+
+  for (const entry of rawThreads) {
+    const normalized = normalizeThread(entry, options);
+    if (!normalized) continue;
+
+    const previous = normalizedById.get(normalized.id);
+    normalizedById.set(normalized.id, {
+      ...previous,
+      ...normalized,
+      otherUserId: normalized.otherUserId || previous?.otherUserId || "",
+      otherName: normalized.otherName || previous?.otherName || "",
+      otherAvatar: normalized.otherAvatar ?? previous?.otherAvatar ?? null,
+      online: normalized.online ?? previous?.online ?? false,
+      lastMessage: normalized.lastMessage ?? previous?.lastMessage ?? null,
+      lastAt: normalized.lastAt ?? previous?.lastAt ?? null,
+    });
+  }
+
+  return sortThreads([...normalizedById.values()]);
+}
+
+function mergeThreads(
+  current: Thread[],
+  incoming: Thread[],
+  optimisticThread?: Thread | null
+) {
+  const mergedById = new Map<string, Thread>();
+
+  for (const thread of current) {
+    mergedById.set(thread.id, thread);
+  }
+
+  for (const thread of incoming) {
+    const previous = mergedById.get(thread.id);
+    mergedById.set(thread.id, {
+      ...previous,
+      ...thread,
+      otherUserId: thread.otherUserId || previous?.otherUserId || "",
+      otherName: thread.otherName || previous?.otherName || "",
+      otherAvatar: thread.otherAvatar ?? previous?.otherAvatar ?? null,
+      online: thread.online ?? previous?.online ?? false,
+      lastMessage: thread.lastMessage ?? previous?.lastMessage ?? null,
+      lastAt: thread.lastAt ?? previous?.lastAt ?? null,
+    });
+  }
+
+  if (optimisticThread && !mergedById.has(optimisticThread.id)) {
+    mergedById.set(optimisticThread.id, optimisticThread);
+  }
+
+  return sortThreads([...mergedById.values()]);
+}
+
+function normalizeMessage(rawMessage: unknown): Msg | null {
+  const record = asRecord(rawMessage);
+  if (!record) return null;
+
+  const nestedSender =
+    asRecord(record.sender) ?? asRecord(record.user) ?? asRecord(record.author);
+
+  const id = readString(record.id, record.messageId, record.message_id, record._id);
+  if (!id) return null;
+
+  const senderId =
+    readString(
+      record.sender_id,
+      record.senderId,
+      record.user_id,
+      record.userId,
+      record.author_id,
+      record.authorId,
+      nestedSender?.id,
+      nestedSender?.userId,
+      nestedSender?.user_id
+    ) || null;
+
+  const body =
+    readString(record.body, record.text, record.content, record.message) || "";
+
+  const createdAt =
+    toTimestamp(
+      record.created_at ??
+        record.createdAt ??
+        record.sent_at ??
+        record.sentAt ??
+        record.timestamp
+    ) || Date.now();
+
+  const updatedAt = toTimestamp(record.updated_at ?? record.updatedAt) ?? undefined;
+  const editedAt =
+    toTimestamp(record.edited_at ?? record.editedAt) ||
+    (updatedAt && updatedAt > createdAt ? updatedAt : undefined);
+
+  return {
+    id,
+    senderId,
+    body,
+    createdAt,
+    updatedAt,
+    editedAt,
+  };
+}
+
+function normalizeMessageList(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  const rawMessages = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.messages)
+      ? record.messages
+      : Array.isArray(record?.items)
+        ? record.items
+        : [];
+
+  const normalizedById = new Map<string, Msg>();
+
+  for (const entry of rawMessages) {
+    const normalized = normalizeMessage(entry);
+    if (!normalized) continue;
+    normalizedById.set(normalized.id, normalized);
+  }
+
+  return [...normalizedById.values()]
+    .filter((message) => isRecent(message.createdAt))
+    .sort((left, right) => {
+      if (left.createdAt === right.createdAt) {
+        return left.id.localeCompare(right.id);
+      }
+
+      return left.createdAt - right.createdAt;
+    });
+}
+
+function mergeMessages(current: Msg[], incoming: Msg[]) {
+  const currentById = new Map(current.map((message) => [message.id, message]));
+
+  return incoming
+    .map((message) => {
+      const previous = currentById.get(message.id);
+      if (!previous) return message;
+
+      return {
+        ...previous,
+        ...message,
+        translatedText: previous.translatedText ?? message.translatedText,
+      };
+    })
+    .filter((message) => isRecent(message.createdAt))
+    .sort((left, right) => {
+      if (left.createdAt === right.createdAt) {
+        return left.id.localeCompare(right.id);
+      }
+
+      return left.createdAt - right.createdAt;
+    });
+}
+
+function canManageDmMessage(
+  message: Msg,
+  currentUserId: string | null,
+  now = Date.now()
+) {
+  return !!currentUserId && message.senderId === currentUserId && now - message.createdAt <= EDIT_WINDOW_MS;
+}
+
+function buildDmMessageCandidates(threadId: string, messageId: string) {
+  const safeThreadId = encodeURIComponent(threadId);
+  const safeMessageId = encodeURIComponent(messageId);
+
+  return [
+    `${API}/dm/threads/${safeThreadId}/messages/${safeMessageId}`,
+    `${API}/dm/messages/${safeMessageId}`,
+  ];
+}
+
 export default function PrivateChat() {
   const navigate = useNavigate();
   const { targetUserId: routeTargetUserId } = useParams();
@@ -178,9 +548,12 @@ export default function PrivateChat() {
   const paid = searchParams.get("paid") === "1";
 
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [optimisticThread, setOptimisticThread] = useState<Thread | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
@@ -191,6 +564,22 @@ export default function PrivateChat() {
   );
 
   const streamRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const threadsRef = useRef<Thread[]>([]);
+  const messagesRef = useRef<Msg[]>([]);
+  const optimisticThreadRef = useRef<Thread | null>(null);
+
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    optimisticThreadRef.current = optimisticThread;
+  }, [optimisticThread]);
 
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadId) || null,
@@ -198,13 +587,15 @@ export default function PrivateChat() {
   );
   const activeThreadMatchesTarget =
     !!targetUserId && activeThread?.otherUserId === targetUserId;
-  const visibleMessages = useMemo(() => pruneMessages(messages), [messages]);
+  const visibleMessages = useMemo(() => messages, [messages]);
   const archiveCountLabel =
     threads.length === 0
       ? "Aucune conversation"
       : `${threads.length} conversation${threads.length > 1 ? "s" : ""} archivee${
           threads.length > 1 ? "s" : ""
         }`;
+  const editingMessage =
+    (editingId && messages.find((message) => message.id === editingId)) || null;
 
   const redirectToLoginForRefresh = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -244,11 +635,28 @@ export default function PrivateChat() {
           return [];
         }
 
-        if (!res.ok || !Array.isArray(payload)) {
-          return [];
+        if (!res.ok) {
+          return threadsRef.current;
         }
 
-        const nextThreads = sortThreads(payload as Thread[]);
+        const normalizedThreads = normalizeThreadList(payload, {
+          currentUserId: myUserId,
+          fallbackTargetUserId: targetUserId || undefined,
+        });
+
+        const nextThreads = mergeThreads(
+          threadsRef.current,
+          normalizedThreads,
+          optimisticThreadRef.current
+        );
+
+        if (
+          optimisticThreadRef.current &&
+          normalizedThreads.some((thread) => thread.id === optimisticThreadRef.current?.id)
+        ) {
+          setOptimisticThread(null);
+        }
+
         setThreads(nextThreads);
         setActiveThreadId((current) => {
           if (
@@ -258,26 +666,26 @@ export default function PrivateChat() {
             return preferredThreadId;
           }
 
+          if (current && nextThreads.some((thread) => thread.id === current)) {
+            return current;
+          }
+
           if (targetUserId) {
             const matchingThread = findThreadByTargetUserId(nextThreads, targetUserId);
             if (matchingThread) return matchingThread.id;
           }
 
-          if (current && nextThreads.some((thread) => thread.id === current)) {
-            return current;
-          }
-
-          return nextThreads[0]?.id ?? null;
+          return nextThreads[0]?.id ?? current ?? null;
         });
 
         return nextThreads;
       } catch {
-        return [];
+        return threadsRef.current;
       } finally {
         setThreadsLoading(false);
       }
     },
-    [redirectToLoginForRefresh, targetUserId, token]
+    [myUserId, redirectToLoginForRefresh, targetUserId, token]
   );
 
   const loadMessages = useCallback(
@@ -287,7 +695,7 @@ export default function PrivateChat() {
       setMessagesLoading(true);
 
       try {
-        const res = await fetch(`${API}/dm/threads/${threadId}/messages`, {
+        const res = await fetch(`${API}/dm/threads/${encodeURIComponent(threadId)}/messages`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -300,12 +708,12 @@ export default function PrivateChat() {
           return;
         }
 
-        if (!res.ok || !Array.isArray(payload)) {
+        if (!res.ok) {
           setMessages([]);
           return;
         }
 
-        setMessages(pruneMessages(payload as Msg[]));
+        setMessages(normalizeMessageList(payload));
       } finally {
         setMessagesLoading(false);
       }
@@ -343,7 +751,14 @@ export default function PrivateChat() {
           throw new Error("Conversation privee introuvable.");
         }
 
-        return threadId;
+        return {
+          threadId,
+          thread:
+            normalizeThread(payload, {
+              currentUserId: myUserId,
+              fallbackTargetUserId: nextTargetUserId,
+            }) || buildOptimisticThread(threadId, nextTargetUserId),
+        };
       }
 
       if (res.status === 403) {
@@ -388,7 +803,7 @@ export default function PrivateChat() {
 
       throw new Error(getErrorMessage(payload, "Impossible d'ouvrir le chat prive."));
     },
-    [token]
+    [myUserId, token]
   );
 
   const openTargetConversation = useCallback(async () => {
@@ -402,13 +817,16 @@ export default function PrivateChat() {
     );
 
     try {
-      const threadId = await openPrivateChat(
+      const result = await openPrivateChat(
         targetUserId,
         checkoutSessionId || undefined
       );
 
-      if (!threadId) return;
+      if (!result) return;
 
+      const { threadId, thread } = result;
+      setOptimisticThread(thread);
+      setThreads((current) => mergeThreads(current, thread ? [thread] : [], thread));
       setActiveThreadId(threadId);
       setMobilePanel("chat");
       await loadThreads(threadId);
@@ -480,6 +898,207 @@ export default function PrivateChat() {
     });
   }, [messages]);
 
+  useEffect(() => {
+    if (!activeMessageId) return;
+    if (messages.some((message) => message.id === activeMessageId)) return;
+    setActiveMessageId(null);
+  }, [activeMessageId, messages]);
+
+  function toggleMessageActions(messageId: string) {
+    setActiveMessageId((current) => (current === messageId ? null : messageId));
+  }
+
+  function handleBubbleCardKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    messageId: string
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleMessageActions(messageId);
+  }
+
+  function startEditingMessage(message: Msg) {
+    setEditingId(message.id);
+    setInput(message.body);
+    setActiveMessageId(null);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setInput("");
+    setActiveMessageId(null);
+  }
+
+  async function translateMessage(message: Msg) {
+    if (!message.body.trim() || message.translatedText) return;
+
+    try {
+      const target = localStorage.getItem("language") || "fr";
+      const res = await fetch(`${API}/translate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text: message.body,
+          target,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (isTokenExpiredResponse(res.status, payload)) {
+        redirectToLoginForRefresh();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Traduction indisponible pour le moment.");
+      }
+
+      const translatedText =
+        readString(
+          getPayloadRecord(payload)?.translatedText,
+          getPayloadRecord(payload)?.translation,
+          getPayloadRecord(payload)?.text
+        ) || null;
+
+      if (!translatedText) return;
+
+      setMessages((current) =>
+        current.map((entry) =>
+          entry.id === message.id
+            ? {
+                ...entry,
+                translatedText,
+              }
+            : entry
+        )
+      );
+      setActiveMessageId(null);
+    } catch (error) {
+      setBanner(
+        error instanceof Error && error.message
+          ? error.message
+          : "Traduction indisponible pour le moment."
+      );
+    }
+  }
+
+  async function updateDmMessage(messageId: string, nextBody: string) {
+    if (!token || !myUserId || !activeThreadId) {
+      throw new Error("Connexion requise.");
+    }
+
+    let unsupported = true;
+
+    for (const endpoint of buildDmMessageCandidates(activeThreadId, messageId)) {
+      for (const method of ["PATCH", "PUT"]) {
+        const res = await fetch(endpoint, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            threadId: activeThreadId,
+            userId: myUserId,
+            body: nextBody,
+            text: nextBody,
+            content: nextBody,
+          }),
+        });
+
+        const payload = await res.json().catch(() => null);
+
+        if (isTokenExpiredResponse(res.status, payload)) {
+          throw new Error("TOKEN_EXPIRED");
+        }
+
+        if (res.status === 404 || res.status === 405) {
+          continue;
+        }
+
+        unsupported = false;
+
+        if (!res.ok) {
+          throw new Error(
+            getErrorMessage(payload, "Impossible de modifier ce message prive.")
+          );
+        }
+
+        const normalized =
+          normalizeMessage(payload) ||
+          normalizeMessage(getPayloadRecord(payload)?.message) ||
+          null;
+
+        if (normalized) {
+          setMessages((current) =>
+            mergeMessages(
+              current.filter((message) => message.id !== normalized.id),
+              [...current.filter((message) => message.id !== normalized.id), normalized]
+            )
+          );
+        } else {
+          await loadMessages(activeThreadId);
+        }
+
+        return;
+      }
+    }
+
+    if (unsupported) {
+      throw new Error(
+        "Le backend DM ne supporte pas encore la modification des messages prives."
+      );
+    }
+  }
+
+  async function deleteDmMessage(messageId: string) {
+    if (!token || !myUserId || !activeThreadId) {
+      throw new Error("Connexion requise.");
+    }
+
+    let unsupported = true;
+
+    for (const endpoint of buildDmMessageCandidates(activeThreadId, messageId)) {
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (isTokenExpiredResponse(res.status, payload)) {
+        throw new Error("TOKEN_EXPIRED");
+      }
+
+      if (res.status === 404 || res.status === 405) {
+        continue;
+      }
+
+      unsupported = false;
+
+      if (!res.ok) {
+        throw new Error(
+          getErrorMessage(payload, "Impossible de supprimer ce message prive.")
+        );
+      }
+
+      return;
+    }
+
+    if (unsupported) {
+      throw new Error(
+        "Le backend DM ne supporte pas encore la suppression des messages prives."
+      );
+    }
+  }
+
   async function send() {
     if (!token || !activeThreadId || sendLoading) return;
 
@@ -487,10 +1106,66 @@ export default function PrivateChat() {
     if (!text) return;
 
     setSendLoading(true);
+    setBanner(null);
+
+    if (editingId) {
+      const previousMessage = messagesRef.current.find(
+        (message) => message.id === editingId
+      );
+
+      if (!previousMessage) {
+        cancelEditing();
+        setSendLoading(false);
+        return;
+      }
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === editingId
+            ? {
+                ...message,
+                body: text,
+                editedAt: Date.now(),
+                updatedAt: Date.now(),
+              }
+            : message
+        )
+      );
+      setInput("");
+      setEditingId(null);
+      setActiveMessageId(null);
+
+      try {
+        await updateDmMessage(editingId, text);
+      } catch (error) {
+        if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+          redirectToLoginForRefresh();
+          return;
+        }
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === previousMessage.id ? previousMessage : message
+          )
+        );
+        setInput(text);
+        setEditingId(previousMessage.id);
+        setBanner(
+          error instanceof Error && error.message
+            ? error.message
+            : "Impossible de modifier ce message prive."
+        );
+      } finally {
+        setSendLoading(false);
+      }
+
+      return;
+    }
+
     setInput("");
 
     try {
-      const res = await fetch(`${API}/dm/threads/${activeThreadId}/messages`, {
+      const res = await fetch(`${API}/dm/threads/${encodeURIComponent(activeThreadId)}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -512,9 +1187,8 @@ export default function PrivateChat() {
 
       await Promise.all([loadMessages(activeThreadId), loadThreads(activeThreadId)]);
       setMobilePanel("chat");
-      setBanner(null);
     } catch (error) {
-      alert(
+      setBanner(
         error instanceof Error && error.message
           ? error.message
           : "Message non envoye"
@@ -522,6 +1196,35 @@ export default function PrivateChat() {
       setInput(text);
     } finally {
       setSendLoading(false);
+    }
+  }
+
+  async function handleDelete(message: Msg) {
+    if (!window.confirm("Supprimer ce message prive ?")) return;
+
+    const snapshot = message;
+    setMessages((current) => current.filter((entry) => entry.id !== message.id));
+    setActiveMessageId(null);
+
+    if (editingId === message.id) {
+      cancelEditing();
+    }
+
+    try {
+      await deleteDmMessage(message.id);
+      await loadThreads(activeThreadId);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        redirectToLoginForRefresh();
+        return;
+      }
+
+      setMessages((current) => mergeMessages(current, [...current, snapshot]));
+      setBanner(
+        error instanceof Error && error.message
+          ? error.message
+          : "Impossible de supprimer ce message prive."
+      );
     }
   }
 
@@ -579,42 +1282,46 @@ export default function PrivateChat() {
             </div>
           )}
 
-          {threads.map((thread) => (
-            <button
-              key={thread.id}
-              className={`pc-thread ${thread.id === activeThreadId ? "active" : ""}`}
-              onClick={() => {
-                setActiveThreadId(thread.id);
-                setMobilePanel("chat");
+          {threads.map((thread) => {
+            const threadName = getDisplayThreadName(thread);
 
-                if (thread.otherUserId && thread.otherUserId !== targetUserId) {
-                  navigate(buildPrivateChatPath(thread.otherUserId));
-                }
-              }}
-            >
-              <div className="pc-thread-left">
-                <img
-                  className="pc-avatar"
-                  src={buildAvatarUrl({
-                    name: thread.otherName || "Membre",
-                    avatarPath: thread.otherAvatar,
-                    seed: thread.otherUserId || thread.id,
-                    size: 96,
-                  })}
-                  alt={thread.otherName || "Profil"}
-                />
-                <div className="pc-thread-meta">
-                  <div className="pc-thread-name">
-                    {thread.otherName || thread.otherUserId}
-                    <span className={`pc-dot ${thread.online ? "on" : "off"}`} />
+            return (
+              <button
+                key={thread.id}
+                className={`pc-thread ${thread.id === activeThreadId ? "active" : ""}`}
+                onClick={() => {
+                  setActiveThreadId(thread.id);
+                  setMobilePanel("chat");
+
+                  if (thread.otherUserId && thread.otherUserId !== targetUserId) {
+                    navigate(buildPrivateChatPath(thread.otherUserId));
+                  }
+                }}
+              >
+                <div className="pc-thread-left">
+                  <img
+                    className="pc-avatar"
+                    src={buildAvatarUrl({
+                      name: threadName,
+                      avatarPath: thread.otherAvatar,
+                      seed: thread.otherUserId || thread.id,
+                      size: 96,
+                    })}
+                    alt={threadName}
+                  />
+                  <div className="pc-thread-meta">
+                    <div className="pc-thread-name">
+                      {threadName}
+                      <span className={`pc-dot ${thread.online ? "on" : "off"}`} />
+                    </div>
+                    <div className="pc-thread-last">{buildThreadPreview(thread)}</div>
                   </div>
-                  <div className="pc-thread-last">{buildThreadPreview(thread)}</div>
                 </div>
-              </div>
 
-              <div className="pc-thread-time">{formatThreadTime(thread.lastAt)}</div>
-            </button>
-          ))}
+                <div className="pc-thread-time">{formatThreadTime(thread.lastAt)}</div>
+              </button>
+            );
+          })}
         </aside>
 
         <main className="pc-chat">
@@ -631,15 +1338,15 @@ export default function PrivateChat() {
                   <img
                     className="pc-avatar pc-avatar-lg"
                     src={buildAvatarUrl({
-                      name: activeThread.otherName || "Membre",
+                      name: getDisplayThreadName(activeThread),
                       avatarPath: activeThread.otherAvatar,
                       seed: activeThread.otherUserId || activeThread.id,
                       size: 96,
                     })}
-                    alt={activeThread.otherName || "Profil"}
+                    alt={getDisplayThreadName(activeThread)}
                   />
                   <div className="pc-chat-user">
-                    <strong>{activeThread.otherName || activeThread.otherUserId}</strong>
+                    <strong>{getDisplayThreadName(activeThread)}</strong>
                     <span>Messages ephemeres: suppression visuelle apres 24h.</span>
                   </div>
                 </div>
@@ -658,36 +1365,106 @@ export default function PrivateChat() {
                 )}
 
                 {!messagesLoading &&
-                  visibleMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`pc-msg ${
-                        message.sender_id === myUserId ? "me" : "them"
-                      }`}
-                    >
-                      <div className="pc-bubble">{message.body}</div>
-                      <div className="pc-time">
-                        {formatMessageTime(message.created_at)}
-                      </div>
-                    </div>
-                  ))}
+                  visibleMessages.map((message) => {
+                    const isOwnMessage =
+                      !!myUserId && message.senderId === myUserId;
+                    const canManage = canManageDmMessage(message, myUserId);
+                    const showActions =
+                      activeMessageId === message.id &&
+                      (canManage || (!message.translatedText && !!message.body.trim()));
+
+                    return (
+                      <article
+                        key={message.id}
+                        className={`pc-msg ${isOwnMessage ? "me" : "them"}`}
+                      >
+                        <div className="pc-msg-main">
+                          <button
+                            type="button"
+                            className={`pc-bubble-card ${
+                              isOwnMessage ? "me" : "them"
+                            } ${showActions ? "is-active" : ""}`}
+                            onClick={() => toggleMessageActions(message.id)}
+                            onKeyDown={(event) => handleBubbleCardKeyDown(event, message.id)}
+                          >
+                            <div className="pc-bubble">{message.body}</div>
+
+                            {message.translatedText ? (
+                              <div className="pc-translated">{message.translatedText}</div>
+                            ) : null}
+
+                            <div className="pc-meta">
+                              {formatMessageTime(message.createdAt) ? (
+                                <span>{formatMessageTime(message.createdAt)}</span>
+                              ) : null}
+                              {message.editedAt ? <span>modifie</span> : null}
+                            </div>
+                          </button>
+
+                          {showActions ? (
+                            <div className={`pc-actions ${isOwnMessage ? "me" : "them"}`}>
+                              {canManage ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingMessage(message)}
+                                >
+                                  Modifier
+                                </button>
+                              ) : null}
+
+                              {canManage ? (
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  onClick={() => void handleDelete(message)}
+                                >
+                                  Supprimer
+                                </button>
+                              ) : null}
+
+                              {!message.translatedText && message.body.trim() ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void translateMessage(message)}
+                                >
+                                  Traduire
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  })}
               </div>
 
-              <footer className="pc-inputbar">
-                <input
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void send();
-                    }
-                  }}
-                  placeholder="Ecris un message prive..."
-                />
-                <button onClick={() => void send()} disabled={sendLoading}>
-                  {sendLoading ? "..." : ">"}
-                </button>
+              <footer className="pc-input-wrap">
+                {editingMessage ? (
+                  <div className="pc-editing">
+                    <span>Modification du message prive en cours.</span>
+                    <button type="button" onClick={cancelEditing}>
+                      Annuler
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="pc-inputbar">
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void send();
+                      }
+                    }}
+                    placeholder="Ecris un message prive..."
+                  />
+                  <button onClick={() => void send()} disabled={sendLoading}>
+                    {sendLoading ? "..." : editingId ? "OK" : ">"}
+                  </button>
+                </div>
               </footer>
             </>
           ) : (
