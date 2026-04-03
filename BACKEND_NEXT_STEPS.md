@@ -1,18 +1,34 @@
 # Backend Next Steps
 
-Ce repo ne contient que le frontend. Les changements ci-dessous correspondent exactement a ce que le frontend appelle deja.
+Ce repo ne contient que le frontend. Les changements ci-dessous correspondent au contrat actuellement utilise par le frontend.
 
 ## Priorite immediate
 
 ### 0. Paiements DM: verification Stripe et statut d'abonnement
 
-Le frontend envoie maintenant un `successUrl` de ce type:
+Le frontend construit aujourd'hui de preference un `successUrl` de ce type:
+
+```txt
+/private-chat/user_2?paid=1&checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2
+```
+
+Le frontend accepte aussi encore ce format de repli:
 
 ```txt
 /private-chat?checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2
 ```
 
-Le backend doit ajouter un vrai fallback de verification:
+Quand il revient de Stripe, le frontend rejoue ensuite:
+
+```txt
+POST /api/dm/threads
+{
+  "targetUserId": "user_2",
+  "session_id": "cs_test_123"
+}
+```
+
+Route backend recommandee pour un fallback de verification:
 
 ```txt
 GET /api/payments/verify?session_id=cs_test_123&targetUserId=user_2

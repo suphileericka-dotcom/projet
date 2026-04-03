@@ -13,10 +13,14 @@ export function buildDmCheckoutUrls(targetUserId?: string | null) {
 
   const successUrl = new URL(buildPrivateChatPath(targetUserId), origin);
   successUrl.searchParams.set("paid", "1");
+  successUrl.searchParams.set("checkout", "success");
   successUrl.searchParams.set(
     "session_id",
     STRIPE_CHECKOUT_SESSION_PLACEHOLDER
   );
+  if (targetUserId?.trim()) {
+    successUrl.searchParams.set("targetUserId", targetUserId.trim());
+  }
 
   const cancelUrl = new URL("/match", origin);
   cancelUrl.searchParams.set("checkout", "cancelled");

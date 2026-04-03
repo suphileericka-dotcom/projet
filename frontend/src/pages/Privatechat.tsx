@@ -543,9 +543,11 @@ export default function PrivateChat() {
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
 
-  const targetUserId = routeTargetUserId?.trim() || "";
+  const queryTargetUserId = searchParams.get("targetUserId")?.trim() || "";
+  const targetUserId = routeTargetUserId?.trim() || queryTargetUserId;
   const checkoutSessionId = searchParams.get("session_id")?.trim() || "";
-  const paid = searchParams.get("paid") === "1";
+  const paid =
+    searchParams.get("paid") === "1" || searchParams.get("checkout") === "success";
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [optimisticThread, setOptimisticThread] = useState<Thread | null>(null);
