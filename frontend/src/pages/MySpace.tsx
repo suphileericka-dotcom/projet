@@ -5,6 +5,8 @@ import { API } from "../config/api";
 import { persistCountry } from "../config/countryAccess";
 import { buildAvatarUrl, resolveAvatarUpload } from "../lib/avatar";
 
+const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 type SpaceProfile = {
   id: string;
   username?: string | null;
@@ -22,98 +24,163 @@ type SpaceStats = {
   matches_today?: number;
 };
 
-type FriendLike = {
-  id: string;
-  username?: string | null;
-  avatar?: string | null;
-};
-
-type StoryPreview = {
-  id: string;
-  title?: string | null;
-  body?: string | null;
-  created_at?: number | string | null;
-};
-
-type MatchPreview = {
-  id: string;
-  summary?: string | null;
-  avatar?: string | null;
-};
-
 type SpacePayload = {
   profile?: SpaceProfile;
   stats?: SpaceStats;
-  friends?: FriendLike[];
-  recent_stories?: StoryPreview[];
-  daily_matches?: MatchPreview[];
-  dm_subscription?: {
-    status?: string;
-    active?: boolean;
-  } | null;
 };
 
-function formatDateTime(value?: number | string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
+type DmThread = {
+  id: string;
+};
+
+type DmMessage = {
+  id: string;
+  senderId: string | null;
+  createdAt: number;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
-function describeDmSubscription(subscription?: SpacePayload["dm_subscription"]) {
-  const rawStatus =
-    typeof subscription?.status === "string" ? subscription.status.trim() : "";
-  const normalizedStatus = rawStatus.toLowerCase();
-  const isActive =
-    subscription?.active === true ||
-    normalizedStatus === "active" ||
-    normalizedStatus === "trialing" ||
-    normalizedStatus === "paid";
+function getPayloadRecord(payload: unknown) {
+  return Array.isArray(payload) ? null : asRecord(payload);
+}
 
-  if (isActive) {
-    return {
-      tone: "active",
-      badge: "Illimite",
-      label: "Abonnement DM actif",
-      detail:
-        "Tu peux ecrire en prive a tout le monde tant que Stripe confirme le renouvellement mensuel.",
-      statusLabel: rawStatus || "active",
-    } as const;
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function readString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (normalized) return normalized;
   }
 
-  if (
-    normalizedStatus === "inactive" ||
-    normalizedStatus === "past_due" ||
-    normalizedStatus === "unpaid" ||
-    normalizedStatus === "canceled" ||
-    normalizedStatus === "cancelled"
-  ) {
-    return {
-      tone: "inactive",
-      badge: "A verifier",
-      label: "Abonnement DM inactif",
-      detail:
-        "Les conversations deja ouvertes restent dans ton archive. Pour de nouveaux DM, le statut de paiement devra etre confirme par le backend.",
-      statusLabel: rawStatus,
-    } as const;
+  return undefined;
+}
+
+function toTimestamp(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  if (typeof value === "string") {
+    const asNumber = Number(value);
+    if (Number.isFinite(asNumber)) return asNumber;
+
+    const asDate = Date.parse(value);
+    if (!Number.isNaN(asDate)) return asDate;
   }
 
-  return {
-    tone: "neutral",
-    badge: "A la carte",
-    label: "Paiements unitaires ou abonnement",
-    detail:
-      "Chaque paiement unique debloque un seul profil. L'abonnement donne un acces prive illimite tant qu'il est actif.",
-    statusLabel: rawStatus || null,
-  } as const;
+  return null;
+}
+
+function isRecentMessage(value: unknown, now = Date.now()) {
+  const timestamp = toTimestamp(value);
+  if (timestamp === null) return false;
+  return now - timestamp <= MESSAGE_RETENTION_MS;
+}
+
+function normalizeDmThreads(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  const rawThreads = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.threads)
+      ? record.threads
+      : Array.isArray(record?.items)
+        ? record.items
+        : [];
+
+  const normalizedById = new Map<string, DmThread>();
+
+  for (const entry of rawThreads) {
+    const thread = asRecord(entry);
+    const id = readString(thread?.id, thread?.threadId, thread?.thread_id, thread?._id);
+    if (!id) continue;
+    normalizedById.set(id, { id });
+  }
+
+  return [...normalizedById.values()];
+}
+
+function normalizeDmMessages(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  const rawMessages = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.messages)
+      ? record.messages
+      : Array.isArray(record?.items)
+        ? record.items
+        : [];
+
+  const messages: DmMessage[] = [];
+
+  for (const entry of rawMessages) {
+    const message = asRecord(entry);
+    if (!message) continue;
+
+    const nestedSender =
+      asRecord(message.sender) ?? asRecord(message.user) ?? asRecord(message.author);
+
+    const id = readString(message.id, message.messageId, message.message_id, message._id);
+    const senderId =
+      readString(
+        message.senderId,
+        message.sender_id,
+        message.userId,
+        message.user_id,
+        message.authorId,
+        message.author_id,
+        nestedSender?.id,
+        nestedSender?.userId,
+        nestedSender?.user_id
+      ) || null;
+    const createdAt =
+      toTimestamp(
+        message.createdAt ??
+          message.created_at ??
+          message.sentAt ??
+          message.sent_at ??
+          message.updatedAt ??
+          message.updated_at
+      ) ?? null;
+
+    if (!id || createdAt === null || !isRecentMessage(createdAt)) continue;
+
+    messages.push({ id, senderId, createdAt });
+  }
+
+  return messages.sort((left, right) => left.createdAt - right.createdAt);
+}
+
+function countPendingIncomingMessages(messages: DmMessage[], currentUserId: string) {
+  let pending = 0;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message.senderId === currentUserId) {
+      break;
+    }
+
+    if (message.senderId && message.senderId !== currentUserId) {
+      pending += 1;
+    }
+  }
+
+  return pending;
 }
 
 export default function MySpace() {
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
+  const myUserId = localStorage.getItem("userId");
 
   const [space, setSpace] = useState<SpacePayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const dmSubscriptionSummary = describeDmSubscription(space?.dm_subscription);
+  const [pendingDmCount, setPendingDmCount] = useState(0);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -126,6 +193,57 @@ export default function MySpace() {
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+
+  const loadPendingDmMessages = useCallback(async () => {
+    if (!token || !myUserId) {
+      setPendingDmCount(0);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/dm/threads`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        setPendingDmCount(0);
+        return;
+      }
+
+      const payload = await res.json().catch(() => null);
+      const threads = normalizeDmThreads(payload);
+
+      if (threads.length === 0) {
+        setPendingDmCount(0);
+        return;
+      }
+
+      const counts = await Promise.all(
+        threads.map(async (thread) => {
+          try {
+            const messagesRes = await fetch(
+              `${API}/dm/threads/${encodeURIComponent(thread.id)}/messages`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+
+            if (!messagesRes.ok) return 0;
+
+            const messagesPayload = await messagesRes.json().catch(() => null);
+            const messages = normalizeDmMessages(messagesPayload);
+            return countPendingIncomingMessages(messages, myUserId);
+          } catch {
+            return 0;
+          }
+        })
+      );
+
+      setPendingDmCount(counts.reduce((sum, count) => sum + count, 0));
+    } catch {
+      setPendingDmCount(0);
+    }
+  }, [myUserId, token]);
 
   const loadDashboard = useCallback(async () => {
     if (!token) {
@@ -152,13 +270,15 @@ export default function MySpace() {
         if (data.profile?.country) {
           persistCountry(data.profile.country);
         }
+
+        await loadPendingDmMessages();
       }
     } catch (err) {
       console.error("Erreur dashboard:", err);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [loadPendingDmMessages, token]);
 
   useEffect(() => {
     void loadDashboard();
@@ -311,98 +431,24 @@ export default function MySpace() {
           <span>Amis</span>
           <strong>{space?.stats?.friends ?? 0}</strong>
         </article>
-        <article className="stat-card">
+        <button
+          type="button"
+          className="stat-card stat-card-action"
+          onClick={() => navigate("/private-chat")}
+        >
           <span>Messages</span>
-          <strong>{space?.stats?.dm_threads ?? 0}</strong>
-        </article>
+          <strong>{pendingDmCount}</strong>
+          <small>
+            {pendingDmCount > 0
+              ? `${pendingDmCount} message${pendingDmCount > 1 ? "s" : ""} recu${
+                  pendingDmCount > 1 ? "s" : ""
+                } en attente de reponse`
+              : "Aucun message en attente. Ouvrir le chat prive"}
+          </small>
+        </button>
         <article className="stat-card">
           <span>Matchs du jour</span>
           <strong>{space?.stats?.matches_today ?? 0}</strong>
-        </article>
-      </section>
-
-      <section className="dashboard-grid no-journal">
-        <article className="dash-card">
-          <div className="block-head">
-            <h3>Stories recentes</h3>
-            <span className="story-counter">
-              Histoires publiees:{" "}
-              {space?.stats?.stories ?? space?.recent_stories?.length ?? 0}
-            </span>
-          </div>
-
-          <div className="list-container">
-            {(!space?.recent_stories || space.recent_stories.length === 0) && (
-              <p className="muted">Tu n'as pas encore publie de story.</p>
-            )}
-            {space?.recent_stories?.map((story) => (
-              <div key={story.id} className="list-row story-list-row">
-                <strong className="story-list-title">
-                  {story.title || "Sans titre"}
-                </strong>
-                <small>{formatDateTime(story.created_at)}</small>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="dash-card">
-          <div className="friends-card-head">
-            <div>
-              <h3>Gerer amities</h3>
-              <p className="friends-card-note">
-                L'archive DM 24h est maintenant regroupee ici avec tes connexions.
-              </p>
-            </div>
-
-            <div className="friends-card-actions">
-              <span className={`status-pill ${dmSubscriptionSummary.tone}`}>
-                {dmSubscriptionSummary.badge}
-              </span>
-              <button className="btn ghost" onClick={() => navigate("/private-chat")}>
-                Archive DM
-              </button>
-              <button className="btn ghost" onClick={() => navigate("/match")}>
-                Trouver un profil
-              </button>
-            </div>
-          </div>
-
-          <div className="subscription-box friends-card-summary">
-            <strong>{dmSubscriptionSummary.label}</strong>
-            <p className="muted">{dmSubscriptionSummary.detail}</p>
-            {dmSubscriptionSummary.statusLabel && (
-              <span className="small muted">
-                Statut Stripe actuel : {dmSubscriptionSummary.statusLabel}
-              </span>
-            )}
-            <span className="small muted">
-              Les profils restent dans l'archive et le texte visible des messages
-              disparait apres 24h.
-            </span>
-          </div>
-
-          <div className="list-container">
-            {(!space?.friends || space.friends.length === 0) && (
-              <p className="muted">Aucun ami pour le moment.</p>
-            )}
-            {space?.friends?.map((friend) => (
-              <div key={friend.id} className="list-row">
-                <img
-                  src={buildAvatarUrl({
-                    name: friend.username || "Ami",
-                    avatarPath: friend.avatar,
-                    seed: friend.id,
-                    size: 96,
-                  })}
-                  className="avatar-sm"
-                  alt={friend.username || "Ami"}
-                />
-                <strong>{friend.username}</strong>
-                <div className="status-indicator online" />
-              </div>
-            ))}
-          </div>
         </article>
       </section>
 

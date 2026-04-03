@@ -99,6 +99,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .block-head h2 {
@@ -297,7 +299,7 @@
 }
 
 .profile-block {
-  max-width: 900px;
+  max-width: 760px;
 }
 
 .profile-grid {
@@ -308,9 +310,9 @@
 
 .stats-grid {
   width: 100%;
-  max-width: 1100px;
+  max-width: 760px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
 }
 
@@ -321,7 +323,10 @@
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.2);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 148px;
+  text-align: left;
 }
 
 .stat-card span {
@@ -334,6 +339,29 @@
 .stat-card strong {
   font-size: 30px;
   color: var(--text-main);
+}
+
+.stat-card small {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.stat-card-action {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.24);
+}
+
+.stat-card-action:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.35);
+  outline-offset: 3px;
 }
 
 .dashboard-grid {
@@ -355,6 +383,7 @@
 .profile-actions {
   display: flex;
   justify-content: flex-end;
+  width: 100%;
 }
 
 .list-container {
@@ -559,6 +588,11 @@
     padding: 20px;
   }
 
+  .profile-block {
+    max-width: 100%;
+    gap: 18px;
+  }
+
   .profile-grid {
     grid-template-columns: 1fr;
   }
@@ -574,18 +608,44 @@
     padding: 16px;
   }
 
+  .stat-card {
+    min-height: 124px;
+  }
+
   .stat-card strong {
     font-size: clamp(1.5rem, 7vw, 1.9rem);
+  }
+
+  .stat-card small {
+    font-size: 12px;
   }
 
   .stats-grid {
     max-width: 100%;
   }
 
-  .block-head,
+  .profile-block .block-head,
   .list-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .profile-block .block-head .btn,
+  .profile-actions .btn {
+    width: 100%;
+  }
+
+  .profile-actions {
+    justify-content: stretch;
+  }
+
+  .avatar-section {
+    margin-bottom: 8px;
+  }
+
+  .avatar-xl {
+    width: 104px;
+    height: 104px;
   }
 
   .subscription-rules {
@@ -620,6 +680,20 @@
   .dash-card {
     padding: 14px;
     border-radius: 16px;
+  }
+
+  .stat-card {
+    min-height: 112px;
+    gap: 10px;
+  }
+
+  .avatar-xl {
+    width: 92px;
+    height: 92px;
+  }
+
+  .field input {
+    height: 48px;
   }
 
   .story-counter {
