@@ -120,6 +120,7 @@
   padding: clamp(1.4rem, 2vw, 2rem);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.18);
   text-align: center;
+  overflow: hidden;
 }
 
 .avatar-lg {
@@ -140,9 +141,14 @@
 .summary {
   max-width: 680px;
   margin: 16px auto 18px;
+  display: -webkit-box;
+  overflow: hidden;
   font-style: italic;
   line-height: 1.7;
   color: #334155;
+  text-wrap: pretty;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .tags {
@@ -170,6 +176,11 @@
   flex-wrap: wrap;
 }
 
+.match-navigation {
+  width: min(100%, 360px);
+  margin: 0 auto;
+}
+
 .actions button,
 .match-navigation button {
   padding: 12px 18px;
@@ -182,6 +193,11 @@
     box-shadow 0.2s ease,
     background 0.2s ease,
     opacity 0.2s ease;
+}
+
+.match-navigation button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .actions button:disabled,
@@ -308,6 +324,7 @@
   .match-card,
   .match-empty-card {
     border-radius: 24px;
+    padding: 18px 16px;
   }
 
   .avatar-lg {
@@ -317,15 +334,25 @@
 
   .summary {
     font-size: 0.98rem;
+    margin: 14px auto 16px;
   }
 
   .actions,
   .match-navigation {
+    gap: 10px;
+  }
+
+  .actions {
     flex-direction: column;
   }
 
-  .actions button,
-  .match-navigation button {
+  .actions button {
     width: 100%;
+  }
+
+  .match-navigation button {
+    width: auto;
+    padding: 10px 14px;
+    font-size: 0.95rem;
   }
 }

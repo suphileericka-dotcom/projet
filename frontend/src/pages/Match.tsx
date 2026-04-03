@@ -322,7 +322,13 @@ export default function Match() {
               <h2 className="match-name">
                 {activeMatch.username || "Profil similaire"}
               </h2>
-              <p className="summary">"{activeMatch.summary}"</p>
+              <p
+                className="summary"
+                title={activeMatch.summary}
+                aria-label={activeMatch.summary}
+              >
+                "{activeMatch.summary}"
+              </p>
 
               <div className="tags">
                 {activeMatch.common_tags.map((tag) => (
@@ -355,10 +361,10 @@ export default function Match() {
               <>
                 <div className="match-navigation">
                   <button className="ghost nav-btn" onClick={showPreviousProfile}>
-                    Profil precedent
+                    Precedent
                   </button>
                   <button className="nav-btn primary" onClick={showNextProfile}>
-                    Profil suivant
+                    Suivant
                   </button>
                 </div>
 
