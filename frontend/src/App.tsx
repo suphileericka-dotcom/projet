@@ -6,12 +6,15 @@ import { useEffect, useState } from "react";
 import { API } from "./config/api";
 import {
   buildCountryAccessError,
-  clearStoredCountry,
   COUNTRY_STORAGE_KEY,
   isAllowedCountry,
   persistCountry,
   storeCountryAccessError,
 } from "./config/countryAccess";
+import {
+  AUTH_STATE_CHANGE_EVENT,
+  clearAuthSession,
+} from "./lib/authSession";
 import { useLang } from "./hooks/useLang";
 
 import Login from "./pages/Login";
@@ -47,6 +50,25 @@ export default function App() {
   const [accessCheckPending, setAccessCheckPending] = useState<boolean>(isValidAuthToken);
 
   useEffect(() => {
+    function syncAuthState() {
+      const nextIsAuth = isValidAuthToken();
+      setIsAuth(nextIsAuth);
+
+      if (!nextIsAuth) {
+        setAccessCheckPending(false);
+      }
+    }
+
+    window.addEventListener(AUTH_STATE_CHANGE_EVENT, syncAuthState);
+    window.addEventListener("storage", syncAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_STATE_CHANGE_EVENT, syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+    };
+  }, []);
+
+  useEffect(() => {
     let isCancelled = false;
 
     async function resolveProfileCountry(token: string) {
@@ -68,11 +90,7 @@ export default function App() {
 
     function denyCountryAccess(country?: string | null) {
       storeCountryAccessError(buildCountryAccessError(country));
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("username");
-      localStorage.removeItem("avatar");
-      clearStoredCountry();
+      clearAuthSession();
       if (!isCancelled) {
         setIsAuth(false);
         setAccessCheckPending(false);
@@ -130,7 +148,7 @@ export default function App() {
   }, [isAuth, navigate]);
 
   function logout() {
-    localStorage.clear();
+    clearAuthSession();
     setIsAuth(false);
     navigate("/");
   }

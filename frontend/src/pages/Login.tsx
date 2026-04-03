@@ -10,6 +10,7 @@ import {
   isAllowedCountry,
   persistCountry,
 } from "../config/countryAccess";
+import { POST_LOGIN_REDIRECT_KEY } from "../lib/authSession";
 
 /* =====================
    API BASE
@@ -38,8 +39,6 @@ type LoginResponse = {
   };
   error?: string;
 };
-
-const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
 /* =====================
    COMPONENT

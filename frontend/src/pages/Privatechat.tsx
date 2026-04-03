@@ -13,7 +13,13 @@ import {
 } from "react-router-dom";
 import "../style/privateChat.css";
 import { API } from "../config/api";
+import { buildCountryAccessError } from "../config/countryAccess";
 import { buildAvatarUrl } from "../lib/avatar";
+import {
+  clearAuthSession,
+  clearAuthSessionForCountry,
+  rememberPostLoginRedirect,
+} from "../lib/authSession";
 import {
   buildDmCheckoutUrls,
   buildPrivateChatPath,
@@ -21,7 +27,9 @@ import {
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const EDIT_WINDOW_MS = 20 * 60 * 1000;
-const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
+const AUTH_SESSION_INVALID_ERROR = "AUTH_SESSION_INVALID";
+const COUNTRY_NOT_ALLOWED = "COUNTRY_NOT_ALLOWED";
+const DM_ACCESS_REQUIRED = "DM_ACCESS_REQUIRED";
 
 type Thread = {
   id: string;
@@ -148,6 +156,10 @@ function getDisplayThreadName(thread: Thread) {
   return thread.otherName.trim() || "Conversation privee";
 }
 
+function getPayloadRecord(payload: unknown) {
+  return Array.isArray(payload) ? null : asRecord(payload);
+}
+
 function getThreadIdFromPayload(payload: unknown) {
   const record = getPayloadRecord(payload);
   if (!record) return null;
@@ -185,6 +197,15 @@ function getErrorMessage(payload: unknown, fallback: string) {
   return fallback;
 }
 
+function buildBackendErrorMessage(payload: unknown, fallback: string) {
+  const code = getErrorCode(payload);
+  const message = getErrorMessage(payload, fallback);
+
+  if (!code) return message;
+  if (message.toUpperCase().includes(code)) return message;
+  return `${code}: ${message}`;
+}
+
 function getPaymentUrl(payload: unknown) {
   const record = getPayloadRecord(payload);
   if (!record) return null;
@@ -192,8 +213,25 @@ function getPaymentUrl(payload: unknown) {
   return typeof record.url === "string" && record.url.trim() ? record.url.trim() : null;
 }
 
-function isTokenExpiredResponse(status: number, payload: unknown) {
-  return status === 401 && getErrorCode(payload) === "TOKEN_EXPIRED";
+function isAuthSessionInvalidResponse(status: number, payload: unknown) {
+  if (status !== 401) return false;
+
+  const code = getErrorCode(payload);
+  return (
+    !code ||
+    code === "TOKEN_EXPIRED" ||
+    code === "INVALID_TOKEN" ||
+    code === "AUTH_REQUIRED" ||
+    code === "UNAUTHORIZED"
+  );
+}
+
+function isCountryAccessDeniedResponse(status: number, payload: unknown) {
+  return status === 403 && getErrorCode(payload) === COUNTRY_NOT_ALLOWED;
+}
+
+function isDmAccessRequiredResponse(status: number, payload: unknown) {
+  return status === 403 && getErrorCode(payload) === DM_ACCESS_REQUIRED;
 }
 
 function buildOptimisticThread(threadId: string, targetUserId: string): Thread {
@@ -600,19 +638,25 @@ export default function PrivateChat() {
     (editingId && messages.find((message) => message.id === editingId)) || null;
 
   const redirectToLoginForRefresh = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        POST_LOGIN_REDIRECT_KEY,
-        `${window.location.pathname}${window.location.search}`
-      );
-    }
-
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("username");
-    localStorage.removeItem("avatar");
+    rememberPostLoginRedirect();
+    clearAuthSession();
     navigate("/login", { replace: true });
   }, [navigate]);
+
+  const redirectToLoginForCountryAccess = useCallback(
+    (payload?: unknown) => {
+      const countryMessage =
+        typeof payload === "string"
+          ? payload
+          : buildBackendErrorMessage(payload, buildCountryAccessError());
+
+      clearAuthSessionForCountry(
+        countryMessage
+      );
+      navigate("/login", { replace: true });
+    },
+    [navigate]
+  );
 
   const loadThreads = useCallback(
     async (preferredThreadId?: string | null) => {
@@ -632,12 +676,23 @@ export default function PrivateChat() {
 
         const payload = await res.json().catch(() => null);
 
-        if (isTokenExpiredResponse(res.status, payload)) {
+        if (isAuthSessionInvalidResponse(res.status, payload)) {
           redirectToLoginForRefresh();
           return [];
         }
 
+        if (isCountryAccessDeniedResponse(res.status, payload)) {
+          redirectToLoginForCountryAccess(payload);
+          return [];
+        }
+
         if (!res.ok) {
+          setBanner(
+            buildBackendErrorMessage(
+              payload,
+              "Impossible de charger les discussions privees."
+            )
+          );
           return threadsRef.current;
         }
 
@@ -681,13 +736,24 @@ export default function PrivateChat() {
         });
 
         return nextThreads;
-      } catch {
+      } catch (error) {
+        setBanner(
+          error instanceof Error && error.message
+            ? error.message
+            : "Impossible de charger les discussions privees."
+        );
         return threadsRef.current;
       } finally {
         setThreadsLoading(false);
       }
     },
-    [myUserId, redirectToLoginForRefresh, targetUserId, token]
+    [
+      myUserId,
+      redirectToLoginForCountryAccess,
+      redirectToLoginForRefresh,
+      targetUserId,
+      token,
+    ]
   );
 
   const loadMessages = useCallback(
@@ -705,12 +771,23 @@ export default function PrivateChat() {
 
         const payload = await res.json().catch(() => null);
 
-        if (isTokenExpiredResponse(res.status, payload)) {
+        if (isAuthSessionInvalidResponse(res.status, payload)) {
           redirectToLoginForRefresh();
           return;
         }
 
+        if (isCountryAccessDeniedResponse(res.status, payload)) {
+          redirectToLoginForCountryAccess(payload);
+          return;
+        }
+
         if (!res.ok) {
+          setBanner(
+            buildBackendErrorMessage(
+              payload,
+              "Impossible de charger les messages prives."
+            )
+          );
           setMessages([]);
           return;
         }
@@ -720,13 +797,13 @@ export default function PrivateChat() {
         setMessagesLoading(false);
       }
     },
-    [redirectToLoginForRefresh, token]
+    [redirectToLoginForCountryAccess, redirectToLoginForRefresh, token]
   );
 
   const openPrivateChat = useCallback(
     async (nextTargetUserId: string, sessionId?: string) => {
       if (!token) {
-        throw new Error("TOKEN_EXPIRED");
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
       }
 
       const res = await fetch(`${API}/dm/threads`, {
@@ -743,8 +820,14 @@ export default function PrivateChat() {
 
       const payload = await res.json().catch(() => null);
 
-      if (isTokenExpiredResponse(res.status, payload)) {
-        throw new Error("TOKEN_EXPIRED");
+      if (isAuthSessionInvalidResponse(res.status, payload)) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      if (isCountryAccessDeniedResponse(res.status, payload)) {
+        throw new Error(
+          buildBackendErrorMessage(payload, buildCountryAccessError())
+        );
       }
 
       if (res.ok) {
@@ -763,7 +846,7 @@ export default function PrivateChat() {
         };
       }
 
-      if (res.status === 403) {
+      if (isDmAccessRequiredResponse(res.status, payload)) {
         const { successUrl, cancelUrl } = buildDmCheckoutUrls(nextTargetUserId);
         const payRes = await fetch(`${API}/payments/dm`, {
           method: "POST",
@@ -780,13 +863,19 @@ export default function PrivateChat() {
 
         const payPayload = await payRes.json().catch(() => null);
 
-        if (isTokenExpiredResponse(payRes.status, payPayload)) {
-          throw new Error("TOKEN_EXPIRED");
+        if (isAuthSessionInvalidResponse(payRes.status, payPayload)) {
+          throw new Error(AUTH_SESSION_INVALID_ERROR);
+        }
+
+        if (isCountryAccessDeniedResponse(payRes.status, payPayload)) {
+          throw new Error(
+            buildBackendErrorMessage(payPayload, buildCountryAccessError())
+          );
         }
 
         if (!payRes.ok) {
           throw new Error(
-            getErrorMessage(
+            buildBackendErrorMessage(
               payPayload,
               "Impossible de lancer le paiement du chat prive."
             )
@@ -803,7 +892,9 @@ export default function PrivateChat() {
         return null;
       }
 
-      throw new Error(getErrorMessage(payload, "Impossible d'ouvrir le chat prive."));
+      throw new Error(
+        buildBackendErrorMessage(payload, "Impossible d'ouvrir le chat prive.")
+      );
     },
     [myUserId, token]
   );
@@ -845,8 +936,13 @@ export default function PrivateChat() {
           ? error.message
           : "Impossible d'ouvrir le chat prive.";
 
-      if (message === "TOKEN_EXPIRED") {
+      if (message === AUTH_SESSION_INVALID_ERROR) {
         redirectToLoginForRefresh();
+        return;
+      }
+
+      if (message === COUNTRY_NOT_ALLOWED || message.startsWith(`${COUNTRY_NOT_ALLOWED}:`)) {
+        redirectToLoginForCountryAccess(message);
         return;
       }
 
@@ -860,6 +956,7 @@ export default function PrivateChat() {
     navigate,
     openPrivateChat,
     paid,
+    redirectToLoginForCountryAccess,
     redirectToLoginForRefresh,
     targetUserId,
   ]);
@@ -951,13 +1048,20 @@ export default function PrivateChat() {
 
       const payload = await res.json().catch(() => null);
 
-      if (isTokenExpiredResponse(res.status, payload)) {
+      if (isAuthSessionInvalidResponse(res.status, payload)) {
         redirectToLoginForRefresh();
         return;
       }
 
+      if (isCountryAccessDeniedResponse(res.status, payload)) {
+        redirectToLoginForCountryAccess(payload);
+        return;
+      }
+
       if (!res.ok) {
-        throw new Error("Traduction indisponible pour le moment.");
+        throw new Error(
+          buildBackendErrorMessage(payload, "Traduction indisponible pour le moment.")
+        );
       }
 
       const translatedText =
@@ -1015,8 +1119,14 @@ export default function PrivateChat() {
 
         const payload = await res.json().catch(() => null);
 
-        if (isTokenExpiredResponse(res.status, payload)) {
-          throw new Error("TOKEN_EXPIRED");
+        if (isAuthSessionInvalidResponse(res.status, payload)) {
+          throw new Error(AUTH_SESSION_INVALID_ERROR);
+        }
+
+        if (isCountryAccessDeniedResponse(res.status, payload)) {
+          throw new Error(
+            buildBackendErrorMessage(payload, buildCountryAccessError())
+          );
         }
 
         if (res.status === 404 || res.status === 405) {
@@ -1027,7 +1137,10 @@ export default function PrivateChat() {
 
         if (!res.ok) {
           throw new Error(
-            getErrorMessage(payload, "Impossible de modifier ce message prive.")
+            buildBackendErrorMessage(
+              payload,
+              "Impossible de modifier ce message prive."
+            )
           );
         }
 
@@ -1075,8 +1188,14 @@ export default function PrivateChat() {
 
       const payload = await res.json().catch(() => null);
 
-      if (isTokenExpiredResponse(res.status, payload)) {
-        throw new Error("TOKEN_EXPIRED");
+      if (isAuthSessionInvalidResponse(res.status, payload)) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      if (isCountryAccessDeniedResponse(res.status, payload)) {
+        throw new Error(
+          buildBackendErrorMessage(payload, buildCountryAccessError())
+        );
       }
 
       if (res.status === 404 || res.status === 405) {
@@ -1087,7 +1206,10 @@ export default function PrivateChat() {
 
       if (!res.ok) {
         throw new Error(
-          getErrorMessage(payload, "Impossible de supprimer ce message prive.")
+          buildBackendErrorMessage(
+            payload,
+            "Impossible de supprimer ce message prive."
+          )
         );
       }
 
@@ -1140,8 +1262,17 @@ export default function PrivateChat() {
       try {
         await updateDmMessage(editingId, text);
       } catch (error) {
-        if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        if (error instanceof Error && error.message === AUTH_SESSION_INVALID_ERROR) {
           redirectToLoginForRefresh();
+          return;
+        }
+
+        if (
+          error instanceof Error &&
+          (error.message === COUNTRY_NOT_ALLOWED ||
+            error.message.startsWith(`${COUNTRY_NOT_ALLOWED}:`))
+        ) {
+          redirectToLoginForCountryAccess(error.message);
           return;
         }
 
@@ -1178,13 +1309,20 @@ export default function PrivateChat() {
 
       const payload = await res.json().catch(() => null);
 
-      if (isTokenExpiredResponse(res.status, payload)) {
+      if (isAuthSessionInvalidResponse(res.status, payload)) {
         redirectToLoginForRefresh();
         return;
       }
 
+      if (isCountryAccessDeniedResponse(res.status, payload)) {
+        redirectToLoginForCountryAccess(payload);
+        return;
+      }
+
       if (!res.ok) {
-        throw new Error("Message non envoye");
+        throw new Error(
+          buildBackendErrorMessage(payload, "Message non envoye.")
+        );
       }
 
       await Promise.all([loadMessages(activeThreadId), loadThreads(activeThreadId)]);
@@ -1216,8 +1354,17 @@ export default function PrivateChat() {
       await deleteDmMessage(message.id);
       await loadThreads(activeThreadId);
     } catch (error) {
-      if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+      if (error instanceof Error && error.message === AUTH_SESSION_INVALID_ERROR) {
         redirectToLoginForRefresh();
+        return;
+      }
+
+      if (
+        error instanceof Error &&
+        (error.message === COUNTRY_NOT_ALLOWED ||
+          error.message.startsWith(`${COUNTRY_NOT_ALLOWED}:`))
+      ) {
+        redirectToLoginForCountryAccess(error.message);
         return;
       }
 
