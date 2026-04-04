@@ -27,9 +27,12 @@ type MatchPayload = {
   generated?: boolean;
   items?: MatchProfile[];
   matches?: MatchProfile[];
+  results?: MatchProfile[];
+  profiles?: MatchProfile[];
   usage?: Record<string, unknown>;
   rate_limit?: Record<string, unknown>;
   rateLimit?: Record<string, unknown>;
+  data?: unknown;
   remaining?: number;
   remaining_matches?: number;
   remainingMatches?: number;
@@ -43,6 +46,8 @@ type MatchPayload = {
   next_at?: string;
   nextAt?: string;
   code?: string;
+  message?: string;
+  error?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -73,8 +78,12 @@ function readNumber(...values: unknown[]): number | null {
   return null;
 }
 
-function readBoolean(value: unknown): boolean | null {
-  return typeof value === "boolean" ? value : null;
+function readBoolean(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+
+  return null;
 }
 
 function formatResetAt(value?: string | null) {
@@ -87,11 +96,15 @@ function formatResetAt(value?: string | null) {
 }
 
 function extractUsage(payload: MatchPayload): MatchUsage | null {
+  const nestedData = asRecord(payload.data);
   const nestedUsage =
     asRecord(payload.usage) ??
     asRecord(payload.rate_limit) ??
-    asRecord(payload.rateLimit);
-  const source = nestedUsage ?? payload;
+    asRecord(payload.rateLimit) ??
+    asRecord(nestedData?.usage) ??
+    asRecord(nestedData?.rate_limit) ??
+    asRecord(nestedData?.rateLimit);
+  const source = nestedUsage ?? nestedData ?? payload;
 
   const remaining = readNumber(
     source.remaining,
@@ -127,6 +140,112 @@ function extractUsage(payload: MatchPayload): MatchUsage | null {
   };
 }
 
+function normalizeMatch(rawMatch: unknown): MatchProfile | null {
+  const record = asRecord(rawMatch);
+  if (!record) return null;
+
+  const id = readString(record.id, record._id, record.userId, record.user_id);
+  if (!id) return null;
+
+  const summary =
+    readString(
+      record.summary,
+      record.description,
+      record.bio,
+      record.intro,
+      record.text
+    ) || "";
+
+  const tagsSource = Array.isArray(record.common_tags)
+    ? record.common_tags
+    : Array.isArray(record.commonTags)
+      ? record.commonTags
+      : Array.isArray(record.tags)
+        ? record.tags
+        : [];
+
+  const common_tags = tagsSource
+    .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+    .filter(Boolean);
+
+  return {
+    id,
+    summary,
+    common_tags,
+    avatar:
+      readString(record.avatar, record.avatar_url, record.avatarUrl) || undefined,
+    username:
+      readString(
+        record.username,
+        record.name,
+        record.displayName,
+        record.display_name
+      ) || undefined,
+  };
+}
+
+function extractMatchItems(payload: MatchPayload) {
+  const nestedData = asRecord(payload.data);
+  const rawMatches = Array.isArray(payload.items)
+    ? payload.items
+    : Array.isArray(payload.matches)
+      ? payload.matches
+      : Array.isArray(payload.results)
+        ? payload.results
+        : Array.isArray(payload.profiles)
+          ? payload.profiles
+          : Array.isArray(payload.data)
+            ? payload.data
+            : Array.isArray(nestedData?.items)
+              ? nestedData.items
+              : Array.isArray(nestedData?.matches)
+                ? nestedData.matches
+                : Array.isArray(nestedData?.results)
+                  ? nestedData.results
+                  : Array.isArray(nestedData?.profiles)
+                    ? nestedData.profiles
+                    : [];
+
+  return rawMatches
+    .map((entry) => normalizeMatch(entry))
+    .filter((match): match is MatchProfile => match !== null);
+}
+
+function getMatchDate(payload: MatchPayload) {
+  const nestedData = asRecord(payload.data);
+  return readString(
+    payload.match_date,
+    payload.matchDate,
+    nestedData?.match_date,
+    nestedData?.matchDate
+  );
+}
+
+function getGeneratedFlag(payload: MatchPayload) {
+  const nestedData = asRecord(payload.data);
+  return readBoolean(payload.generated, nestedData?.generated);
+}
+
+function getPayloadMessage(payload: unknown, fallback: string) {
+  const record = asRecord(payload);
+  if (!record) return fallback;
+
+  const nestedData = asRecord(record.data);
+
+  return (
+    readString(
+      record.message,
+      record.error,
+      record.detail,
+      record.code,
+      nestedData?.message,
+      nestedData?.error,
+      nestedData?.detail,
+      nestedData?.code
+    ) || fallback
+  );
+}
+
 function buildUsageSummary(usage: MatchUsage | null, totalMatches: number) {
   if (usage !== null && usage.remaining !== null && usage.limit !== null) {
     return `${usage.remaining} proposition${
@@ -160,6 +279,7 @@ export default function Match() {
   const [usage, setUsage] = useState<MatchUsage | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get("checkout") !== "cancelled") return;
@@ -175,16 +295,19 @@ export default function Match() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) throw new Error("Erreur de chargement des suggestions");
-
-        const data: unknown = await res.json();
+        const data: unknown = await res.json().catch(() => null);
 
         if (Array.isArray(data)) {
-          setMatches(data as MatchProfile[]);
+          setMatches(
+            data
+              .map((entry) => normalizeMatch(entry))
+              .filter((match): match is MatchProfile => match !== null)
+          );
           setMatchDate(null);
           setGenerated(null);
           setUsage(null);
           setCurrentIndex(0);
+          setLoadError(null);
           return;
         }
 
@@ -193,23 +316,37 @@ export default function Match() {
           throw new Error("Reponse de suggestions invalide");
         }
 
-        const items = Array.isArray(payload.items)
-          ? payload.items
-          : Array.isArray(payload.matches)
-            ? payload.matches
-            : [];
+        if (!res.ok) {
+          setMatches([]);
+          setMatchDate(getMatchDate(payload));
+          setGenerated(getGeneratedFlag(payload));
+          setUsage(extractUsage(payload));
+          setCurrentIndex(0);
+          setLoadError(
+            getPayloadMessage(payload, "Erreur de chargement des suggestions")
+          );
+          return;
+        }
+
+        const items = extractMatchItems(payload);
 
         setMatches(items);
-        setMatchDate(readString(payload.match_date, payload.matchDate));
-        setGenerated(readBoolean(payload.generated));
+        setMatchDate(getMatchDate(payload));
+        setGenerated(getGeneratedFlag(payload));
         setUsage(extractUsage(payload));
         setCurrentIndex(0);
-      } catch {
+        setLoadError(null);
+      } catch (error) {
         setMatches([]);
         setMatchDate(null);
         setGenerated(null);
         setUsage(null);
         setCurrentIndex(0);
+        setLoadError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Impossible de charger les connexions."
+        );
       }
     }
 
@@ -269,6 +406,13 @@ export default function Match() {
         <section className="match-usage-panel">
           <strong>Messagerie privee</strong>
           <span>{paymentNotice}</span>
+        </section>
+      )}
+
+      {loadError && (
+        <section className="match-usage-panel">
+          <strong>Connexion indisponible</strong>
+          <span>{loadError}</span>
         </section>
       )}
 

@@ -26,6 +26,129 @@ type StoryWindowState = {
   count: number;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
+function readBoolean(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+
+  return null;
+}
+
+function readNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "string") continue;
+
+    const normalized = Number(value);
+    if (Number.isFinite(normalized)) return normalized;
+  }
+
+  return null;
+}
+
+function readTags(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter(Boolean);
+}
+
+function getResponseMessage(payload: unknown, fallback: string) {
+  const record = asRecord(payload);
+  if (!record) return fallback;
+
+  return (
+    readString(record.message, record.error, record.detail, record.code) || fallback
+  );
+}
+
+function normalizeStory(rawStory: unknown): Story | null {
+  const record = asRecord(rawStory);
+  if (!record) return null;
+
+  const author = asRecord(record.author) ?? asRecord(record.user);
+  const id = readString(record.id, record._id, record.storyId, record.story_id);
+  const title = readString(record.title, record.name) || "";
+  const body =
+    readString(record.body, record.content, record.text, record.story) || "";
+  const userId =
+    readString(
+      record.user_id,
+      record.userId,
+      record.author_id,
+      record.authorId,
+      author?.id,
+      author?.user_id,
+      author?.userId
+    ) || "";
+
+  if (!id) return null;
+
+  return {
+    id,
+    title,
+    body,
+    tags:
+      readTags(record.tags).length > 0
+        ? readTags(record.tags)
+        : readTags(record.hashtags),
+    user_id: userId,
+    author_avatar:
+      readString(
+        record.author_avatar,
+        record.authorAvatar,
+        record.avatar,
+        author?.avatar,
+        author?.avatar_url,
+        author?.avatarUrl
+      ) || undefined,
+    likes: readNumber(record.likes, record.likeCount, record.like_count) ?? 0,
+    liked_by_me:
+      readBoolean(record.liked_by_me, record.likedByMe, record.liked) ?? false,
+  };
+}
+
+function normalizeStoryList(payload: unknown) {
+  const record = asRecord(payload);
+  const nestedData = asRecord(record?.data);
+  const rawStories = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.items)
+      ? record.items
+      : Array.isArray(record?.stories)
+        ? record.stories
+        : Array.isArray(record?.results)
+          ? record.results
+          : Array.isArray(record?.data)
+            ? record.data
+            : Array.isArray(nestedData?.items)
+              ? nestedData.items
+              : Array.isArray(nestedData?.stories)
+                ? nestedData.stories
+                : [];
+
+  return rawStories
+    .map((entry) => normalizeStory(entry))
+    .filter((story): story is Story => story !== null);
+}
+
 function mergeStories(current: Story[], incoming: Story[]) {
   const knownIds = new Set(current.map((story) => story.id));
   const appended = incoming.filter((story) => !knownIds.has(story.id));
@@ -58,6 +181,7 @@ export default function Stories() {
     key: "",
     count: STORIES_RENDER_BATCH,
   });
+  const [storyNotice, setStoryNotice] = useState<string | null>(null);
 
   const storiesQueryKey = `${authorFilterId}|${search}|${tagFilter}`;
   const visibleStoryCount =
@@ -80,9 +204,17 @@ export default function Stories() {
         const res = await fetch(`${API}/stories?${params}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        const data = await res.json();
+        const payload = await res.json().catch(() => null);
 
-        if (!Array.isArray(data)) {
+        if (!res.ok) {
+          throw new Error(
+            getResponseMessage(payload, "Impossible de charger les histoires.")
+          );
+        }
+
+        const data = normalizeStoryList(payload);
+
+        if (data.length === 0 && Array.isArray(payload) === false && payload !== null) {
           if (replace) {
             setStories([]);
             setHasMoreStoryPages(false);
@@ -115,9 +247,20 @@ export default function Stories() {
           });
         }
 
+        if (replace) {
+          setStoryNotice(null);
+        }
+
         return appendedCount;
       } catch (err) {
         console.error(err);
+        if (replace) {
+          setStoryNotice(
+            err instanceof Error && err.message
+              ? err.message
+              : "Impossible de charger les histoires."
+          );
+        }
         if (replace) {
           setStories([]);
           setHasMoreStoryPages(false);
@@ -205,6 +348,11 @@ export default function Stories() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!token) {
+      setStoryNotice("Reconnecte-toi pour supprimer cette histoire.");
+      return;
+    }
+
     if (!window.confirm("Supprimer cette histoire ?")) return;
 
     try {
@@ -213,12 +361,20 @@ export default function Stories() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.ok) {
-        setStories(stories.filter((story) => story.id !== id));
-        setActiveStory(null);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        setStoryNotice(
+          getResponseMessage(payload, "La suppression de l'histoire a echoue.")
+        );
+        return;
       }
+
+      setStories((current) => current.filter((story) => story.id !== id));
+      setActiveStory(null);
+      setStoryNotice("Histoire supprimee.");
     } catch (err) {
       console.error(err);
+      setStoryNotice("La suppression de l'histoire a echoue.");
     }
   };
 
@@ -278,6 +434,12 @@ export default function Stories() {
       {publishTitle && (
         <div className="publish-banner" role="status">
           {`Ton histoire "${publishTitle}" est maintenant publiee.`}
+        </div>
+      )}
+
+      {storyNotice && (
+        <div className="stories-notice" role="status">
+          {storyNotice}
         </div>
       )}
 
