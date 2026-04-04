@@ -6,7 +6,18 @@ Ce repo ne contient que le frontend. Les changements ci-dessous correspondent au
 
 ### 0. Paiements DM: verification Stripe et statut d'abonnement
 
-Le frontend construit aujourd'hui de preference un `successUrl` de ce type:
+Flux frontend/backend attendu desormais:
+
+1. clic utilisateur sur "Chat prive"
+2. frontend appelle d'abord `GET /api/dm/access/:targetUserId`
+3. si l'acces est actif, le frontend ouvre ou cree le thread via `POST /api/dm/threads`
+4. si l'acces n'est pas actif, le backend renvoie un etat `needs_payment_selection`
+5. le frontend affiche une modal avec 2 choix
+6. seulement apres ce choix, le frontend appelle `POST /api/payments/dm`
+7. Stripe redirige ensuite vers le `successUrl`
+8. au retour Stripe, le frontend rejoue `POST /api/dm/threads` avec `session_id`
+
+Le frontend construit toujours un `successUrl` de preference de ce type:
 
 ```txt
 /private-chat/user_2?paid=1&checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2
@@ -18,7 +29,70 @@ Le frontend accepte aussi encore ce format de repli:
 /private-chat?checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2
 ```
 
-Quand il revient de Stripe, le frontend rejoue ensuite:
+Verification d'acces recommandee avant tout paiement:
+
+```txt
+GET /api/dm/access/user_2
+```
+
+Reponse JSON recommandee si l'utilisateur peut deja ouvrir le DM:
+
+```json
+{
+  "status": "active",
+  "hasAccess": true
+}
+```
+
+Reponse JSON recommandee si l'utilisateur doit choisir une formule avant Stripe:
+
+```json
+{
+  "status": "needs_payment_selection",
+  "hasAccess": false,
+  "message": "Choisis d'abord la formule qui debloque ce chat prive.",
+  "paymentOptions": [
+    {
+      "id": "one_time",
+      "label": "Chat unique",
+      "price": "4.99",
+      "currency": "eur",
+      "mode": "payment"
+    },
+    {
+      "id": "subscription",
+      "label": "DM illimites",
+      "price": "9.75",
+      "currency": "eur",
+      "mode": "subscription"
+    }
+  ]
+}
+```
+
+Creation de session Checkout seulement apres la selection utilisateur:
+
+```txt
+POST /api/payments/dm
+{
+  "targetUserId": "user_2",
+  "optionId": "subscription",
+  "accessType": "subscription",
+  "checkoutMode": "subscription",
+  "priceId": "price_123",
+  "successUrl": "https://frontend/private-chat/user_2?paid=1&checkout=success&session_id={CHECKOUT_SESSION_ID}&targetUserId=user_2",
+  "cancelUrl": "https://frontend/match?checkout=cancelled&targetUserId=user_2"
+}
+```
+
+Notes backend importantes pour `POST /api/payments/dm`:
+
+- `optionId=one_time` doit pointer vers le `Price ID` Stripe du paiement unique a `4,99 EUR`
+- `optionId=subscription` doit pointer vers le `Price ID` Stripe de l'abonnement a `9,75 EUR`
+- le backend doit ignorer toute tentative de creer une Checkout Session tant que le frontend n'a pas envoye ce choix
+- le mapping `optionId -> priceId Stripe` peut vivre cote backend, meme si le frontend fournit aussi `priceId`
+
+Quand le frontend revient de Stripe, il rejoue ensuite:
 
 ```txt
 POST /api/dm/threads
@@ -39,7 +113,7 @@ Comportement attendu:
 - verifier la Checkout Session Stripe avec `session_id`
 - si la session est payee, marquer le deblocage DM correspondant comme paye
 - si c'est un abonnement, mettre a jour le statut abonnement DM de l'utilisateur
-- rendre ensuite l'acces prive visible via `GET /api/dm/access/:targetUserId`
+- rendre ensuite l'acces prive visible via `GET /api/dm/access/:targetUserId` avec `status=active`
 - retourner optionnellement `threadId` si le backend ouvre deja le thread
 
 Reponse JSON recommandee:
@@ -65,6 +139,7 @@ Regles d'acces conseillees pour `GET /api/dm/access/:targetUserId`:
 
 - abonnement DM `active` ou `trialing` = acces prive illimite
 - paiement unique valide pour `targetUserId` = acces prive avec cette personne seulement
+- `needs_payment_selection` = pas d'acces actif, mais on doit ouvrir la modal de choix au lieu de partir directement sur Stripe
 - abonnement `inactive`, `past_due`, `unpaid`, `canceled` ou `cancelled` = ne plus ouvrir de nouveaux DM via l'abonnement
 - les conversations deja existantes peuvent rester visibles dans l'archive si c'est la regle metier voulue
 

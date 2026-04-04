@@ -21,8 +21,10 @@ import {
   rememberPostLoginRedirect,
 } from "../lib/authSession";
 import {
-  buildDmCheckoutUrls,
+  DM_PAYMENT_OPTIONS,
+  buildDmPaymentCheckoutPayload,
   buildPrivateChatPath,
+  type DmPaymentOptionId,
 } from "../lib/dmCheckout";
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -30,6 +32,23 @@ const EDIT_WINDOW_MS = 20 * 60 * 1000;
 const AUTH_SESSION_INVALID_ERROR = "AUTH_SESSION_INVALID";
 const COUNTRY_NOT_ALLOWED = "COUNTRY_NOT_ALLOWED";
 const DM_ACCESS_REQUIRED = "DM_ACCESS_REQUIRED";
+const DEFAULT_PAYMENT_SELECTION_MESSAGE =
+  "Choisis d'abord la formule qui debloque ce chat prive avant d'ouvrir Stripe.";
+const ACTIVE_DM_ACCESS_STATUSES = new Set([
+  "active",
+  "paid",
+  "trialing",
+  "granted",
+  "allowed",
+]);
+const PAYMENT_SELECTION_DM_ACCESS_STATUSES = new Set([
+  "inactive",
+  "needs_payment_selection",
+  "payment_required",
+  "requires_payment",
+  "restricted",
+]);
+const UNSUPPORTED_DM_ACCESS_ENDPOINT_STATUSES = new Set([404, 405, 501]);
 
 type Thread = {
   id: string;
@@ -54,6 +73,11 @@ type Msg = {
 type ThreadNormalizationOptions = {
   currentUserId?: string | null;
   fallbackTargetUserId?: string;
+};
+
+type DmAccessCheckResult = {
+  status: "active" | "needs_payment_selection" | "unsupported";
+  message?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -232,6 +256,98 @@ function isCountryAccessDeniedResponse(status: number, payload: unknown) {
 
 function isDmAccessRequiredResponse(status: number, payload: unknown) {
   return status === 403 && getErrorCode(payload) === DM_ACCESS_REQUIRED;
+}
+
+function getDmAccessStatus(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return null;
+
+  const nestedAccess = asRecord(record.access);
+
+  return (
+    readString(
+      record.status,
+      record.accessStatus,
+      record.access_status,
+      record.state,
+      nestedAccess?.status,
+      nestedAccess?.accessStatus,
+      nestedAccess?.access_status
+    )?.toLowerCase() ?? null
+  );
+}
+
+function hasDmAccess(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return false;
+
+  const nestedAccess = asRecord(record.access);
+  const explicitAccess = readBoolean(
+    record.hasAccess,
+    record.has_access,
+    record.allowed,
+    record.canChat,
+    record.can_chat,
+    record.paid,
+    nestedAccess?.hasAccess,
+    nestedAccess?.has_access,
+    nestedAccess?.allowed,
+    nestedAccess?.canChat,
+    nestedAccess?.can_chat
+  );
+
+  if (typeof explicitAccess === "boolean") {
+    return explicitAccess;
+  }
+
+  const accessStatus = getDmAccessStatus(payload);
+  return !!accessStatus && ACTIVE_DM_ACCESS_STATUSES.has(accessStatus);
+}
+
+function shouldOpenPaymentSelection(status: number, payload: unknown) {
+  if (isDmAccessRequiredResponse(status, payload)) return true;
+
+  const record = getPayloadRecord(payload);
+  const nestedAccess = record ? asRecord(record.access) : null;
+  const explicitSelection = readBoolean(
+    record?.needsPaymentSelection,
+    record?.needs_payment_selection,
+    record?.requiresPayment,
+    record?.requires_payment,
+    nestedAccess?.needsPaymentSelection,
+    nestedAccess?.needs_payment_selection
+  );
+
+  if (typeof explicitSelection === "boolean") {
+    return explicitSelection;
+  }
+
+  const accessStatus = getDmAccessStatus(payload);
+  return !!accessStatus && PAYMENT_SELECTION_DM_ACCESS_STATUSES.has(accessStatus);
+}
+
+function getPaymentSelectionMessage(payload?: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return DEFAULT_PAYMENT_SELECTION_MESSAGE;
+
+  const nestedAccess = asRecord(record.access);
+  const rawMessage =
+    readString(
+      record.paymentMessage,
+      record.payment_message,
+      record.notice,
+      record.message,
+      nestedAccess?.paymentMessage,
+      nestedAccess?.payment_message,
+      nestedAccess?.notice,
+      nestedAccess?.message
+    ) || DEFAULT_PAYMENT_SELECTION_MESSAGE;
+
+  if (rawMessage.toUpperCase().includes(DM_ACCESS_REQUIRED)) {
+    return DEFAULT_PAYMENT_SELECTION_MESSAGE;
+  }
+
+  return rawMessage;
 }
 
 function buildOptimisticThread(threadId: string, targetUserId: string): Thread {
@@ -602,6 +718,12 @@ export default function PrivateChat() {
   const [banner, setBanner] = useState<string | null>(
     paid ? "Paiement confirme. Ouverture de la conversation..." : null
   );
+  const [paymentSelectionTargetUserId, setPaymentSelectionTargetUserId] =
+    useState<string | null>(null);
+  const [paymentSelectionMessage, setPaymentSelectionMessage] =
+    useState<string>(DEFAULT_PAYMENT_SELECTION_MESSAGE);
+  const [paymentSelectionLoadingId, setPaymentSelectionLoadingId] =
+    useState<DmPaymentOptionId | null>(null);
 
   const streamRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -628,6 +750,7 @@ export default function PrivateChat() {
   const activeThreadMatchesTarget =
     !!targetUserId && activeThread?.otherUserId === targetUserId;
   const visibleMessages = useMemo(() => messages, [messages]);
+  const isPaymentSelectionOpen = !!paymentSelectionTargetUserId;
   const archiveCountLabel =
     threads.length === 0
       ? "Aucune conversation"
@@ -657,6 +780,23 @@ export default function PrivateChat() {
     },
     [navigate]
   );
+
+  const openPaymentSelection = useCallback(
+    (nextTargetUserId: string, message?: string) => {
+      setPaymentSelectionTargetUserId(nextTargetUserId);
+      setPaymentSelectionMessage(message || DEFAULT_PAYMENT_SELECTION_MESSAGE);
+      setPaymentSelectionLoadingId(null);
+      setBanner(null);
+    },
+    []
+  );
+
+  const closePaymentSelection = useCallback(() => {
+    if (paymentSelectionLoadingId) return;
+
+    setPaymentSelectionTargetUserId(null);
+    setPaymentSelectionMessage(DEFAULT_PAYMENT_SELECTION_MESSAGE);
+  }, [paymentSelectionLoadingId]);
 
   const loadThreads = useCallback(
     async (preferredThreadId?: string | null) => {
@@ -800,10 +940,170 @@ export default function PrivateChat() {
     [redirectToLoginForCountryAccess, redirectToLoginForRefresh, token]
   );
 
+  const checkDmAccess = useCallback(
+    async (nextTargetUserId: string): Promise<DmAccessCheckResult> => {
+      if (!token) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      const res = await fetch(`${API}/dm/access/${encodeURIComponent(nextTargetUserId)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (isAuthSessionInvalidResponse(res.status, payload)) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      if (isCountryAccessDeniedResponse(res.status, payload)) {
+        throw new Error(
+          buildBackendErrorMessage(payload, buildCountryAccessError())
+        );
+      }
+
+      if (UNSUPPORTED_DM_ACCESS_ENDPOINT_STATUSES.has(res.status)) {
+        return { status: "unsupported" };
+      }
+
+      if (res.ok) {
+        if (payload === null) {
+          return { status: "unsupported" };
+        }
+
+        if (hasDmAccess(payload)) {
+          return { status: "active" };
+        }
+
+        return {
+          status: "needs_payment_selection",
+          message: getPaymentSelectionMessage(payload),
+        };
+      }
+
+      if (shouldOpenPaymentSelection(res.status, payload)) {
+        return {
+          status: "needs_payment_selection",
+          message: getPaymentSelectionMessage(payload),
+        };
+      }
+
+      throw new Error(
+        buildBackendErrorMessage(
+          payload,
+          "Impossible de verifier l'acces au chat prive."
+        )
+      );
+    },
+    [token]
+  );
+
+  const startDmPaymentCheckout = useCallback(
+    async (nextTargetUserId: string, optionId: DmPaymentOptionId) => {
+      if (!token) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      const payRes = await fetch(`${API}/payments/dm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(
+          buildDmPaymentCheckoutPayload(nextTargetUserId, optionId)
+        ),
+      });
+
+      const payPayload = await payRes.json().catch(() => null);
+
+      if (isAuthSessionInvalidResponse(payRes.status, payPayload)) {
+        throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      if (isCountryAccessDeniedResponse(payRes.status, payPayload)) {
+        throw new Error(
+          buildBackendErrorMessage(payPayload, buildCountryAccessError())
+        );
+      }
+
+      if (!payRes.ok) {
+        throw new Error(
+          buildBackendErrorMessage(
+            payPayload,
+            "Impossible de lancer le paiement du chat prive."
+          )
+        );
+      }
+
+      const paymentUrl = getPaymentUrl(payPayload);
+      if (!paymentUrl) {
+        throw new Error("Lien de paiement introuvable.");
+      }
+
+      setBanner("Redirection vers le paiement...");
+      window.location.href = paymentUrl;
+    },
+    [token]
+  );
+
+  const handlePaymentSelection = useCallback(
+    async (optionId: DmPaymentOptionId) => {
+      if (!paymentSelectionTargetUserId || paymentSelectionLoadingId) return;
+
+      setPaymentSelectionLoadingId(optionId);
+      setBanner("Preparation du paiement...");
+
+      try {
+        await startDmPaymentCheckout(paymentSelectionTargetUserId, optionId);
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "Impossible de lancer le paiement du chat prive.";
+
+        if (message === AUTH_SESSION_INVALID_ERROR) {
+          redirectToLoginForRefresh();
+          return;
+        }
+
+        if (
+          message === COUNTRY_NOT_ALLOWED ||
+          message.startsWith(`${COUNTRY_NOT_ALLOWED}:`)
+        ) {
+          redirectToLoginForCountryAccess(message);
+          return;
+        }
+
+        setBanner(message);
+      } finally {
+        setPaymentSelectionLoadingId(null);
+      }
+    },
+    [
+      paymentSelectionLoadingId,
+      paymentSelectionTargetUserId,
+      redirectToLoginForCountryAccess,
+      redirectToLoginForRefresh,
+      startDmPaymentCheckout,
+    ]
+  );
+
   const openPrivateChat = useCallback(
     async (nextTargetUserId: string, sessionId?: string) => {
       if (!token) {
         throw new Error(AUTH_SESSION_INVALID_ERROR);
+      }
+
+      if (!sessionId) {
+        const accessState = await checkDmAccess(nextTargetUserId);
+
+        if (accessState.status === "needs_payment_selection") {
+          openPaymentSelection(nextTargetUserId, accessState.message);
+          return null;
+        }
       }
 
       const res = await fetch(`${API}/dm/threads`, {
@@ -846,49 +1146,8 @@ export default function PrivateChat() {
         };
       }
 
-      if (isDmAccessRequiredResponse(res.status, payload)) {
-        const { successUrl, cancelUrl } = buildDmCheckoutUrls(nextTargetUserId);
-        const payRes = await fetch(`${API}/payments/dm`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            targetUserId: nextTargetUserId,
-            successUrl,
-            cancelUrl,
-          }),
-        });
-
-        const payPayload = await payRes.json().catch(() => null);
-
-        if (isAuthSessionInvalidResponse(payRes.status, payPayload)) {
-          throw new Error(AUTH_SESSION_INVALID_ERROR);
-        }
-
-        if (isCountryAccessDeniedResponse(payRes.status, payPayload)) {
-          throw new Error(
-            buildBackendErrorMessage(payPayload, buildCountryAccessError())
-          );
-        }
-
-        if (!payRes.ok) {
-          throw new Error(
-            buildBackendErrorMessage(
-              payPayload,
-              "Impossible de lancer le paiement du chat prive."
-            )
-          );
-        }
-
-        const paymentUrl = getPaymentUrl(payPayload);
-        if (!paymentUrl) {
-          throw new Error("Lien de paiement introuvable.");
-        }
-
-        setBanner("Redirection vers le paiement...");
-        window.location.href = paymentUrl;
+      if (shouldOpenPaymentSelection(res.status, payload)) {
+        openPaymentSelection(nextTargetUserId, getPaymentSelectionMessage(payload));
         return null;
       }
 
@@ -896,7 +1155,7 @@ export default function PrivateChat() {
         buildBackendErrorMessage(payload, "Impossible d'ouvrir le chat prive.")
       );
     },
-    [myUserId, token]
+    [checkDmAccess, myUserId, openPaymentSelection, token]
   );
 
   const openTargetConversation = useCallback(async () => {
@@ -915,9 +1174,13 @@ export default function PrivateChat() {
         checkoutSessionId || undefined
       );
 
-      if (!result) return;
+      if (!result) {
+        setBanner(null);
+        return;
+      }
 
       const { threadId, thread } = result;
+      closePaymentSelection();
       setOptimisticThread(thread);
       setThreads((current) => mergeThreads(current, thread ? [thread] : [], thread));
       setActiveThreadId(threadId);
@@ -952,6 +1215,7 @@ export default function PrivateChat() {
     }
   }, [
     checkoutSessionId,
+    closePaymentSelection,
     loadThreads,
     navigate,
     openPrivateChat,
@@ -964,6 +1228,11 @@ export default function PrivateChat() {
   useEffect(() => {
     void loadThreads();
   }, [loadThreads]);
+
+  useEffect(() => {
+    if (targetUserId) return;
+    closePaymentSelection();
+  }, [closePaymentSelection, targetUserId]);
 
   useEffect(() => {
     if (!targetUserId) return;
@@ -1397,6 +1666,75 @@ export default function PrivateChat() {
         </div>
       )}
 
+      {isPaymentSelectionOpen && (
+        <div
+          className="pc-paywall-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pc-paywall-title"
+          onClick={closePaymentSelection}
+        >
+          <div
+            className="pc-paywall-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pc-paywall-head">
+              <div>
+                <span className="pc-paywall-kicker">Chat prive</span>
+                <h2 id="pc-paywall-title">Choisis ton acces avant Stripe</h2>
+              </div>
+              <button
+                type="button"
+                className="pc-paywall-close"
+                onClick={closePaymentSelection}
+                disabled={!!paymentSelectionLoadingId}
+              >
+                Plus tard
+              </button>
+            </div>
+
+            <p className="pc-paywall-message">{paymentSelectionMessage}</p>
+
+            <div className="pc-paywall-options">
+              {DM_PAYMENT_OPTIONS.map((option) => {
+                const isLoading = paymentSelectionLoadingId === option.id;
+
+                return (
+                  <article
+                    key={option.id}
+                    className={`pc-paywall-option ${
+                      option.featured ? "featured" : ""
+                    }`}
+                  >
+                    <div className="pc-paywall-option-head">
+                      <div>
+                        <strong>{option.title}</strong>
+                        <span>{option.billingLabel}</span>
+                      </div>
+                      {option.featured ? (
+                        <span className="pc-paywall-badge">Illimite</span>
+                      ) : null}
+                    </div>
+
+                    <div className="pc-paywall-price">{option.priceLabel}</div>
+                    <p>{option.description}</p>
+
+                    <button
+                      type="button"
+                      className="pc-paywall-action"
+                      onClick={() => void handlePaymentSelection(option.id)}
+                      disabled={!!paymentSelectionLoadingId}
+                    >
+                      {isLoading ? "Redirection..." : `Choisir ${option.priceLabel}`}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pc-layout">
         <aside className="pc-sidebar">
           <div className="pc-sidebar-head">
@@ -1619,15 +1957,26 @@ export default function PrivateChat() {
           ) : (
             <div className="pc-empty pc-empty-panel">
               <strong>
-                {targetUserId && isOpeningTarget
-                  ? "Ouverture de la conversation..."
+                {targetUserId
+                  ? isOpeningTarget
+                    ? "Ouverture de la conversation..."
+                    : "Ce chat n'est pas encore ouvert."
                   : "Choisis une conversation dans l'archive."}
               </strong>
               <span>
-                Tu retrouveras ici le profil, l'historique recent et les messages
-                encore visibles pendant 24h.
+                {targetUserId
+                  ? "Si l'acces n'est pas encore actif, on te proposera d'abord le choix entre le paiement unique et l'abonnement."
+                  : "Tu retrouveras ici le profil, l'historique recent et les messages encore visibles pendant 24h."}
               </span>
               <div className="pc-empty-actions">
+                {targetUserId && !isOpeningTarget ? (
+                  <button
+                    className="pc-home-link"
+                    onClick={() => void openTargetConversation()}
+                  >
+                    {isPaymentSelectionOpen ? "Reouvrir le choix" : "Demarrer ce chat"}
+                  </button>
+                ) : null}
                 <button className="pc-home-link" onClick={() => navigate("/match")}>
                   Voir les profils
                 </button>
