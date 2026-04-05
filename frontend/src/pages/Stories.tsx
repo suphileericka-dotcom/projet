@@ -5,6 +5,13 @@ import { API } from "../config/api";
 
 const STORIES_RENDER_BATCH = 12;
 const STORIES_FETCH_LIMIT = 48;
+const STORY_TAG_FILTERS = [
+  "burnout",
+  "solitude",
+  "rupture",
+  "expatriation",
+  "changement",
+] as const;
 
 type Story = {
   id: string;
@@ -452,7 +459,7 @@ export default function Stories() {
           />
         </div>
         <div className="tag-filters">
-          {["burnout", "solitude", "rupture", "expatriation"].map((tag) => (
+          {STORY_TAG_FILTERS.map((tag) => (
             <button
               key={tag}
               className={`tag-btn ${tagFilter === tag ? "active" : ""}`}
