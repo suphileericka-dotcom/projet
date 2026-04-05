@@ -44,6 +44,23 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function getPayloadRecord(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) return null;
+
+  const record = asRecord(value);
+  if (!record) return null;
+
+  const nestedData = asRecord(record.data);
+
+  return (
+    asRecord(record.message) ??
+    asRecord(record.item) ??
+    asRecord(nestedData?.message) ??
+    asRecord(nestedData?.item) ??
+    record
+  );
+}
+
 function readString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string") {
@@ -208,18 +225,23 @@ export function normalizeMessage(
   fallbackRoom: string,
   options: NormalizationOptions = {}
 ): ChatMessage | null {
-  const record = asRecord(rawMessage);
-  if (!record) return null;
+  const record = getPayloadRecord(rawMessage);
+  const originalRecord = asRecord(rawMessage);
+  if (!record || !originalRecord) return null;
 
-  const nestedUser = asRecord(record.user);
-  const nestedAuthor = asRecord(record.author);
-  const nestedSender = asRecord(record.sender);
+  const nestedUser = asRecord(record.user) ?? asRecord(originalRecord.user);
+  const nestedAuthor = asRecord(record.author) ?? asRecord(originalRecord.author);
+  const nestedSender = asRecord(record.sender) ?? asRecord(originalRecord.sender);
 
   const id = readString(
     record.id,
     record.message_id,
     record.messageId,
-    record._id
+    record._id,
+    originalRecord.id,
+    originalRecord.message_id,
+    originalRecord.messageId,
+    originalRecord._id
   );
 
   if (!id) return null;
@@ -228,7 +250,11 @@ export function normalizeMessage(
     record.room,
     record.room_id,
     record.roomId,
-    record.channel
+    record.channel,
+    originalRecord.room,
+    originalRecord.room_id,
+    originalRecord.roomId,
+    originalRecord.channel
   ) || fallbackRoom;
 
   if (room !== fallbackRoom) return null;
@@ -241,6 +267,12 @@ export function normalizeMessage(
       record.authorId,
       record.sender_id,
       record.senderId,
+      originalRecord.user_id,
+      originalRecord.userId,
+      originalRecord.author_id,
+      originalRecord.authorId,
+      originalRecord.sender_id,
+      originalRecord.senderId,
       nestedUser?.id,
       nestedAuthor?.id,
       nestedSender?.id
@@ -254,6 +286,10 @@ export function normalizeMessage(
       record.name,
       record.display_name,
       record.displayName,
+      originalRecord.username,
+      originalRecord.name,
+      originalRecord.display_name,
+      originalRecord.displayName,
       nestedUser?.username,
       nestedUser?.name,
       nestedAuthor?.username,
@@ -268,6 +304,9 @@ export function normalizeMessage(
       record.avatar,
       record.avatar_url,
       record.avatarUrl,
+      originalRecord.avatar,
+      originalRecord.avatar_url,
+      originalRecord.avatarUrl,
       nestedUser?.avatar,
       nestedUser?.avatar_url,
       nestedUser?.avatarUrl,
@@ -279,9 +318,17 @@ export function normalizeMessage(
       nestedSender?.avatarUrl
     ) || (isOwnMessage ? options.currentAvatar || undefined : undefined);
 
-  const type = record.audio_path ? "voice" : "text";
+  const type = record.audio_path || originalRecord.audio_path ? "voice" : "text";
   const text =
-    readString(record.content, record.text, record.body, record.message) ||
+    readString(
+      record.content,
+      record.text,
+      record.body,
+      originalRecord.content,
+      originalRecord.text,
+      originalRecord.body,
+      originalRecord.message
+    ) ||
     (type === "voice" ? "Ancien message vocal indisponible." : "");
 
   const createdAt =
@@ -290,12 +337,27 @@ export function normalizeMessage(
         record.createdAt ??
         record.sent_at ??
         record.sentAt ??
-        record.timestamp
+        record.timestamp ??
+        originalRecord.created_at ??
+        originalRecord.createdAt ??
+        originalRecord.sent_at ??
+        originalRecord.sentAt ??
+        originalRecord.timestamp
     ) || Date.now();
 
-  const updatedAt = toTimestamp(record.updated_at ?? record.updatedAt);
+  const updatedAt = toTimestamp(
+    record.updated_at ??
+      record.updatedAt ??
+      originalRecord.updated_at ??
+      originalRecord.updatedAt
+  );
   const editedAt =
-    toTimestamp(record.edited_at ?? record.editedAt) ||
+    toTimestamp(
+      record.edited_at ??
+        record.editedAt ??
+        originalRecord.edited_at ??
+        originalRecord.editedAt
+    ) ||
     (updatedAt && updatedAt > createdAt ? updatedAt : undefined);
 
   return {
@@ -319,10 +381,13 @@ export function normalizeMessageList(
   fallbackRoom: string,
   options: NormalizationOptions = {}
 ): ChatMessage[] {
+  const record = asRecord(payload);
   const list = Array.isArray(payload)
     ? payload
-    : Array.isArray(asRecord(payload)?.messages)
-      ? (asRecord(payload)?.messages as unknown[])
+    : Array.isArray(record?.messages)
+      ? (record.messages as unknown[])
+      : Array.isArray(record?.items)
+        ? (record.items as unknown[])
       : [];
 
   return pruneExpiredMessages(
@@ -340,25 +405,40 @@ export function normalizeMessageList(
 }
 
 export function matchesRoomPayload(payload: unknown, room: string): boolean {
-  const record = asRecord(payload);
+  const record = getPayloadRecord(payload);
+  const originalRecord = asRecord(payload);
   if (!record) return true;
 
   const payloadRoom = readString(
     record.room,
     record.room_id,
     record.roomId,
-    record.channel
+    record.channel,
+    originalRecord?.room,
+    originalRecord?.room_id,
+    originalRecord?.roomId,
+    originalRecord?.channel
   );
 
   return !payloadRoom || payloadRoom === room;
 }
 
 export function extractMessageId(payload: unknown): string | null {
-  const record = asRecord(payload);
+  const record = getPayloadRecord(payload);
+  const originalRecord = asRecord(payload);
   if (!record) return null;
 
   return (
-    readString(record.id, record.message_id, record.messageId, record._id) ||
+    readString(
+      record.id,
+      record.message_id,
+      record.messageId,
+      record._id,
+      originalRecord?.id,
+      originalRecord?.message_id,
+      originalRecord?.messageId,
+      originalRecord?._id
+    ) ||
     null
   );
 }
@@ -368,8 +448,17 @@ export function extractTypingMeta(payload: unknown): {
   name: string;
   isTyping: boolean;
 } | null {
-  const record = asRecord(payload);
+  const record = getPayloadRecord(payload);
+  const originalRecord = asRecord(payload);
   if (!record) return null;
+
+  const nestedSender =
+    asRecord(record.sender) ??
+    asRecord(record.user) ??
+    asRecord(record.author) ??
+    asRecord(originalRecord?.sender) ??
+    asRecord(originalRecord?.user) ??
+    asRecord(originalRecord?.author);
 
   return {
     userId:
@@ -379,16 +468,41 @@ export function extractTypingMeta(payload: unknown): {
         record.senderId,
         record.sender_id,
         record.authorId,
-        record.author_id
+        record.author_id,
+        originalRecord?.userId,
+        originalRecord?.user_id,
+        originalRecord?.senderId,
+        originalRecord?.sender_id,
+        originalRecord?.authorId,
+        originalRecord?.author_id,
+        nestedSender?.id,
+        nestedSender?.userId,
+        nestedSender?.user_id
       ) || null,
     name:
       readString(
         record.username,
         record.name,
         record.displayName,
-        record.display_name
+        record.display_name,
+        originalRecord?.username,
+        originalRecord?.name,
+        originalRecord?.displayName,
+        originalRecord?.display_name,
+        nestedSender?.username,
+        nestedSender?.name,
+        nestedSender?.displayName,
+        nestedSender?.display_name
       ) || "Quelqu'un",
     isTyping:
-      Boolean(record.isTyping ?? record.typing ?? record.active ?? true),
+      Boolean(
+        record.isTyping ??
+          record.typing ??
+          record.active ??
+          originalRecord?.isTyping ??
+          originalRecord?.typing ??
+          originalRecord?.active ??
+          true
+      ),
   };
 }

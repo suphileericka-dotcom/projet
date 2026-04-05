@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
 } from "react";
 import {
@@ -15,6 +16,7 @@ import "../style/privateChat.css";
 import { API } from "../config/api";
 import { buildCountryAccessError } from "../config/countryAccess";
 import { buildAvatarUrl } from "../lib/avatar";
+import { socket } from "../lib/socket";
 import {
   clearAuthSession,
   clearAuthSessionForCountry,
@@ -49,6 +51,31 @@ const PAYMENT_SELECTION_DM_ACCESS_STATUSES = new Set([
   "restricted",
 ]);
 const UNSUPPORTED_DM_ACCESS_ENDPOINT_STATUSES = new Set([404, 405, 501]);
+const messageEvents = [
+  "message-created",
+  "new-message",
+  "room-message",
+  "chat-message",
+  "message",
+] as const;
+const updateEvents = [
+  "message-updated",
+  "edited-message",
+  "update-message",
+] as const;
+const deleteEvents = [
+  "message-deleted",
+  "removed-message",
+  "delete-message",
+] as const;
+const typingEvents = [
+  "typing",
+  "typing-start",
+  "typing-stop",
+  "typing-status",
+  "user-typing",
+] as const;
+const OPTIMISTIC_DM_MATCH_WINDOW_MS = 15_000;
 
 type Thread = {
   id: string;
@@ -62,12 +89,14 @@ type Thread = {
 
 type Msg = {
   id: string;
+  threadId: string | null;
   senderId: string | null;
   body: string;
   createdAt: number;
   updatedAt?: number;
   editedAt?: number;
   translatedText?: string;
+  isPending?: boolean;
 };
 
 type ThreadNormalizationOptions = {
@@ -78,6 +107,12 @@ type ThreadNormalizationOptions = {
 type DmAccessCheckResult = {
   status: "active" | "needs_payment_selection" | "unsupported";
   message?: string;
+};
+
+type TypingUser = {
+  key: string;
+  name: string;
+  expiresAt: number;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -569,7 +604,164 @@ function mergeThreads(
   return sortThreads([...mergedById.values()]);
 }
 
-function normalizeMessage(rawMessage: unknown): Msg | null {
+function extractThreadId(value: unknown) {
+  const record = asRecord(value);
+  if (!record) return null;
+
+  const nestedThread =
+    asRecord(record.thread) ??
+    asRecord(record.conversation) ??
+    asRecord(record.chat);
+
+  return (
+    readString(
+      record.threadId,
+      record.thread_id,
+      record.conversationId,
+      record.conversation_id,
+      record.room,
+      record.room_id,
+      record.roomId,
+      record.channel,
+      nestedThread?.id,
+      nestedThread?.threadId,
+      nestedThread?.thread_id,
+      nestedThread?.conversationId,
+      nestedThread?.conversation_id,
+      nestedThread?.room,
+      nestedThread?.room_id,
+      nestedThread?.roomId
+    ) ?? null
+  );
+}
+
+function getMessagePayloadRecord(payload: unknown) {
+  const record = getPayloadRecord(payload);
+  if (!record) return null;
+
+  const nestedData = asRecord(record.data);
+
+  return (
+    asRecord(record.message) ??
+    asRecord(record.item) ??
+    asRecord(nestedData?.message) ??
+    record
+  );
+}
+
+function extractMessageIdFromPayload(payload: unknown) {
+  const record = getMessagePayloadRecord(payload);
+  if (!record) return null;
+
+  return readString(record.id, record.messageId, record.message_id, record._id) ?? null;
+}
+
+function collectParticipantIds(value: unknown) {
+  const record = asRecord(value);
+  if (!record) return [];
+
+  const nestedSender =
+    asRecord(record.sender) ?? asRecord(record.user) ?? asRecord(record.author);
+  const nestedRecipient =
+    asRecord(record.recipient) ??
+    asRecord(record.targetUser) ??
+    asRecord(record.target_user) ??
+    asRecord(record.otherUser) ??
+    asRecord(record.other_user);
+
+  return [
+    readString(
+      record.userId,
+      record.user_id,
+      record.senderId,
+      record.sender_id,
+      record.authorId,
+      record.author_id,
+      nestedSender?.id,
+      nestedSender?.userId,
+      nestedSender?.user_id
+    ),
+    readString(
+      record.targetUserId,
+      record.target_user_id,
+      record.recipientId,
+      record.recipient_id,
+      record.otherUserId,
+      record.other_user_id,
+      nestedRecipient?.id,
+      nestedRecipient?.userId,
+      nestedRecipient?.user_id
+    ),
+  ].filter((entry): entry is string => !!entry);
+}
+
+function matchesActiveThreadPayload(
+  payload: unknown,
+  thread: Thread | null,
+  currentUserId: string | null
+) {
+  if (!thread) return false;
+
+  const topLevelThreadId = extractThreadId(payload);
+  if (topLevelThreadId) return topLevelThreadId === thread.id;
+
+  const record = getMessagePayloadRecord(payload);
+  const messageThreadId = extractThreadId(record);
+  if (messageThreadId) return messageThreadId === thread.id;
+
+  if (!currentUserId || !thread.otherUserId) return false;
+
+  const participantIds = new Set([
+    ...collectParticipantIds(payload),
+    ...collectParticipantIds(record),
+  ]);
+
+  return (
+    participantIds.has(currentUserId) && participantIds.has(thread.otherUserId)
+  );
+}
+
+function extractTypingMeta(payload: unknown) {
+  const record = getMessagePayloadRecord(payload);
+  if (!record) return null;
+
+  const nestedSender =
+    asRecord(record.sender) ?? asRecord(record.user) ?? asRecord(record.author);
+
+  return {
+    userId:
+      readString(
+        record.userId,
+        record.user_id,
+        record.senderId,
+        record.sender_id,
+        record.authorId,
+        record.author_id,
+        nestedSender?.id,
+        nestedSender?.userId,
+        nestedSender?.user_id
+      ) || null,
+    name:
+      readString(
+        record.username,
+        record.name,
+        record.displayName,
+        record.display_name,
+        record.senderName,
+        record.sender_name,
+        nestedSender?.username,
+        nestedSender?.name,
+        nestedSender?.displayName,
+        nestedSender?.display_name
+      ) || "Quelqu'un",
+    isTyping: Boolean(record.isTyping ?? record.typing ?? record.active ?? true),
+  };
+}
+
+function normalizeMessage(
+  rawMessage: unknown,
+  fallbackThreadId?: string | null
+): Msg | null {
   const record = asRecord(rawMessage);
   if (!record) return null;
 
@@ -578,6 +770,7 @@ function normalizeMessage(rawMessage: unknown): Msg | null {
 
   const id = readString(record.id, record.messageId, record.message_id, record._id);
   if (!id) return null;
+  const threadId = extractThreadId(record) ?? fallbackThreadId ?? null;
 
   const senderId =
     readString(
@@ -611,6 +804,7 @@ function normalizeMessage(rawMessage: unknown): Msg | null {
 
   return {
     id,
+    threadId,
     senderId,
     body,
     createdAt,
@@ -619,7 +813,7 @@ function normalizeMessage(rawMessage: unknown): Msg | null {
   };
 }
 
-function normalizeMessageList(payload: unknown) {
+function normalizeMessageList(payload: unknown, fallbackThreadId?: string | null) {
   const record = getPayloadRecord(payload);
   const rawMessages = Array.isArray(payload)
     ? payload
@@ -632,7 +826,7 @@ function normalizeMessageList(payload: unknown) {
   const normalizedById = new Map<string, Msg>();
 
   for (const entry of rawMessages) {
-    const normalized = normalizeMessage(entry);
+    const normalized = normalizeMessage(entry, fallbackThreadId);
     if (!normalized) continue;
     normalizedById.set(normalized.id, normalized);
   }
@@ -670,6 +864,37 @@ function mergeMessages(current: Msg[], incoming: Msg[]) {
 
       return left.createdAt - right.createdAt;
     });
+}
+
+function upsertMessage(current: Msg[], incoming: Msg) {
+  const directMatch = current.find((message) => message.id === incoming.id) ?? null;
+  const optimisticMatch =
+    directMatch || incoming.isPending
+      ? null
+      : current.find(
+          (message) =>
+            message.isPending &&
+            message.senderId === incoming.senderId &&
+            message.body.trim() === incoming.body.trim() &&
+            Math.abs(message.createdAt - incoming.createdAt) <=
+              OPTIMISTIC_DM_MATCH_WINDOW_MS
+        ) ?? null;
+
+  const previous = directMatch ?? optimisticMatch;
+  const nextMessage: Msg = {
+    ...previous,
+    ...incoming,
+    translatedText: previous?.translatedText ?? incoming.translatedText,
+    isPending: incoming.isPending ?? false,
+  };
+
+  const nextCurrent = current.filter(
+    (message) =>
+      message.id !== nextMessage.id &&
+      (!optimisticMatch || message.id !== optimisticMatch.id)
+  );
+
+  return mergeMessages(nextCurrent, [...nextCurrent, nextMessage]);
 }
 
 function canManageDmMessage(
@@ -715,6 +940,7 @@ export default function PrivateChat() {
   const [sendLoading, setSendLoading] = useState(false);
   const [isOpeningTarget, setIsOpeningTarget] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"threads" | "chat">("threads");
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [banner, setBanner] = useState<string | null>(
     paid ? "Paiement confirme. Ouverture de la conversation..." : null
   );
@@ -730,6 +956,8 @@ export default function PrivateChat() {
   const threadsRef = useRef<Thread[]>([]);
   const messagesRef = useRef<Msg[]>([]);
   const optimisticThreadRef = useRef<Thread | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const typingSentRef = useRef(false);
 
   useEffect(() => {
     threadsRef.current = threads;
@@ -750,6 +978,8 @@ export default function PrivateChat() {
   const activeThreadMatchesTarget =
     !!targetUserId && activeThread?.otherUserId === targetUserId;
   const visibleMessages = useMemo(() => messages, [messages]);
+  const effectiveUsername =
+    localStorage.getItem("username")?.trim() || "Utilisateur";
   const isPaymentSelectionOpen = !!paymentSelectionTargetUserId;
   const archiveCountLabel =
     threads.length === 0
@@ -759,6 +989,15 @@ export default function PrivateChat() {
         }`;
   const editingMessage =
     (editingId && messages.find((message) => message.id === editingId)) || null;
+  const visibleTypingUsers = typingUsers.filter(
+    (entry) => entry.expiresAt > Date.now()
+  );
+  const typingLabel =
+    visibleTypingUsers.length === 0
+      ? null
+      : visibleTypingUsers.length === 1
+        ? `${visibleTypingUsers[0].name} ecrit...`
+        : `${visibleTypingUsers.length} personnes ecrivent...`;
 
   const redirectToLoginForRefresh = useCallback(() => {
     rememberPostLoginRedirect();
@@ -932,12 +1171,113 @@ export default function PrivateChat() {
           return;
         }
 
-        setMessages(normalizeMessageList(payload));
+        setMessages(normalizeMessageList(payload, threadId));
       } finally {
         setMessagesLoading(false);
       }
     },
     [redirectToLoginForCountryAccess, redirectToLoginForRefresh, token]
+  );
+
+  const syncThreadActivity = useCallback(
+    (threadId: string, body: string | null, timestamp: number) => {
+      setThreads((current) => {
+        const fallbackThread =
+          current.find((thread) => thread.id === threadId) ??
+          optimisticThreadRef.current;
+
+        if (!fallbackThread || fallbackThread.id !== threadId) {
+          return current;
+        }
+
+        const updatedThread: Thread = {
+          ...fallbackThread,
+          lastMessage: body,
+          lastAt: timestamp,
+        };
+
+        return sortThreads([
+          updatedThread,
+          ...current.filter((thread) => thread.id !== threadId),
+        ]);
+      });
+
+      setOptimisticThread((current) =>
+        current && current.id === threadId
+          ? {
+              ...current,
+              lastMessage: body,
+              lastAt: timestamp,
+            }
+          : current
+      );
+    },
+    []
+  );
+
+  const handleSocketMessage = useCallback(
+    (payload: unknown) => {
+      if (!matchesActiveThreadPayload(payload, activeThread, myUserId)) return;
+
+      const normalized = normalizeMessage(
+        getMessagePayloadRecord(payload),
+        activeThread?.id ?? activeThreadId
+      );
+
+      if (!normalized) return;
+
+      setMessages((current) => upsertMessage(current, normalized));
+      syncThreadActivity(
+        normalized.threadId ?? activeThread?.id ?? activeThreadId ?? "",
+        normalized.body,
+        normalized.createdAt
+      );
+    },
+    [activeThread, activeThreadId, myUserId, syncThreadActivity]
+  );
+
+  const handleSocketDelete = useCallback(
+    (payload: unknown) => {
+      if (!matchesActiveThreadPayload(payload, activeThread, myUserId)) return;
+
+      const messageId = extractMessageIdFromPayload(payload);
+      if (!messageId) return;
+
+      setMessages((current) =>
+        current.filter((message) => message.id !== messageId)
+      );
+      setActiveMessageId((current) => (current === messageId ? null : current));
+      setEditingId((current) => (current === messageId ? null : current));
+    },
+    [activeThread, myUserId]
+  );
+
+  const handleSocketTyping = useCallback(
+    (payload: unknown) => {
+      if (!matchesActiveThreadPayload(payload, activeThread, myUserId)) return;
+
+      const meta = extractTypingMeta(payload);
+      if (!meta) return;
+      if (meta.userId && meta.userId === myUserId) return;
+
+      const key = meta.userId || meta.name.toLowerCase();
+      const resolvedName = meta.name || activeThread?.otherName || "Quelqu'un";
+
+      setTypingUsers((current) => {
+        if (!meta.isTyping) {
+          return current.filter((entry) => entry.key !== key);
+        }
+
+        const next = current.filter((entry) => entry.key !== key);
+        next.push({
+          key,
+          name: resolvedName,
+          expiresAt: Date.now() + 3200,
+        });
+        return next;
+      });
+    },
+    [activeThread, myUserId]
   );
 
   const checkDmAccess = useCallback(
@@ -1250,11 +1590,101 @@ export default function PrivateChat() {
   useEffect(() => {
     if (!activeThreadId) {
       setMessages([]);
+      setTypingUsers([]);
       return;
     }
 
     void loadMessages(activeThreadId);
   }, [activeThreadId, loadMessages]);
+
+  useEffect(() => {
+    if (!token || !myUserId || !activeThreadId) {
+      setTypingUsers([]);
+      return undefined;
+    }
+
+    const threadPayload = {
+      room: activeThreadId,
+      threadId: activeThreadId,
+      conversationId: activeThreadId,
+      userId: myUserId,
+      username: effectiveUsername,
+      name: effectiveUsername,
+      targetUserId: activeThread?.otherUserId,
+      otherUserId: activeThread?.otherUserId,
+    };
+
+    const joinThread = () => {
+      socket.emit("join-room", threadPayload);
+      socket.emit("join-thread", threadPayload);
+      socket.emit("join-dm", threadPayload);
+    };
+
+    const leaveThread = () => {
+      socket.emit("leave-room", threadPayload);
+      socket.emit("leave-thread", threadPayload);
+      socket.emit("leave-dm", threadPayload);
+    };
+
+    const stopTyping = () => {
+      const payload = {
+        ...threadPayload,
+        isTyping: false,
+        typing: false,
+      };
+
+      socket.emit("typing", payload);
+      socket.emit("typing-stop", payload);
+    };
+
+    const connectAndRefresh = () => {
+      joinThread();
+      void loadMessages(activeThreadId);
+    };
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.on("connect", connectAndRefresh);
+    messageEvents.forEach((eventName) => socket.on(eventName, handleSocketMessage));
+    updateEvents.forEach((eventName) => socket.on(eventName, handleSocketMessage));
+    deleteEvents.forEach((eventName) => socket.on(eventName, handleSocketDelete));
+    typingEvents.forEach((eventName) => socket.on(eventName, handleSocketTyping));
+
+    if (socket.connected) {
+      connectAndRefresh();
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+
+      typingSentRef.current = false;
+      setTypingUsers([]);
+      stopTyping();
+
+      socket.off("connect", connectAndRefresh);
+      messageEvents.forEach((eventName) => socket.off(eventName, handleSocketMessage));
+      updateEvents.forEach((eventName) => socket.off(eventName, handleSocketMessage));
+      deleteEvents.forEach((eventName) => socket.off(eventName, handleSocketDelete));
+      typingEvents.forEach((eventName) => socket.off(eventName, handleSocketTyping));
+      leaveThread();
+      socket.disconnect();
+    };
+  }, [
+    activeThread?.otherUserId,
+    activeThreadId,
+    effectiveUsername,
+    handleSocketDelete,
+    handleSocketMessage,
+    handleSocketTyping,
+    loadMessages,
+    myUserId,
+    token,
+  ]);
 
   useEffect(() => {
     const stream = streamRef.current;
@@ -1293,9 +1723,69 @@ export default function PrivateChat() {
   }
 
   function cancelEditing() {
+    clearTypingState();
     setEditingId(null);
     setInput("");
     setActiveMessageId(null);
+  }
+
+  function emitTypingState(isTyping: boolean) {
+    if (!myUserId || !activeThreadId || !socket.connected) return;
+
+    const payload = {
+      room: activeThreadId,
+      threadId: activeThreadId,
+      conversationId: activeThreadId,
+      userId: myUserId,
+      username: effectiveUsername,
+      name: effectiveUsername,
+      targetUserId: activeThread?.otherUserId,
+      otherUserId: activeThread?.otherUserId,
+      isTyping,
+      typing: isTyping,
+    };
+
+    socket.emit("typing", payload);
+    socket.emit(isTyping ? "typing-start" : "typing-stop", payload);
+  }
+
+  function clearTypingState() {
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    if (typingSentRef.current) {
+      emitTypingState(false);
+      typingSentRef.current = false;
+    }
+  }
+
+  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextValue = event.target.value;
+    setInput(nextValue);
+
+    if (!myUserId || !activeThreadId) return;
+
+    if (!nextValue.trim()) {
+      clearTypingState();
+      return;
+    }
+
+    if (!typingSentRef.current) {
+      emitTypingState(true);
+      typingSentRef.current = true;
+    }
+
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = window.setTimeout(() => {
+      emitTypingState(false);
+      typingSentRef.current = false;
+      typingTimeoutRef.current = null;
+    }, 1600);
   }
 
   async function translateMessage(message: Msg) {
@@ -1493,13 +1983,14 @@ export default function PrivateChat() {
   }
 
   async function send() {
-    if (!token || !activeThreadId || sendLoading) return;
+    if (!token || !myUserId || !activeThreadId || sendLoading) return;
 
     const text = input.trim();
     if (!text) return;
 
     setSendLoading(true);
     setBanner(null);
+    clearTypingState();
 
     if (editingId) {
       const previousMessage = messagesRef.current.find(
@@ -1566,6 +2057,18 @@ export default function PrivateChat() {
 
     setInput("");
 
+    const optimisticMessage: Msg = {
+      id: `local_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      threadId: activeThreadId,
+      senderId: myUserId,
+      body: text,
+      createdAt: Date.now(),
+      isPending: true,
+    };
+
+    setMessages((current) => upsertMessage(current, optimisticMessage));
+    syncThreadActivity(activeThreadId, text, optimisticMessage.createdAt);
+
     try {
       const res = await fetch(`${API}/dm/threads/${encodeURIComponent(activeThreadId)}/messages`, {
         method: "POST",
@@ -1594,9 +2097,26 @@ export default function PrivateChat() {
         );
       }
 
-      await Promise.all([loadMessages(activeThreadId), loadThreads(activeThreadId)]);
+      const normalized =
+        normalizeMessage(getMessagePayloadRecord(payload), activeThreadId) ?? null;
+
+      if (normalized) {
+        setMessages((current) => upsertMessage(current, normalized));
+        syncThreadActivity(
+          normalized.threadId ?? activeThreadId,
+          normalized.body,
+          normalized.createdAt
+        );
+        void loadThreads(activeThreadId);
+      } else {
+        await Promise.all([loadMessages(activeThreadId), loadThreads(activeThreadId)]);
+      }
+
       setMobilePanel("chat");
     } catch (error) {
+      setMessages((current) =>
+        current.filter((message) => message.id !== optimisticMessage.id)
+      );
       setBanner(
         error instanceof Error && error.message
           ? error.message
@@ -1923,6 +2443,17 @@ export default function PrivateChat() {
                       </article>
                     );
                   })}
+
+                {typingLabel ? (
+                  <div className="pc-typing" aria-live="polite">
+                    <span className="pc-typing-indicator" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                    <span>{typingLabel}</span>
+                  </div>
+                ) : null}
               </div>
 
               <footer className="pc-input-wrap">
@@ -1939,7 +2470,7 @@ export default function PrivateChat() {
                   <input
                     ref={inputRef}
                     value={input}
-                    onChange={(event) => setInput(event.target.value)}
+                    onChange={handleInputChange}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
