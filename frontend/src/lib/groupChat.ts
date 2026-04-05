@@ -147,6 +147,84 @@ export function pruneExpiredMessages(
   return messages.filter((message) => !isExpiredMessage(message, now));
 }
 
+function buildMessageSenderKey(message: ChatMessage): string {
+  return (
+    message.sender.id ||
+    message.sender.name.trim().toLowerCase() ||
+    "unknown"
+  );
+}
+
+function buildMessageSignature(message: ChatMessage): string {
+  return [
+    message.room,
+    message.type,
+    buildMessageSenderKey(message),
+    message.text.trim(),
+    message.createdAt,
+  ].join("::");
+}
+
+function sortMessages(messages: ChatMessage[]): ChatMessage[] {
+  return [...messages].sort((a, b) => {
+    if (a.createdAt === b.createdAt) {
+      return a.id.localeCompare(b.id);
+    }
+
+    return a.createdAt - b.createdAt;
+  });
+}
+
+function mergeMessageEntries(
+  current: ChatMessage,
+  incoming: ChatMessage
+): ChatMessage {
+  const incomingName = incoming.sender.name.trim();
+  const currentName = current.sender.name.trim();
+
+  return {
+    ...current,
+    ...incoming,
+    id: current.id,
+    translatedText: current.translatedText ?? incoming.translatedText,
+    sender: {
+      id: current.sender.id ?? incoming.sender.id,
+      name:
+        incomingName && incomingName.toLowerCase() !== "membre"
+          ? incoming.sender.name
+          : currentName
+            ? current.sender.name
+            : incoming.sender.name,
+      avatar: incoming.sender.avatar || current.sender.avatar,
+    },
+  };
+}
+
+function dedupeMessages(messages: ChatMessage[]): ChatMessage[] {
+  const deduped: ChatMessage[] = [];
+
+  for (const message of sortMessages(messages)) {
+    const signature = buildMessageSignature(message);
+    const existingIndex = deduped.findIndex(
+      (entry) =>
+        entry.id === message.id ||
+        buildMessageSignature(entry) === signature
+    );
+
+    if (existingIndex === -1) {
+      deduped.push(message);
+      continue;
+    }
+
+    deduped[existingIndex] = mergeMessageEntries(
+      deduped[existingIndex],
+      message
+    );
+  }
+
+  return sortMessages(deduped);
+}
+
 export function areMessageListsEqual(
   left: ChatMessage[],
   right: ChatMessage[]
@@ -173,25 +251,21 @@ export function mergeLocalMessageState(
   current: ChatMessage[]
 ): ChatMessage[] {
   const currentById = new Map(current.map((message) => [message.id, message]));
+  const currentBySignature = new Map(
+    current.map((message) => [buildMessageSignature(message), message])
+  );
 
   return pruneExpiredMessages(
-    incoming
-      .map((message) => {
-        const previous = currentById.get(message.id);
+    dedupeMessages(
+      incoming.map((message) => {
+        const previous =
+          currentById.get(message.id) ??
+          currentBySignature.get(buildMessageSignature(message));
+
         if (!previous) return message;
-
-        return {
-          ...message,
-          translatedText: previous.translatedText ?? message.translatedText,
-        };
+        return mergeMessageEntries(previous, message);
       })
-      .sort((a, b) => {
-        if (a.createdAt === b.createdAt) {
-          return a.id.localeCompare(b.id);
-        }
-
-        return a.createdAt - b.createdAt;
-      })
+    )
   );
 }
 
@@ -199,18 +273,20 @@ export function upsertMessage(
   current: ChatMessage[],
   incoming: ChatMessage
 ): ChatMessage[] {
-  const next = current.filter((message) => message.id !== incoming.id);
-  next.push(incoming);
-
-  return pruneExpiredMessages(
-    next.sort((a, b) => {
-      if (a.createdAt === b.createdAt) {
-        return a.id.localeCompare(b.id);
-      }
-
-      return a.createdAt - b.createdAt;
-    })
+  const incomingSignature = buildMessageSignature(incoming);
+  const previous =
+    current.find((message) => message.id === incoming.id) ??
+    current.find(
+      (message) => buildMessageSignature(message) === incomingSignature
+    );
+  const next = current.filter(
+    (message) =>
+      message.id !== incoming.id &&
+      buildMessageSignature(message) !== incomingSignature
   );
+  next.push(previous ? mergeMessageEntries(previous, incoming) : incoming);
+
+  return pruneExpiredMessages(dedupeMessages(next));
 }
 
 export function removeMessageById(
