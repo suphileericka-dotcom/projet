@@ -41,6 +41,42 @@ import Match from "./pages/Match";
 import PrivateChat from "./pages/Privatechat";
 import Journal from "./pages/Journal";
 
+const INSTALL_PROMPT_DISMISSED_KEY = "ameya:pwa-install-dismissed";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: "accepted" | "dismissed";
+    platform: string;
+  }>;
+}
+
+function isStandaloneMode(): boolean {
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navigatorWithStandalone.standalone === true
+  );
+}
+
+function isIOSDevice(): boolean {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const isAppleMobile = /iphone|ipad|ipod/.test(userAgent);
+  const isTouchMac =
+    window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1;
+
+  return isAppleMobile || isTouchMac;
+}
+
+function isAndroidDevice(): boolean {
+  return /android/i.test(window.navigator.userAgent);
+}
+
+function isSafariBrowser(): boolean {
+  const userAgent = window.navigator.userAgent;
+  return /Safari/i.test(userAgent) && !/Chrome|CriOS|Edg|OPR|Firefox/i.test(userAgent);
+}
+
 function isValidAuthToken(): boolean {
   const token = localStorage.getItem("authToken");
   if (!token) return false;
@@ -56,6 +92,13 @@ export default function App() {
 
   const [isAuth, setIsAuth] = useState<boolean>(isValidAuthToken);
   const [accessCheckPending, setAccessCheckPending] = useState<boolean>(isValidAuthToken);
+  const [installPromptEvent, setInstallPromptEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
+  const [standaloneMode, setStandaloneMode] = useState(false);
+  const [iosDevice, setIosDevice] = useState(false);
+  const [androidDevice, setAndroidDevice] = useState(false);
+  const [safariBrowser, setSafariBrowser] = useState(false);
 
   useEffect(() => {
     function syncAuthState() {
@@ -73,6 +116,43 @@ export default function App() {
     return () => {
       window.removeEventListener(AUTH_STATE_CHANGE_EVENT, syncAuthState);
       window.removeEventListener("storage", syncAuthState);
+    };
+  }, []);
+
+  useEffect(() => {
+    setStandaloneMode(isStandaloneMode());
+    setIosDevice(isIOSDevice());
+    setAndroidDevice(isAndroidDevice());
+    setSafariBrowser(isSafariBrowser());
+    setInstallBannerDismissed(
+      window.localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "true"
+    );
+
+    function handleBeforeInstallPrompt(event: Event) {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+    }
+
+    function handleAppInstalled() {
+      setStandaloneMode(true);
+      setInstallPromptEvent(null);
+      window.localStorage.removeItem(INSTALL_PROMPT_DISMISSED_KEY);
+      setInstallBannerDismissed(false);
+      trackAnalyticsEvent("pwa_install_completed");
+    }
+
+    window.addEventListener(
+      "beforeinstallprompt",
+      handleBeforeInstallPrompt as EventListener
+    );
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt as EventListener
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
@@ -169,7 +249,49 @@ export default function App() {
     trackPageView(pagePath);
   }, [location.hash, location.pathname, location.search]);
 
+  function dismissInstallBanner() {
+    window.localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, "true");
+    setInstallBannerDismissed(true);
+    trackAnalyticsEvent("pwa_install_banner_dismissed", {
+      source: "home_banner",
+    });
+  }
+
+  async function installApp() {
+    if (!installPromptEvent) {
+      return;
+    }
+
+    trackAnalyticsEvent("pwa_install_clicked", {
+      source: "home_banner",
+    });
+
+    await installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice;
+
+    trackAnalyticsEvent("pwa_install_prompt_result", {
+      outcome: choice.outcome,
+      platform: choice.platform,
+    });
+
+    setInstallPromptEvent(null);
+  }
+
   const canAccessPrivateSpaces = isAuth && !accessCheckPending;
+  const showInstallBanner =
+    !standaloneMode && !installBannerDismissed && (iosDevice || androidDevice);
+
+  let installVariant: "android-ready" | "android-manual" | "ios-safari" | "ios-browser" =
+    "android-manual";
+
+  if (installPromptEvent && androidDevice) {
+    installVariant = "android-ready";
+  } else if (iosDevice && safariBrowser) {
+    installVariant = "ios-safari";
+  } else if (iosDevice) {
+    installVariant = "ios-browser";
+  }
+
   const privateRouteFallback =
     isAuth && accessCheckPending ? (
       <div className="app-container">Verification du pays...</div>
@@ -225,6 +347,14 @@ export default function App() {
           {isAuth && <button onClick={logout}>{t("logout")}</button>}
         </div>
       </header>
+
+      {showInstallBanner && (
+        <InstallBanner
+          variant={installVariant}
+          onDismiss={dismissInstallBanner}
+          onInstall={installApp}
+        />
+      )}
 
       <section className="spaces-grid">
         <ChatCard
@@ -366,6 +496,63 @@ export default function App() {
       <Route path="/chat/rupture" element={<Rupture isAuth={isAuth} />} />
       <Route path="/chat/changement" element={<Changement isAuth={isAuth} />} />
     </Routes>
+  );
+}
+
+function InstallBanner({
+  variant,
+  onDismiss,
+  onInstall,
+}: {
+  variant: "android-ready" | "android-manual" | "ios-safari" | "ios-browser";
+  onDismiss: () => void;
+  onInstall: () => Promise<void>;
+}) {
+  let title = "Installe l'application";
+  let description =
+    "Ajoute Espace Ameya a ton ecran d'accueil pour l'ouvrir comme une vraie app.";
+  let helper =
+    "Tu pourras ensuite la lancer directement depuis ton telephone, sans repasser par le navigateur.";
+  let primaryLabel: string | null = null;
+
+  if (variant === "android-ready") {
+    primaryLabel = "Installer";
+    helper = "Le navigateur est pret : touche le bouton pour lancer l'installation.";
+  } else if (variant === "android-manual") {
+    title = "Ajoute l'app sur Android";
+    description =
+      "Ouvre le menu du navigateur puis choisis Installer l'application ou Ajouter a l'ecran d'accueil.";
+  } else if (variant === "ios-safari") {
+    title = "Ajoute l'app sur iPhone";
+    description =
+      "Dans Safari, touche Partager puis Sur l'ecran d'accueil pour installer Espace Ameya.";
+  } else if (variant === "ios-browser") {
+    title = "Ouvre ce site dans Safari";
+    description =
+      "Sur iPhone, l'installation passe par Safari. Ouvre ce site dans Safari, puis touche Partager et Sur l'ecran d'accueil.";
+  }
+
+  return (
+    <section className="install-banner" aria-label="Installer Espace Ameya">
+      <div className="install-banner-copy">
+        <span className="install-banner-kicker">Application mobile</span>
+        <h2>{title}</h2>
+        <p>{description}</p>
+        <p className="install-banner-helper">{helper}</p>
+      </div>
+
+      <div className="install-banner-actions">
+        {primaryLabel && (
+          <button className="install-banner-primary" onClick={() => void onInstall()}>
+            {primaryLabel}
+          </button>
+        )}
+
+        <button className="install-banner-secondary" onClick={onDismiss}>
+          Plus tard
+        </button>
+      </div>
+    </section>
   );
 }
 
