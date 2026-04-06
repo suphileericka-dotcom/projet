@@ -3,46 +3,47 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:android": "npm run build && npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "cap:ios": "npm run build && npx cap sync ios",
+    "cap:open:ios": "npx cap open ios"
   },
-
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^6.30.3",
-    "react-i18next": "^16.5.4",
-    "i18next": "^25.8.0",
-    "react-use": "^17.6.0",
-    "socket.io-client": "^4.8.3",
-
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^7.6.1",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@tailwindcss/aspect-ratio": "^0.4.2",
     "@tailwindcss/forms": "^0.5.11",
-    "@tailwindcss/typography": "^0.5.19"
+    "@tailwindcss/typography": "^0.5.19",
+    "i18next": "^25.8.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-i18next": "^16.5.4",
+    "react-router-dom": "^6.30.3",
+    "react-use": "^17.6.0",
+    "socket.io-client": "^4.8.3"
   },
-
   "devDependencies": {
-    "vite": "^5.4.10",
-    "@vitejs/plugin-react": "^5.1.1",
-
-    "typescript": "~5.9.3",
-
-    "tailwindcss": "^4.2.1",
-    "postcss": "^8.5.8",
-    "autoprefixer": "^10.4.27",
-
-    "eslint": "^9.39.1",
     "@eslint/js": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "typescript-eslint": "^8.46.4",
-
+    "@types/node": "^24.12.0",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
-    "@types/node": "^24.12.0"
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^5.4.10"
   }
 }
