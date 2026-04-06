@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
+    "pwa:icons": "node scripts/generate-pwa-icons.cjs",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android",
     "cap:open:android": "npx cap open android",
@@ -41,9 +42,11 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "postcss": "^8.5.8",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

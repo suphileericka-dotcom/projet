@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#F0F4F8" stroke="#D1D9E6" stroke-width="2"/>
+  
+  <path d="M35,40 C35,30 45,30 45,40 C45,50 35,60 35,70 L35,80 L45,80 L45,70 C45,60 55,50 55,40 C55,30 65,30 65,40" fill="none" stroke="#4A90E2" stroke-width="4" stroke-linecap="round"/>
+  
+  <path d="M65,40 C65,30 55,30 55,40 C55,50 65,60 65,70 L65,80 L55,80 L55,70 C55,60 45,50 45,40 C45,30 35,30 35,40" fill="none" stroke="#A3CBF1" stroke-width="4" stroke-linecap="round"/>
+
+  <circle cx="50" cy="45" r="3" fill="#FFD700">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" />
+  </circle>
+  <path d="M50,38 L50,42 M50,48 L50,52 M43,45 L47,45 M53,45 L57,45" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+
+  <text x="50" y="92" font-family="Verdana, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#2C3E50">Ameya</text>
+</svg>
