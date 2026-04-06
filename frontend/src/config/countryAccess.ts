@@ -48,6 +48,35 @@ export const ALLOWED_COUNTRIES: AllowedCountry[] = [
     ],
   },
   {
+    code: "CG",
+    label: "Congo-Brazzaville",
+    aliases: [
+      "CG",
+      "CONGO BRAZZAVILLE",
+      "CONGO-BRAZZAVILLE",
+      "CONGO BRAAZAVILLE",
+      "CONGO-BRAAZAVILLE",
+      "REPUBLIQUE DU CONGO",
+      "REPUBLIC OF THE CONGO",
+    ],
+  },
+  {
+    code: "IT",
+    label: "Italie",
+    aliases: ["IT", "ITALIE", "ITALY", "ITALI"],
+  },
+  {
+    code: "PH",
+    label: "Philippines",
+    aliases: [
+      "PH",
+      "PHILIPPINES",
+      "PHILIPPINE",
+      "PHILIPINNE",
+      "PHILIPINNES",
+    ],
+  },
+  {
     code: "AE",
     label: "Dubai",
     aliases: [
