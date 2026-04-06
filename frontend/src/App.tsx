@@ -1,7 +1,13 @@
 import "./index.css";
 import "./style/app.css";
 
-import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  useNavigate,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { useEffect, useState } from "react";
 import { API } from "./config/api";
 import {
@@ -15,6 +21,7 @@ import {
   AUTH_STATE_CHANGE_EVENT,
   clearAuthSession,
 } from "./lib/authSession";
+import { trackAnalyticsEvent, trackPageView } from "./lib/analytics";
 import { useLang } from "./hooks/useLang";
 
 import Login from "./pages/Login";
@@ -43,6 +50,7 @@ function isValidAuthToken(): boolean {
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, lang } = useLang();
   const targetLang = lang;
 
@@ -148,10 +156,18 @@ export default function App() {
   }, [isAuth, navigate]);
 
   function logout() {
+    trackAnalyticsEvent("logout_click", {
+      source: "home_header",
+    });
     clearAuthSession();
     setIsAuth(false);
     navigate("/");
   }
+
+  useEffect(() => {
+    const pagePath = `${location.pathname}${location.search}${location.hash}`;
+    trackPageView(pagePath);
+  }, [location.hash, location.pathname, location.search]);
 
   const canAccessPrivateSpaces = isAuth && !accessCheckPending;
   const privateRouteFallback =
@@ -167,12 +183,42 @@ export default function App() {
         <h1>{t("welcome")}</h1>
 
         <div className="header-actions">
-          <button onClick={() => navigate("/info")}>i</button>
+          <button
+            onClick={() => {
+              trackAnalyticsEvent("navigation_click", {
+                source: "home_header",
+                target: "info",
+              });
+              navigate("/info");
+            }}
+          >
+            i
+          </button>
 
           {!isAuth && (
             <>
-              <button onClick={() => navigate("/login")}>{t("login")}</button>
-              <button onClick={() => navigate("/register")}>{t("register")}</button>
+              <button
+                onClick={() => {
+                  trackAnalyticsEvent("navigation_click", {
+                    source: "home_header",
+                    target: "login",
+                  });
+                  navigate("/login");
+                }}
+              >
+                {t("login")}
+              </button>
+              <button
+                onClick={() => {
+                  trackAnalyticsEvent("navigation_click", {
+                    source: "home_header",
+                    target: "register",
+                  });
+                  navigate("/register");
+                }}
+              >
+                {t("register")}
+              </button>
             </>
           )}
 
@@ -185,6 +231,8 @@ export default function App() {
           title={t("stories")}
           description={t("storiesDesc")}
           variant="stories"
+          analyticsName="stories"
+          destinationPath="/stories"
           onClick={() => navigate("/stories")}
         />
 
@@ -192,6 +240,8 @@ export default function App() {
           title={t("burnoutTitle")}
           description={t("burnoutDesc")}
           variant="burnout"
+          analyticsName="burnout"
+          destinationPath="/chat/burnout"
           onClick={() => navigate("/chat/burnout")}
         />
 
@@ -199,6 +249,8 @@ export default function App() {
           title={t("solitudeTitle")}
           description={t("solitudeDesc")}
           variant="solitude"
+          analyticsName="solitude"
+          destinationPath="/chat/solitude"
           onClick={() => navigate("/chat/solitude")}
         />
 
@@ -206,6 +258,8 @@ export default function App() {
           title={t("ruptureTitle")}
           description={t("ruptureDesc")}
           variant="rupture"
+          analyticsName="rupture"
+          destinationPath="/chat/rupture"
           onClick={() => navigate("/chat/rupture")}
         />
 
@@ -213,6 +267,8 @@ export default function App() {
           title={t("expatriationTitle")}
           description={t("expatriationDesc")}
           variant="expatriation"
+          analyticsName="expatriation"
+          destinationPath="/chat/expatriation"
           onClick={() => navigate("/chat/expatriation")}
         />
 
@@ -220,6 +276,8 @@ export default function App() {
           title={t("changementTitle")}
           description={t("changementDesc")}
           variant="changement"
+          analyticsName="changement"
+          destinationPath="/chat/changement"
           onClick={() => navigate("/chat/changement")}
         />
 
@@ -229,6 +287,8 @@ export default function App() {
               title={t("myStory")}
               description={t("myStoryDesc")}
               variant="story"
+              analyticsName="my_story"
+              destinationPath="/story"
               onClick={() => navigate("/story")}
             />
 
@@ -236,6 +296,8 @@ export default function App() {
               title={t("mySpace")}
               description={t("mySpaceDesc")}
               variant="personal"
+              analyticsName="my_space"
+              destinationPath="/my-space"
               onClick={() => navigate("/my-space")}
             />
 
@@ -243,6 +305,8 @@ export default function App() {
               title={t("connections")}
               description={t("connectionsDesc")}
               variant="match"
+              analyticsName="connections"
+              destinationPath="/match"
               onClick={() => navigate("/match")}
             />
 
@@ -250,6 +314,8 @@ export default function App() {
               title={t("journal")}
               description={t("journalDesc")}
               variant="ai"
+              analyticsName="journal"
+              destinationPath="/journal"
               onClick={() => navigate("/journal")}
             />
           </>
@@ -307,15 +373,28 @@ function ChatCard({
   title,
   description,
   variant,
+  analyticsName,
+  destinationPath,
   onClick,
 }: {
   title: string;
   description: string;
   variant: string;
+  analyticsName: string;
+  destinationPath: string;
   onClick: () => void;
 }) {
   return (
-    <div className={`space-card space-${variant}`} onClick={onClick}>
+    <div
+      className={`space-card space-${variant}`}
+      onClick={() => {
+        trackAnalyticsEvent("space_open", {
+          destination_path: destinationPath,
+          space_name: analyticsName,
+        });
+        onClick();
+      }}
+    >
       <h4>{title}</h4>
       <p>{description}</p>
     </div>
