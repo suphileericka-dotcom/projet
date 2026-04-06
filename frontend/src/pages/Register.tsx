@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useLang } from "../hooks/useLang";
+import { isValidLang, useLang } from "../hooks/useLang";
 import "../style/register.css";
 import {
   ALLOWED_COUNTRIES,
@@ -9,17 +9,7 @@ import {
   persistCountry,
 } from "../config/countryAccess";
 
-/* =====================
-   API BASE
-===================== */
-
-const API =
-  import.meta.env.VITE_API_URL ||
-  "https://ameya-production.up.railway.app";
-
-/* =====================
-   TYPES
-===================== */
+const API = import.meta.env.VITE_API_URL || "https://ameya-production.up.railway.app";
 
 type RegisterProps = {
   setIsAuth: (value: boolean) => void;
@@ -36,13 +26,9 @@ type RegisterResponse = {
   error?: string;
 };
 
-/* =====================
-   COMPONENT
-===================== */
-
 export default function Register({ setIsAuth }: RegisterProps) {
   const navigate = useNavigate();
-  const { t } = useLang();
+  const { t, setLang } = useLang();
 
   const [form, setForm] = useState({
     username: "",
@@ -59,55 +45,40 @@ export default function Register({ setIsAuth }: RegisterProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* =====================
-     UPDATE FORM
-  ===================== */
-
-  function update(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  function update(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value, type } = e.target;
 
-    setForm((f) => ({
-      ...f,
+    setForm((current) => ({
+      ...current,
       [name]:
-        type === "checkbox"
-          ? (e.target as HTMLInputElement).checked
-          : value,
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   }
-
-  /* =====================
-     CHANGE LANGUAGE
-  ===================== */
 
   function changeLanguage(e: React.ChangeEvent<HTMLSelectElement>) {
     const lang = e.target.value;
 
-    setForm((f) => ({
-      ...f,
+    setForm((current) => ({
+      ...current,
       language: lang,
     }));
 
-    localStorage.setItem("language", lang);
-    window.dispatchEvent(new Event("storage"));
+    if (isValidLang(lang)) {
+      setLang(lang);
+    }
   }
-
-  /* =====================
-     SUBMIT
-  ===================== */
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     if (form.password !== form.confirmPassword) {
-      setError("Les mots de passe ne correspondent pas");
+      setError(t("passwordMismatch"));
       return;
     }
 
     if (!form.terms) {
-      setError("Vous devez accepter les conditions");
+      setError(t("acceptConditionsError"));
       return;
     }
 
@@ -132,69 +103,52 @@ export default function Register({ setIsAuth }: RegisterProps) {
       try {
         data = await res.json();
       } catch {
-        throw new Error("Réponse JSON invalide");
+        throw new Error(t("invalidServerResponse"));
       }
 
-      console.log("API RESPONSE:", data);
-
       if (!res.ok) {
-        setError(data?.error || "Erreur lors de l'inscription");
+        setError(data?.error || t("registerError"));
         return;
       }
 
       if (!data?.token || !data?.user?.id) {
-        setError("Réponse serveur invalide");
+        setError(t("invalidServerResponse"));
         return;
       }
-
-      /* SESSION */
 
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
       localStorage.setItem("username", data.user.username);
-      localStorage.setItem("language", form.language);
+      if (isValidLang(form.language)) {
+        setLang(form.language);
+      }
       persistCountry(data.user.country ?? form.country);
 
       setIsAuth(true);
       navigate("/");
-
-    } catch (err) {
-      console.error("REGISTER ERROR:", err);
-      setError("Impossible de contacter le serveur");
+    } catch {
+      setError(t("cannotReachServer"));
     } finally {
       setLoading(false);
     }
   }
 
-  /* =====================
-     RENDER
-  ===================== */
-
   return (
     <div className="register-page">
       <div className="register-container">
-
-        <button
-          className="back-btn"
-          onClick={() => navigate(-1)}
-        >
-          ←
+        <button className="back-btn" onClick={() => navigate(-1)}>
+          {"<"}
         </button>
 
         <h1>{t("register")}</h1>
         <p className="subtitle">{t("welcome")}</p>
 
-        {error && (
-          <div className="register-error">
-            {error}
-          </div>
-        )}
+        {error && <div className="register-error">{error}</div>}
 
         <form onSubmit={submit}>
-
           <input
             name="username"
-            placeholder="Nom d'utilisateur"
+            placeholder={t("username")}
             value={form.username}
             onChange={update}
             required
@@ -203,7 +157,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
           <input
             name="email"
             type="email"
-            placeholder="Email"
+            placeholder={t("email")}
             value={form.email}
             onChange={update}
             required
@@ -221,7 +175,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
           <input
             name="confirmPassword"
             type="password"
-            placeholder="Confirmer le mot de passe"
+            placeholder={t("confirmPassword")}
             value={form.confirmPassword}
             onChange={update}
             required
@@ -229,16 +183,12 @@ export default function Register({ setIsAuth }: RegisterProps) {
 
           <input
             name="city"
-            placeholder="Ville"
+            placeholder={t("city")}
             value={form.city}
             onChange={update}
           />
 
-          <select
-            name="country"
-            value={form.country}
-            onChange={update}
-          >
+          <select name="country" value={form.country} onChange={update}>
             {ALLOWED_COUNTRIES.map((country) => (
               <option key={country.code} value={country.code}>
                 {country.label}
@@ -246,16 +196,12 @@ export default function Register({ setIsAuth }: RegisterProps) {
             ))}
           </select>
 
-          <select
-            name="language"
-            value={form.language}
-            onChange={changeLanguage}
-          >
-            <option value="fr">🇫🇷 Français</option>
-            <option value="en">🇬🇧 English</option>
-            <option value="es">🇪🇸 Español</option>
-            <option value="de">🇩🇪 Deutsch</option>
-            <option value="it">🇮🇹 Italiano</option>
+          <select name="language" value={form.language} onChange={changeLanguage}>
+            <option value="fr">{t("french")}</option>
+            <option value="en">{t("english")}</option>
+            <option value="es">{t("spanish")}</option>
+            <option value="de">{t("german")}</option>
+            <option value="it">{t("italian")}</option>
           </select>
 
           <select
@@ -264,7 +210,7 @@ export default function Register({ setIsAuth }: RegisterProps) {
             onChange={update}
             required
           >
-            <option value="">Choisir une situation</option>
+            <option value="">{t("chooseSituation")}</option>
             <option value="burnout">{t("burnoutTitle")}</option>
             <option value="rupture">{t("ruptureTitle")}</option>
             <option value="solitude">{t("solitudeTitle")}</option>
@@ -279,23 +225,17 @@ export default function Register({ setIsAuth }: RegisterProps) {
               checked={form.terms}
               onChange={update}
             />
-            J'accepte les conditions
+            {t("acceptTerms")}
           </label>
 
-          <button
-            type="submit"
-            disabled={loading}
-          >
-            {loading ? "…" : t("register")}
+          <button type="submit" disabled={loading}>
+            {loading ? t("registerLoading") : t("register")}
           </button>
-
         </form>
 
         <p className="footer">
-          Déjà un compte ?{" "}
-          <Link to="/login">{t("login")}</Link>
+          {t("alreadyHaveAccount")} <Link to="/login">{t("login")}</Link>
         </p>
-
       </div>
     </div>
   );

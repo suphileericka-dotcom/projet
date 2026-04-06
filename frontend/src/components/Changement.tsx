@@ -1,16 +1,11 @@
 import GroupChatRoom from "./GroupChatRoom";
+import { useLang } from "../hooks/useLang";
 
 type ChangementProps = {
   isAuth: boolean;
 };
 
-const changementConfig = {
-  room: "changement",
-  title: "Changement de vie",
-  subtitle: "Un espace pour traverser le changement a ton rythme",
-  banner: "Un espace pour traverser le changement a ton rythme.",
-  placeholder: "Partage ce que tu traverses...",
-  theme: {
+const changementTheme = {
     "--chat-bg": "linear-gradient(180deg, #f0fdf9 0%, #d7fbf4 100%)",
     "--chat-panel": "rgba(255, 255, 255, 0.92)",
     "--chat-panel-border": "rgba(20, 184, 166, 0.18)",
@@ -28,9 +23,22 @@ const changementConfig = {
     "--chat-bubble-other-text": "#10363a",
     "--chat-translation-bg": "rgba(20, 184, 166, 0.08)",
     "--chat-danger": "#e11d48",
-  },
 } as const;
 
 export default function Changement({ isAuth }: ChangementProps) {
-  return <GroupChatRoom isAuth={isAuth} config={changementConfig} />;
+  const { t } = useLang();
+
+  return (
+    <GroupChatRoom
+      isAuth={isAuth}
+      config={{
+        room: "changement",
+        title: t("changementTitle"),
+        subtitle: t("changementSubtitle"),
+        banner: t("changementBanner"),
+        placeholder: t("changementPlaceholder"),
+        theme: changementTheme,
+      }}
+    />
+  );
 }

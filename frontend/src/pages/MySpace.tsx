@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "../style/mySpace.css";
 import { API } from "../config/api";
 import { persistCountry } from "../config/countryAccess";
+import { useLang } from "../hooks/useLang";
 import { buildAvatarUrl, resolveAvatarUpload } from "../lib/avatar";
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -175,6 +176,7 @@ function countPendingIncomingMessages(messages: DmMessage[], currentUserId: stri
 
 export default function MySpace() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
 
@@ -310,13 +312,13 @@ export default function MySpace() {
         if (data.country ?? data.profile?.country) {
           persistCountry(data.country ?? data.profile?.country);
         }
-        alert("Profil mis a jour !");
+        alert(t("profileUpdated"));
       } else {
         const errData = await res.json();
-        alert(errData.error || "Erreur de sauvegarde");
+        alert(errData.error || t("profileSaveError"));
       }
     } catch {
-      alert("Erreur reseau");
+      alert(t("networkError"));
     } finally {
       setSavingProfile(false);
     }
@@ -341,20 +343,20 @@ export default function MySpace() {
         setPwOpen(false);
         setOldPassword("");
         setNewPassword("");
-        alert("Mot de passe modifie avec succes");
+        alert(t("passwordUpdated"));
       } else {
         const data = await res.json();
-        setPwError(data.error || "Erreur mot de passe");
+        setPwError(data.error || t("passwordSaveError"));
       }
     } catch {
-      setPwError("Serveur injoignable");
+      setPwError(t("serverUnavailable"));
     } finally {
       setPwSaving(false);
     }
   }
 
   if (loading) {
-    return <div className="page myspace-page">Chargement du dashboard...</div>;
+    return <div className="page myspace-page">{t("mySpaceLoading")}</div>;
   }
 
   return (
@@ -364,15 +366,15 @@ export default function MySpace() {
       </button>
 
       <header className="page-header">
-        <h1>Mon espace</h1>
-        <p>Gere tes publications et tes informations personnelles.</p>
+        <h1>{t("mySpace")}</h1>
+        <p>{t("mySpaceHeaderDesc")}</p>
       </header>
 
       <section className="block profile-block">
         <div className="block-head">
-          <h2>Mon profil</h2>
+          <h2>{t("myProfile")}</h2>
           <button className="btn ghost" onClick={saveProfile} disabled={savingProfile}>
-            {savingProfile ? "Enregistrement..." : "Enregistrer les modifications"}
+            {savingProfile ? t("savingChanges") : t("saveChanges")}
           </button>
         </div>
 
@@ -380,13 +382,13 @@ export default function MySpace() {
           <label className="avatar-upload">
             <img
               src={buildAvatarUrl({
-                name: username || "Membre",
+                name: username || t("member"),
                 avatarPath: avatarPreview,
                 seed: space?.profile?.id || username,
                 size: 256,
               })}
               className="avatar-xl"
-              alt="Profil"
+              alt={t("myProfile")}
             />
             <input
               type="file"
@@ -400,35 +402,35 @@ export default function MySpace() {
                 }
               }}
             />
-            <div className="overlay-text">Changer la photo</div>
+            <div className="overlay-text">{t("changePhoto")}</div>
           </label>
         </div>
 
         <div className="profile-grid">
           <div className="field">
-            <label>Nom d'utilisateur</label>
+            <label>{t("usernameLabel")}</label>
             <input value={username} onChange={(event) => setUsername(event.target.value)} />
           </div>
           <div className="field">
-            <label>Adresse email</label>
+            <label>{t("emailLabel")}</label>
             <input value={email} onChange={(event) => setEmail(event.target.value)} />
           </div>
         </div>
 
         <div className="profile-actions">
           <button className="btn primary" onClick={() => setPwOpen(true)}>
-            Changer le mot de passe
+            {t("changePassword")}
           </button>
         </div>
       </section>
 
       <section className="stats-grid">
         <article className="stat-card">
-          <span>Stories</span>
+          <span>{t("storiesStat")}</span>
           <strong>{space?.stats?.stories ?? 0}</strong>
         </article>
         <article className="stat-card">
-          <span>Amis</span>
+          <span>{t("friendsStat")}</span>
           <strong>{space?.stats?.friends ?? 0}</strong>
         </article>
         <button
@@ -436,18 +438,18 @@ export default function MySpace() {
           className="stat-card stat-card-action"
           onClick={() => navigate("/private-chat")}
         >
-          <span>Messages</span>
+          <span>{t("messagesStat")}</span>
           <strong>{pendingDmCount}</strong>
           <small>
             {pendingDmCount > 0
-              ? `${pendingDmCount} message${pendingDmCount > 1 ? "s" : ""} recu${
-                  pendingDmCount > 1 ? "s" : ""
-                } en attente de reponse`
-              : "Aucun message en attente. Ouvrir le chat prive"}
+              ? pendingDmCount === 1
+                ? t("pendingMessagesSummarySingular", { count: pendingDmCount })
+                : t("pendingMessagesSummaryPlural", { count: pendingDmCount })
+              : t("pendingMessagesNone")}
           </small>
         </button>
         <article className="stat-card">
-          <span>Matchs du jour</span>
+          <span>{t("matchesTodayStat")}</span>
           <strong>{space?.stats?.matches_today ?? 0}</strong>
         </article>
       </section>
@@ -455,10 +457,8 @@ export default function MySpace() {
       {pwOpen && (
         <div className="modal-backdrop" onClick={() => setPwOpen(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <h3>Securite du compte</h3>
-            <p className="muted">
-              Saisis ton ancien mot de passe pour definir le nouveau.
-            </p>
+            <h3>{t("accountSecurity")}</h3>
+            <p className="muted">{t("accountSecurityDesc")}</p>
 
             {pwError && (
               <div
@@ -472,24 +472,24 @@ export default function MySpace() {
             <input
               className="modern-input"
               type="password"
-              placeholder="Ancien mot de passe"
+              placeholder={t("oldPasswordPlaceholder")}
               value={oldPassword}
               onChange={(event) => setOldPassword(event.target.value)}
             />
             <input
               className="modern-input"
               type="password"
-              placeholder="Nouveau mot de passe"
+              placeholder={t("newPasswordPlaceholder")}
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
             />
 
             <div className="modal-actions">
               <button className="btn primary" onClick={submitPassword} disabled={pwSaving}>
-                {pwSaving ? "Mise a jour..." : "Mettre a jour"}
+                {pwSaving ? t("updatingPassword") : t("updatePassword")}
               </button>
               <button className="btn ghost" onClick={() => setPwOpen(false)}>
-                Annuler
+                {t("cancel")}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import "../style/stories.css";
 import { API } from "../config/api";
+import { useLang } from "../hooks/useLang";
 
 const STORIES_RENDER_BATCH = 12;
 const STORIES_FETCH_LIMIT = 48;
@@ -169,6 +170,7 @@ export default function Stories() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
   const myUserId = localStorage.getItem("userId");
   const publishTitle =
@@ -215,7 +217,7 @@ export default function Stories() {
 
         if (!res.ok) {
           throw new Error(
-            getResponseMessage(payload, "Impossible de charger les histoires.")
+            getResponseMessage(payload, t("storiesLoadError"))
           );
         }
 
@@ -265,7 +267,7 @@ export default function Stories() {
           setStoryNotice(
             err instanceof Error && err.message
               ? err.message
-              : "Impossible de charger les histoires."
+              : t("storiesLoadError")
           );
         }
         if (replace) {
@@ -350,17 +352,17 @@ export default function Stories() {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (err) {
-      console.error("Erreur like:", err);
+      console.error("Like error:", err);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!token) {
-      setStoryNotice("Reconnecte-toi pour supprimer cette histoire.");
+      setStoryNotice(t("storiesReconnectDelete"));
       return;
     }
 
-    if (!window.confirm("Supprimer cette histoire ?")) return;
+    if (!window.confirm(t("storiesDeleteConfirm"))) return;
 
     try {
       const res = await fetch(`${API}/stories/${id}`, {
@@ -371,17 +373,17 @@ export default function Stories() {
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
         setStoryNotice(
-          getResponseMessage(payload, "La suppression de l'histoire a echoue.")
+          getResponseMessage(payload, t("storiesDeleteError"))
         );
         return;
       }
 
       setStories((current) => current.filter((story) => story.id !== id));
       setActiveStory(null);
-      setStoryNotice("Histoire supprimee.");
+      setStoryNotice(t("storiesDeleteSuccess"));
     } catch (err) {
       console.error(err);
-      setStoryNotice("La suppression de l'histoire a echoue.");
+      setStoryNotice(t("storiesDeleteError"));
     }
   };
 
@@ -412,8 +414,8 @@ export default function Stories() {
       </button>
 
       <header className="page-header">
-        <h1>Histoires</h1>
-        <p>Decouvre et soutiens les temoignages</p>
+        <h1>{t("storiesHeaderTitle")}</h1>
+        <p>{t("storiesHeaderDesc")}</p>
       </header>
 
       {authorFilterId && (
@@ -421,26 +423,26 @@ export default function Stories() {
           <div>
             <strong>
               {authorFilterName
-                ? `Histoires de ${authorFilterName}`
-                : "Histoires de cette personne"}
+                ? t("storiesOfAuthor", { name: authorFilterName })
+                : t("storiesOfThisPerson")}
             </strong>
             <p>
               {filteredStories.length > 0
-                ? `${filteredStories.length} histoire${
-                    filteredStories.length > 1 ? "s" : ""
-                  } trouvee${filteredStories.length > 1 ? "s" : ""}.`
-                : "Aucune histoire publiee pour le moment."}
+                ? filteredStories.length === 1
+                  ? t("storiesFoundSingular", { count: filteredStories.length })
+                  : t("storiesFoundPlural", { count: filteredStories.length })
+                : t("storiesNoPublishedYet")}
             </p>
           </div>
           <button type="button" onClick={() => navigate("/stories")}>
-            Voir toutes les histoires
+            {t("viewAll")}
           </button>
         </div>
       )}
 
       {publishTitle && (
         <div className="publish-banner" role="status">
-          {`Ton histoire "${publishTitle}" est maintenant publiee.`}
+          {t("storiesPublishedBanner", { title: publishTitle })}
         </div>
       )}
 
@@ -453,7 +455,7 @@ export default function Stories() {
       <div className="search-section">
         <div className="modern-search-bar">
           <input
-            placeholder="Rechercher une histoire..."
+            placeholder={t("storiesSearchPlaceholder")}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
@@ -474,9 +476,15 @@ export default function Stories() {
       {filteredStories.length > 0 && (
         <div className="stories-results-bar">
           <span>
-            {displayedStories.length} sur {filteredStories.length} histoire
-            {filteredStories.length > 1 ? "s" : ""} affichee
-            {filteredStories.length > 1 ? "s" : ""}
+            {filteredStories.length === 1
+              ? t("storiesDisplayedSingular", {
+                  shown: displayedStories.length,
+                  total: filteredStories.length,
+                })
+              : t("storiesDisplayedPlural", {
+                  shown: displayedStories.length,
+                  total: filteredStories.length,
+                })}
           </span>
         </div>
       )}
@@ -491,11 +499,14 @@ export default function Stories() {
             <div className="card-header">
               <span className="card-tag">#{story.tags[0]}</span>
               <span className={story.liked_by_me ? "is-liked" : ""}>
-                {story.liked_by_me ? "Aime" : "Soutien"} {story.likes}
+                {story.liked_by_me
+                  ? t("storiesStatusLiked")
+                  : t("storiesStatusSupport")}{" "}
+                {story.likes}
               </span>
             </div>
             <h3>{story.title}</h3>
-            <span className="btn-read">Lire l'histoire</span>
+            <span className="btn-read">{t("storiesReadStory")}</span>
           </div>
         ))}
       </div>
@@ -507,7 +518,7 @@ export default function Stories() {
             onClick={() => void handleLoadMoreStories()}
             disabled={isLoadingStories}
           >
-            {isLoadingStories ? "Chargement..." : "Voir plus d'histoires"}
+            {isLoadingStories ? t("loading") : t("storiesLoadMore")}
           </button>
         </div>
       )}
@@ -515,8 +526,8 @@ export default function Stories() {
       {filteredStories.length === 0 && !isLoadingStories && (
         <div className="stories-empty-state">
           {authorFilterId
-            ? "Cette personne n'a pas encore publie d'histoire."
-            : "Aucune histoire ne correspond a ta recherche."}
+            ? t("storiesNoAuthorResults")
+            : t("storiesNoResults")}
         </div>
       )}
 
@@ -541,21 +552,23 @@ export default function Stories() {
                 }`}
                 onClick={() => handleToggleLike(activeVisibleStory)}
               >
-                {activeVisibleStory.liked_by_me ? "Soutenu" : "Soutenir"} (
+                {activeVisibleStory.liked_by_me
+                  ? t("storiesSupportedAction")
+                  : t("storiesSupportAction")} (
                 {activeVisibleStory.likes})
               </button>
               <button
                 className="action-pill chat-pill"
                 onClick={() => navigate(`/chat/${activeVisibleStory.tags[0]}`)}
               >
-                Chat
+                {t("storiesChatAction")}
               </button>
               {activeVisibleStory.user_id === myUserId && (
                 <button
                   className="delete-btn-modal"
                   onClick={() => handleDelete(activeVisibleStory.id)}
                 >
-                  Supprimer
+                  {t("deleteAction")}
                 </button>
               )}
             </div>

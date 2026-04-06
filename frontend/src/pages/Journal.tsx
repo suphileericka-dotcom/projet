@@ -8,6 +8,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import "../style/journal.css";
 import { API } from "../config/api";
+import { translate } from "../i18n";
+import { useLang } from "../hooks/useLang";
 
 type JournalRole = "user" | "assistant" | "system";
 
@@ -363,13 +365,13 @@ function buildConversationPreview(messages: JournalMessage[]): string {
     .reverse()
     .find((message) => compactText(message.text).length > 0);
 
-  if (!source) return "Aucun message enregistre.";
+  if (!source) return "";
   return shortenText(compactText(source.text), 90);
 }
 
 function extractConversationTitle(
   payload: unknown,
-  fallbackTitle = "Nouvelle discussion"
+  fallbackTitle = translate("journalNewDiscussion", localStorage.getItem("language") || "fr")
 ): string {
   if (!isRecord(payload)) return fallbackTitle;
 
@@ -482,6 +484,7 @@ function isUsageLocked(usage: JournalUsage | null): boolean {
 
 export default function Journal() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
 
   const [conversations, setConversations] = useState<JournalConversation[]>([]);
@@ -503,11 +506,11 @@ export default function Journal() {
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeConversationId) ??
     null;
-  const currentConversationTitle = activeConversation?.title || "Nouvelle discussion";
+  const currentConversationTitle = activeConversation?.title || t("journalNewDiscussion");
   const archiveCountLabel =
     conversations.length === 1
-      ? "1 discussion"
-      : `${conversations.length} discussions`;
+      ? t("journalArchiveCountSingular")
+      : t("journalArchiveCountPlural", { count: conversations.length });
   const canCreateNewDiscussion = !sending && !insightLoading;
   const usageSummary =
     usage?.limit !== null && usage?.limit !== undefined
@@ -521,7 +524,7 @@ export default function Journal() {
   const loadConversations = useCallback(async () => {
     if (!token) {
       setLoadingList(false);
-      setErrorMessage("Session introuvable. Reconnecte-toi pour ouvrir ton journal.");
+      setErrorMessage(t("journalSessionMissing"));
       return;
     }
 
@@ -538,7 +541,7 @@ export default function Journal() {
 
       if (!res.ok) {
         setErrorMessage(
-          extractErrorMessage(data, "Impossible de charger les discussions.")
+          extractErrorMessage(data, t("journalLoadDiscussionsError"))
         );
         setConversations([]);
         return;
@@ -549,7 +552,7 @@ export default function Journal() {
     } catch (error) {
       console.error("Erreur liste journal:", error);
       setConversations([]);
-      setErrorMessage("Impossible de charger les discussions pour le moment.");
+      setErrorMessage(t("journalLoadDiscussionsError"));
     } finally {
       setLoadingList(false);
     }
@@ -616,7 +619,7 @@ export default function Journal() {
           ]);
     const nextTitle = extractConversationTitle(
       data,
-      activeConversation?.title || "Nouvelle discussion"
+      activeConversation?.title || t("journalNewDiscussion")
     );
 
     setMessages(nextMessages);
@@ -655,7 +658,7 @@ export default function Journal() {
 
       if (!res.ok) {
         setErrorMessage(
-          extractErrorMessage(data, "Impossible de charger cette discussion.")
+          extractErrorMessage(data, t("journalLoadCurrentError"))
         );
         return;
       }
@@ -663,7 +666,7 @@ export default function Journal() {
       const nextMessages = extractMessages(data);
       const nextTitle = extractConversationTitle(
         data,
-        activeConversation?.title || "Nouvelle discussion"
+        activeConversation?.title || t("journalNewDiscussion")
       );
       const nextUsage = extractUsage(data);
 
@@ -684,7 +687,7 @@ export default function Journal() {
       );
     } catch (error) {
       console.error("Erreur detail journal:", error);
-      setErrorMessage("Impossible de charger cette discussion pour le moment.");
+      setErrorMessage(t("journalLoadCurrentError"));
     } finally {
       setLoadingConversation(false);
     }
@@ -701,7 +704,7 @@ export default function Journal() {
   async function deleteConversation(id: string) {
     if (!token) return;
 
-    if (!confirm("Supprimer cette discussion ?")) {
+    if (!confirm(t("journalDeleteConfirm"))) {
       return;
     }
 
@@ -717,7 +720,7 @@ export default function Journal() {
 
       if (!res.ok) {
         setErrorMessage(
-          extractErrorMessage(data, "Impossible de supprimer cette discussion.")
+          extractErrorMessage(data, t("journalDeleteError"))
         );
         return;
       }
@@ -735,19 +738,19 @@ export default function Journal() {
       setErrorMessage("");
     } catch (error) {
       console.error("Erreur suppression journal:", error);
-      setErrorMessage("Impossible de supprimer cette discussion pour le moment.");
+      setErrorMessage(t("journalDeleteError"));
     }
   }
 
   async function submitJournalMessage(mode: "journal" | "insight") {
     if (!token) {
-      setErrorMessage("Session introuvable. Reconnecte-toi pour continuer.");
+      setErrorMessage(t("journalContinueAfterLogin"));
       return;
     }
 
     const text = input.trim();
     if (!text) {
-      setErrorMessage("Ecris un message avant de l'envoyer.");
+      setErrorMessage(t("journalWriteBeforeSend"));
       return;
     }
 
@@ -795,15 +798,15 @@ export default function Journal() {
 
         if (nextUsage?.code === "JOURNAL_DAILY_LIMIT") {
           setErrorMessage(
-            `Limite atteinte, reessaie apres ${formatDateTime(
-              nextUsage.resetAt ?? null
-            )}.`
+            t("journalLimitReachedAfter", {
+              date: formatDateTime(nextUsage.resetAt ?? null),
+            })
           );
           return;
         }
 
         setErrorMessage(
-          extractErrorMessage(data, "Le journal est momentanement indisponible.")
+          extractErrorMessage(data, t("journalUnavailable"))
         );
         return;
       }
@@ -812,7 +815,7 @@ export default function Journal() {
         setMessages(baseMessages);
         setInput(text);
         setErrorMessage(
-          extractErrorMessage(data, "Impossible d'envoyer le message.")
+          extractErrorMessage(data, t("journalSendError"))
         );
         return;
       }
@@ -827,8 +830,8 @@ export default function Journal() {
       setInput(text);
       setErrorMessage(
         mode === "journal"
-          ? "Impossible d'envoyer le message pour le moment."
-          : "Impossible d'envoyer l'analyse pour le moment."
+          ? t("journalSendError")
+          : t("journalInsightError")
       );
     } finally {
       setSending(false);
@@ -841,16 +844,14 @@ export default function Journal() {
 
   async function generateCompatibilityInsight() {
     if (!token) {
-      setErrorMessage("Session introuvable. Reconnecte-toi pour continuer.");
+      setErrorMessage(t("journalContinueAfterLogin"));
       return;
     }
 
     const sourceText = input.trim();
 
     if (!sourceText) {
-      setErrorMessage(
-        "Ecris ton message avant de demander une analyse."
-      );
+      setErrorMessage(t("journalWriteBeforeInsight"));
       return;
     }
 
@@ -877,7 +878,7 @@ export default function Journal() {
           <section className="journal-list-screen">
             <div className="journal-list-topbar">
               <button className="journal-nav-button" onClick={() => navigate("/")}>
-                Retour
+                {t("back")}
               </button>
 
               <button
@@ -886,18 +887,18 @@ export default function Journal() {
                 disabled={!canCreateNewDiscussion}
                 type="button"
               >
-                Nouvelle discussion
+                {t("journalNewDiscussion")}
               </button>
             </div>
 
             <div className="journal-list-header">
-              <p className="journal-sidebar-kicker">Journal IA</p>
-              <h1>Discussions</h1>
+              <p className="journal-sidebar-kicker">{t("journalAiKicker")}</p>
+              <h1>{t("journalDiscussionsTitle")}</h1>
               <p>
                 {loadingList
-                  ? "Chargement..."
+                  ? t("loading")
                   : conversations.length === 0
-                    ? "Tes archives apparaissent ici."
+                    ? t("journalArchivesHere")
                     : archiveCountLabel}
               </p>
             </div>
@@ -906,11 +907,8 @@ export default function Journal() {
 
             {!loadingList && conversations.length === 0 ? (
               <div className="journal-sidebar-empty">
-                <strong>Aucune discussion archivee.</strong>
-                <p>
-                  Des que tu entames un echange, il s'enregistre ici avec le titre
-                  fourni par le backend.
-                </p>
+                <strong>{t("journalArchiveEmptyTitle")}</strong>
+                <p>{t("journalArchiveEmptyDesc")}</p>
               </div>
             ) : (
               <div className="journal-thread-list journal-thread-list-page">
@@ -929,7 +927,7 @@ export default function Journal() {
                       type="button"
                     >
                       <strong>{conversation.title}</strong>
-                      <p>{conversation.preview || "Ouvrir la discussion"}</p>
+                      <p>{conversation.preview || t("journalOpenDiscussion")}</p>
                       <small>{formatDateTime(conversation.updatedAt)}</small>
                     </button>
 
@@ -940,7 +938,7 @@ export default function Journal() {
                       }}
                       type="button"
                     >
-                      Supprimer
+                      {t("deleteAction")}
                     </button>
                   </article>
                 ))}
@@ -956,7 +954,7 @@ export default function Journal() {
                   onClick={() => setShowArchivePanel(true)}
                   type="button"
                 >
-                  Discussions
+                  {t("journalDiscussionsTitle")}
                 </button>
 
                 <button
@@ -964,9 +962,9 @@ export default function Journal() {
                   onClick={startFreshConversation}
                   disabled={!canCreateNewDiscussion}
                   type="button"
-                  aria-label="Nouvelle discussion"
+                  aria-label={t("journalNewDiscussion")}
                 >
-                  <span className="journal-header-new-text">Nouveau</span>
+                  <span className="journal-header-new-text">{t("journalNewShort")}</span>
                   <span className="journal-header-new-plus" aria-hidden="true">
                     +
                   </span>
@@ -976,7 +974,7 @@ export default function Journal() {
               <div className="journal-main-title">
                 <h2>{currentConversationTitle}</h2>
                 {activeConversation && (
-                  <p>Retrouve ton echange et continue la discussion ici.</p>
+                  <p>{t("journalContinueHint")}</p>
                 )}
                 {usageSummary && !dailyLimitReached && (
                   <p className="journal-usage-line">{usageSummary}</p>
@@ -985,12 +983,12 @@ export default function Journal() {
             </header>
 
             <div className="journal-conversation" ref={streamRef}>
-              {loadingConversation && <p className="journal-empty">Chargement...</p>}
+              {loadingConversation && <p className="journal-empty">{t("loading")}</p>}
 
               {!loadingConversation && messages.length === 0 && (
                 <div className="journal-empty-card chat-style">
-                  <strong>Nouvelle discussion.</strong>
-                  <p>Ecris ton premier message ci-dessous pour commencer.</p>
+                  <strong>{t("journalEmptyTitle")}</strong>
+                  <p>{t("journalCurrentContinue")}</p>
                 </div>
               )}
 
@@ -1003,10 +1001,10 @@ export default function Journal() {
                     <div className="journal-message-head">
                       <strong className="journal-message-label">
                         {message.role === "user"
-                          ? "Toi"
+                          ? t("you")
                           : message.role === "assistant"
-                            ? "IA"
-                            : "Systeme"}
+                            ? t("ai")
+                            : t("system")}
                       </strong>
                       <small className="journal-message-time">
                         {formatDateTime(message.createdAt)}
@@ -1025,10 +1023,10 @@ export default function Journal() {
                 onKeyDown={handleComposerKeyDown}
                 placeholder={
                   dailyLimitReached
-                    ? `Limite atteinte, reessaie apres ${formatDateTime(
-                        usage?.resetAt ?? null
-                      )}.`
-                    : "Decris ce que tu ressens, ce qui te preoccupe, ou la question que tu aimerais explorer..."
+                    ? t("journalLimitReachedAfter", {
+                        date: formatDateTime(usage?.resetAt ?? null),
+                      })
+                    : t("journalPlaceholder")
                 }
                 disabled={!token || sending || dailyLimitReached || loadingConversation}
               />
@@ -1047,7 +1045,7 @@ export default function Journal() {
                     !input.trim()
                   }
                 >
-                  {sending ? "Envoi..." : "Envoyer"}
+                  {sending ? t("journalSending") : t("journalSendAction")}
                 </button>
 
                 <button
@@ -1064,7 +1062,7 @@ export default function Journal() {
                     !input.trim()
                   }
                 >
-                  {insightLoading ? "Analyse..." : "Analyse ponctuelle"}
+                  {insightLoading ? t("journalInsightLoading") : t("journalInsightAction")}
                 </button>
               </div>
 
@@ -1072,8 +1070,9 @@ export default function Journal() {
 
               {dailyLimitReached && (
                 <div className="journal-alert warning">
-                  Limite atteinte, reessaie apres{" "}
-                  {formatDateTime(usage?.resetAt ?? null)}.
+                  {t("journalWarningLimit", {
+                    date: formatDateTime(usage?.resetAt ?? null),
+                  })}
                 </div>
               )}
             </div>

@@ -1,18 +1,11 @@
 import GroupChatRoom from "./GroupChatRoom";
+import { useLang } from "../hooks/useLang";
 
 type SolitudeProps = {
   isAuth: boolean;
 };
 
-const solitudeConfig = {
-  room: "solitude",
-  title: "Solitude",
-  subtitle: "Un espace pour ne plus rester seul ou seule",
-  banner: "Un espace pour parler sans rester seul face au silence.",
-  placeholder: "Exprime ce que tu ressens...",
-  noteStorageKey: "solitude_note",
-  noteLabel: "Ma note (24h)",
-  theme: {
+const solitudeTheme = {
     "--chat-bg": "linear-gradient(180deg, #0f172a 0%, #020617 100%)",
     "--chat-panel": "rgba(15, 23, 42, 0.94)",
     "--chat-panel-border": "rgba(56, 189, 248, 0.18)",
@@ -30,9 +23,24 @@ const solitudeConfig = {
     "--chat-bubble-other-text": "#f8fafc",
     "--chat-translation-bg": "rgba(255, 255, 255, 0.08)",
     "--chat-danger": "#fb7185",
-  },
 } as const;
 
 export default function Solitude({ isAuth }: SolitudeProps) {
-  return <GroupChatRoom isAuth={isAuth} config={solitudeConfig} />;
+  const { t } = useLang();
+
+  return (
+    <GroupChatRoom
+      isAuth={isAuth}
+      config={{
+        room: "solitude",
+        title: t("solitudeTitle"),
+        subtitle: t("solitudeSubtitle"),
+        banner: t("solitudeBanner"),
+        placeholder: t("chatPlaceholder"),
+        noteStorageKey: "solitude_note",
+        noteLabel: t("solitudeNoteLabel"),
+        theme: solitudeTheme,
+      }}
+    />
+  );
 }

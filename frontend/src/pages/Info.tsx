@@ -1,122 +1,100 @@
 import { useNavigate } from "react-router-dom";
+import { useLang } from "../hooks/useLang";
 import "../style/info.css";
 
 export default function Info() {
   const navigate = useNavigate();
+  const { t } = useLang();
 
   return (
     <div className="info-page">
       <header className="info-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          {"<"}
         </button>
-        <h1>À propos</h1>
+        <h1>{t("infoTitle")}</h1>
       </header>
 
       <section className="info-hero">
-        <div className="info-icon">💬</div>
-        <h2>Un espace de soutien anonyme</h2>
-        <p>
-          Un lieu pour écrire, échanger, publier son histoire et créer des liens
-          de manière respectueuse, sans exposer son identité publiquement.
-        </p>
+        <div className="info-icon">i</div>
+        <h2>{t("infoHeroTitle")}</h2>
+        <p>{t("infoHeroBody")}</p>
       </section>
 
       <section className="info-card">
-        <h3>Ce que tu peux faire ici</h3>
+        <h3>{t("infoWhatYouCanDoTitle")}</h3>
         <ul className="info-list">
-          <li>Participer à des espaces de discussion thématiques en groupe.</li>
-          <li>Écrire des brouillons puis publier ton histoire si tu le souhaites.</li>
-          <li>Consulter ton espace personnel avec tes stats, amis, DM et stories récentes.</li>
-          <li>Recevoir des matchs du jour avec des profils proches de ton vécu.</li>
-          <li>Utiliser le journal guidé avec un éclairage IA ponctuel.</li>
+          <li>{t("infoFeatureGroupChat")}</li>
+          <li>{t("infoFeatureStoryDrafts")}</li>
+          <li>{t("infoFeatureMySpace")}</li>
+          <li>{t("infoFeatureMatches")}</li>
+          <li>{t("infoFeatureJournal")}</li>
         </ul>
       </section>
 
       <section className="info-card">
-        <h3>Discussions de groupe</h3>
+        <h3>{t("infoGroupDiscussionsTitle")}</h3>
         <ul className="info-list">
-          <li>Les échanges se font par thème : burnout, solitude, rupture, expatriation et changement de vie.</li>
-          <li>Le chat de groupe reste séparé des conversations privées.</li>
-          <li>Le ton attendu est simple : respect, bienveillance et discrétion.</li>
+          <li>{t("infoGroupDiscussionsItem1")}</li>
+          <li>{t("infoGroupDiscussionsItem2")}</li>
+          <li>{t("infoGroupDiscussionsItem3")}</li>
         </ul>
       </section>
 
       <section className="info-card">
-        <h3>Connexions privées</h3>
-        <p>
-          Les conversations privées passent par le système DM. Elles peuvent être
-          ouvertes avec une personne selon les règles d’accès prévues par la
-          plateforme.
-        </p>
+        <h3>{t("infoPrivateConnectionsTitle")}</h3>
+        <p>{t("infoPrivateConnectionsBody")}</p>
         <ul className="info-list">
-          <li>Accès si vous êtes amis.</li>
-          <li>Ou déblocage ponctuel d’un DM à 4,99 €.</li>
-          <li>Ou abonnement DM illimité à 9,75 € si activé.</li>
+          <li>{t("infoPrivateAccessFriends")}</li>
+          <li>{t("infoPrivateAccessOneTime")}</li>
+          <li>{t("infoPrivateAccessSubscription")}</li>
         </ul>
 
         <div className="pricing-grid">
           <div className="pricing-box">
-            <h4>DM ponctuel</h4>
-            <div className="price">4,99 €</div>
-            <p>Débloque une conversation privée avec une personne.</p>
+            <h4>{t("infoOneTimeDmTitle")}</h4>
+            <div className="price">4,99 EUR</div>
+            <p>{t("infoOneTimeDmDesc")}</p>
           </div>
 
           <div className="pricing-box accent">
-            <h4>Abonnement DM</h4>
-            <div className="price">9,75 €</div>
-            <p>Accès illimité aux DM selon l’état de l’abonnement.</p>
+            <h4>{t("infoSubscriptionTitle")}</h4>
+            <div className="price">9,75 EUR</div>
+            <p>{t("infoSubscriptionDesc")}</p>
           </div>
         </div>
       </section>
 
       <section className="info-card">
-        <h3>Histoires et brouillons</h3>
+        <h3>{t("infoStoriesDraftsTitle")}</h3>
         <ul className="info-list">
-          <li>Tu peux enregistrer une histoire en brouillon avant publication.</li>
-          <li>Les brouillons se gèrent dans “Mon histoire”.</li>
-          <li>Les histoires publiées vivent dans l’espace public “Stories”.</li>
-          <li>Une publication peut être supprimée depuis la page des stories.</li>
+          <li>{t("infoStoriesDraftsItem1")}</li>
+          <li>{t("infoStoriesDraftsItem2")}</li>
+          <li>{t("infoStoriesDraftsItem3")}</li>
+          <li>{t("infoStoriesDraftsItem4")}</li>
         </ul>
       </section>
 
       <section className="info-card">
-        <h3>Mon espace</h3>
-        <p>
-          “Mon espace” réunit ton profil, tes amis, les demandes reçues et
-          envoyées, tes DM récents, tes stories récentes, ton journal, tes
-          matchs du jour et l’état de tes déblocages ou abonnements.
-        </p>
+        <h3>{t("infoMySpaceTitle")}</h3>
+        <p>{t("infoMySpaceBody")}</p>
       </section>
 
       <section className="info-card">
-        <h3>Langues et compréhension</h3>
-        <p>
-          L’interface continue d’évoluer, mais l’objectif reste de faciliter les
-          échanges entre personnes qui ne parlent pas toujours la même langue.
-        </p>
-        <p>
-          Certaines formulations peuvent encore évoluer avec les prochaines mises
-          à jour du produit.
-        </p>
+        <h3>{t("infoLanguagesTitle")}</h3>
+        <p>{t("infoLanguagesBody1")}</p>
+        <p>{t("infoLanguagesBody2")}</p>
       </section>
 
       <section className="info-card warning">
-        <h3>Important</h3>
-        <p>
-          Cette application n’est pas un service médical et ne remplace pas
-          l’avis d’un professionnel de santé.
-        </p>
-        <p>
-          En cas de danger immédiat, de détresse aiguë ou de risque pour toi ou
-          pour quelqu’un d’autre, contacte sans attendre un proche, un
-          professionnel ou les services d’urgence.
-        </p>
+        <h3>{t("infoImportantTitle")}</h3>
+        <p>{t("infoImportantBody1")}</p>
+        <p>{t("infoImportantBody2")}</p>
       </section>
 
       <footer className="info-footer">
-        <button onClick={() => navigate("/")}>Revenir à l’accueil</button>
-        <p>Anonymat • Respect • Liens humains</p>
+        <button onClick={() => navigate("/")}>{t("infoBackHome")}</button>
+        <p>{t("infoFooterMotto")}</p>
       </footer>
     </div>
   );

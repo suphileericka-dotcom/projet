@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/myStory.css";
 import { API } from "../config/api";
+import { useLang } from "../hooks/useLang";
 
 const TAGS = [
   "burnout",
@@ -63,6 +64,7 @@ function extractDraftId(payload: unknown): string | null {
 
 export default function MyStory() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
 
   const [title, setTitle] = useState("");
@@ -90,7 +92,7 @@ export default function MyStory() {
     if (!title.trim()) {
       setNotice({
         kind: "error",
-        message: "Ajoute un titre avant de continuer.",
+        message: t("storyTitleRequiredError"),
       });
       return false;
     }
@@ -98,7 +100,7 @@ export default function MyStory() {
     if (!selectedTag) {
       setNotice({
         kind: "error",
-        message: "Ajoute au moins un tag avant de continuer.",
+        message: t("storyTagRequiredError"),
       });
       return false;
     }
@@ -106,7 +108,7 @@ export default function MyStory() {
     if (body.trim().length < 30) {
       setNotice({
         kind: "error",
-        message: "Ecris encore un peu pour que ton histoire soit complete.",
+        message: t("storyBodyShortError"),
       });
       return false;
     }
@@ -145,7 +147,7 @@ export default function MyStory() {
       console.error("Erreur fetch drafts", err);
       setNotice({
         kind: "error",
-        message: "Impossible de charger les brouillons pour le moment.",
+        message: t("myDraftsLoadError"),
       });
     }
   }
@@ -158,13 +160,13 @@ export default function MyStory() {
     setShowDrafts(false);
     setNotice({
       kind: "info",
-      message: "Brouillon charge. Tu peux le modifier ou le publier.",
+      message: t("myDraftLoadedInfo"),
     });
   }
 
   async function deleteDraft(id: string) {
     if (!token) return;
-    if (!confirm("Supprimer ce brouillon ?")) return;
+    if (!confirm(t("draftDeleteConfirm"))) return;
 
     await fetch(`${MYSTORY_API}/${id}`, {
       method: "DELETE",
@@ -177,7 +179,7 @@ export default function MyStory() {
       clearEditor();
       setNotice({
         kind: "info",
-        message: "Le brouillon supprime a ete retire de l'editeur.",
+        message: t("draftRemovedFromEditor"),
       });
     }
   }
@@ -271,15 +273,14 @@ export default function MyStory() {
       if (!draftId) {
         setNotice({
           kind: "error",
-          message: "Erreur lors de l'enregistrement du brouillon.",
+          message: t("draftSaveError"),
         });
         return;
       }
 
       setNotice({
         kind: "success",
-        message:
-          "Brouillon enregistre. Tu peux continuer a modifier ou publier directement.",
+        message: t("draftSavedSuccess"),
       });
     } finally {
       setIsSavingDraft(false);
@@ -298,7 +299,7 @@ export default function MyStory() {
     setIsPublishing(true);
     setNotice({
       kind: "info",
-      message: "Publication en cours...",
+      message: t("publishInProgress"),
     });
 
     try {
@@ -307,7 +308,7 @@ export default function MyStory() {
       if (!draftId) {
         setNotice({
           kind: "error",
-          message: "Impossible de preparer la publication.",
+          message: t("publishPrepareError"),
         });
         return;
       }
@@ -321,7 +322,7 @@ export default function MyStory() {
       if (!res.ok) {
         setNotice({
           kind: "error",
-          message: "Erreur lors de la publication.",
+          message: t("publishError"),
         });
         return;
       }
@@ -336,7 +337,7 @@ export default function MyStory() {
       console.error("Erreur publish", err);
       setNotice({
         kind: "error",
-        message: "Erreur lors de la publication.",
+        message: t("publishError"),
       });
     } finally {
       setIsPublishing(false);
@@ -352,10 +353,9 @@ export default function MyStory() {
       <div className="editor-card">
         <header className="editor-header">
           <div>
-            <h1>Mon histoire</h1>
+            <h1>{t("myStory")}</h1>
             <p className="editor-intro">
-              Ecris librement ici. Tu peux enregistrer en brouillon ou publier
-              directement quand ton texte est pret.
+              {t("myStoryHeaderDesc")}
             </p>
           </div>
 
@@ -364,7 +364,7 @@ export default function MyStory() {
             onClick={openDrafts}
             disabled={isSavingDraft || isPublishing}
           >
-            Mes brouillons
+            {t("myDrafts")}
           </button>
         </header>
 
@@ -381,8 +381,7 @@ export default function MyStory() {
 
             {currentDraftId && (
               <p className="editor-draft-hint">
-                Brouillon actif. Un clic sur Publier enverra la version affichee
-                dans l'editeur.
+                {t("myDraftActiveHint")}
               </p>
             )}
           </div>
@@ -390,14 +389,14 @@ export default function MyStory() {
 
         <input
           className="title-input"
-          placeholder="Titre (obligatoire)"
+          placeholder={t("storyTitlePlaceholder")}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
 
         <textarea
           className="body-textarea"
-          placeholder="Ecris ton histoire..."
+          placeholder={t("storyBodyPlaceholder")}
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
@@ -424,7 +423,7 @@ export default function MyStory() {
           >
             <span className="story-btn-content">
               {isSavingDraft && <span className="btn-spinner" aria-hidden="true" />}
-              {currentDraftId ? "Mettre a jour le brouillon" : "Enregistrer en brouillon"}
+              {currentDraftId ? t("updateDraftAction") : t("saveDraftAction")}
             </span>
           </button>
 
@@ -436,7 +435,7 @@ export default function MyStory() {
           >
             <span className="story-btn-content">
               {isPublishing && <span className="btn-spinner" aria-hidden="true" />}
-              {isPublishing ? "Publication..." : "Publier"}
+              {isPublishing ? t("publishInProgress") : t("publishAction")}
             </span>
           </button>
         </div>
@@ -445,9 +444,9 @@ export default function MyStory() {
       {showDrafts && (
         <div className="modal-backdrop">
           <div className="modal">
-            <h3>Mes brouillons</h3>
+            <h3>{t("myDrafts")}</h3>
 
-            {drafts.length === 0 && <p>Aucun brouillon</p>}
+            {drafts.length === 0 && <p>{t("myDraftsNone")}</p>}
 
             {drafts.map((draft) => (
               <div key={draft.id} className="draft-row">
@@ -455,20 +454,20 @@ export default function MyStory() {
                   className="draft-title"
                   onClick={() => selectDraft(draft)}
                 >
-                  {draft.title || "Sans titre"}
+                  {draft.title || t("storyWithoutTitle")}
                 </button>
 
                 <button
                   className="draft-delete"
                   onClick={() => deleteDraft(draft.id)}
                 >
-                  Supprimer
+                  {t("deleteAction")}
                 </button>
               </div>
             ))}
 
             <button className="close" onClick={() => setShowDrafts(false)}>
-              Fermer
+              {t("close")}
             </button>
           </div>
         </div>

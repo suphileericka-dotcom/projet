@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { translate } from "../i18n";
+import { translate, type TranslationParams } from "../i18n";
 
 export type Lang = "fr" | "en" | "es" | "de" | "it";
 
 const DEFAULT_LANG: Lang = "fr";
 const VALID_LANGS: Lang[] = ["fr", "en", "es", "de", "it"];
+export const LANGUAGE_CHANGE_EVENT = "ameya:language-change";
 
 function getStoredLang(): Lang {
   const stored = localStorage.getItem("language");
@@ -14,29 +15,37 @@ function getStoredLang(): Lang {
   return DEFAULT_LANG;
 }
 
+export function isValidLang(value: string | null | undefined): value is Lang {
+  return !!value && VALID_LANGS.includes(value as Lang);
+}
+
 export function useLang() {
   const [lang, setLangState] = useState<Lang>(getStoredLang());
 
-  // Sync inter-onglets
   useEffect(() => {
     function syncLang() {
       setLangState(getStoredLang());
     }
 
     window.addEventListener("storage", syncLang);
-    return () => window.removeEventListener("storage", syncLang);
+    window.addEventListener(LANGUAGE_CHANGE_EVENT, syncLang);
+
+    return () => {
+      window.removeEventListener("storage", syncLang);
+      window.removeEventListener(LANGUAGE_CHANGE_EVENT, syncLang);
+    };
   }, []);
 
-  // Setter propre (à utiliser partout)
   function setLang(newLang: Lang) {
     if (!VALID_LANGS.includes(newLang)) return;
 
     localStorage.setItem("language", newLang);
     setLangState(newLang);
+    window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
   }
 
-  function t(key: string): string {
-    return translate(key, lang);
+  function t(key: string, params?: TranslationParams): string {
+    return translate(key, lang, params);
   }
 
   return { t, lang, setLang };

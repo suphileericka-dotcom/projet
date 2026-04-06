@@ -1,16 +1,11 @@
 import GroupChatRoom from "./GroupChatRoom";
+import { useLang } from "../hooks/useLang";
 
 type ExpatriationProps = {
   isAuth: boolean;
 };
 
-const expatriationConfig = {
-  room: "expatriation",
-  title: "Expatriation",
-  subtitle: "Un espace pour partager le depart, le manque et l'adaptation",
-  banner: "Un espace pour parler du depart, du manque et de l'adaptation.",
-  placeholder: "Exprime ton ressenti d'expatriation...",
-  theme: {
+const expatriationTheme = {
     "--chat-bg": "linear-gradient(180deg, #0b1320 0%, #111921 100%)",
     "--chat-panel": "rgba(15, 23, 32, 0.94)",
     "--chat-panel-border": "rgba(48, 140, 232, 0.16)",
@@ -28,9 +23,22 @@ const expatriationConfig = {
     "--chat-bubble-other-text": "#e6edf3",
     "--chat-translation-bg": "rgba(48, 140, 232, 0.12)",
     "--chat-danger": "#fb7185",
-  },
 } as const;
 
 export default function Expatriation({ isAuth }: ExpatriationProps) {
-  return <GroupChatRoom isAuth={isAuth} config={expatriationConfig} />;
+  const { t } = useLang();
+
+  return (
+    <GroupChatRoom
+      isAuth={isAuth}
+      config={{
+        room: "expatriation",
+        title: t("expatriationTitle"),
+        subtitle: t("expatriationSubtitle"),
+        banner: t("expatriationBanner"),
+        placeholder: t("expatriationPlaceholder"),
+        theme: expatriationTheme,
+      }}
+    />
+  );
 }

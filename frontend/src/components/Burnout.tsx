@@ -1,16 +1,11 @@
 import GroupChatRoom from "./GroupChatRoom";
+import { useLang } from "../hooks/useLang";
 
 type BurnoutProps = {
   isAuth: boolean;
 };
 
-const burnoutConfig = {
-  room: "burnout",
-  title: "Burnout",
-  subtitle: "Un espace pour souffler et deposer la surcharge",
-  banner: "Un espace pour parler de fatigue, de surcharge et retrouver un peu d'air.",
-  placeholder: "Exprime ce que tu ressens...",
-  theme: {
+const burnoutTheme = {
     "--chat-bg": "linear-gradient(180deg, #121212 0%, #1d2333 100%)",
     "--chat-panel": "rgba(10, 10, 10, 0.92)",
     "--chat-panel-border": "rgba(74, 222, 128, 0.2)",
@@ -28,9 +23,22 @@ const burnoutConfig = {
     "--chat-bubble-other-text": "#f8fafc",
     "--chat-translation-bg": "rgba(255, 255, 255, 0.06)",
     "--chat-danger": "#fb7185",
-  },
 } as const;
 
 export default function Burnout({ isAuth }: BurnoutProps) {
-  return <GroupChatRoom isAuth={isAuth} config={burnoutConfig} />;
+  const { t } = useLang();
+
+  return (
+    <GroupChatRoom
+      isAuth={isAuth}
+      config={{
+        room: "burnout",
+        title: t("burnoutTitle"),
+        subtitle: t("burnoutSubtitle"),
+        banner: t("burnoutBanner"),
+        placeholder: t("chatPlaceholder"),
+        theme: burnoutTheme,
+      }}
+    />
+  );
 }

@@ -1,16 +1,11 @@
 import GroupChatRoom from "./GroupChatRoom";
+import { useLang } from "../hooks/useLang";
 
 type RuptureProps = {
   isAuth: boolean;
 };
 
-const ruptureConfig = {
-  room: "rupture",
-  title: "Rupture",
-  subtitle: "Un espace bienveillant pour se reconstruire",
-  banner: "Un espace pour deposer la peine et avancer apres la rupture.",
-  placeholder: "Exprime ce que tu ressens...",
-  theme: {
+const ruptureTheme = {
     "--chat-bg": "linear-gradient(180deg, #fff5f5 0%, #fff1f2 100%)",
     "--chat-panel": "rgba(255, 245, 245, 0.95)",
     "--chat-panel-border": "rgba(239, 68, 68, 0.18)",
@@ -28,9 +23,22 @@ const ruptureConfig = {
     "--chat-bubble-other-text": "#571313",
     "--chat-translation-bg": "rgba(239, 68, 68, 0.08)",
     "--chat-danger": "#be123c",
-  },
 } as const;
 
 export default function Rupture({ isAuth }: RuptureProps) {
-  return <GroupChatRoom isAuth={isAuth} config={ruptureConfig} />;
+  const { t } = useLang();
+
+  return (
+    <GroupChatRoom
+      isAuth={isAuth}
+      config={{
+        room: "rupture",
+        title: t("ruptureTitle"),
+        subtitle: t("ruptureSubtitle"),
+        banner: t("ruptureBanner"),
+        placeholder: t("chatPlaceholder"),
+        theme: ruptureTheme,
+      }}
+    />
+  );
 }

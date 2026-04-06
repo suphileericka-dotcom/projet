@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import "../index.css";
 import "../style/groupChat.css";
 import { API } from "../config/api";
+import { useLang } from "../hooks/useLang";
 import { buildPrivateChatPath } from "../lib/dmCheckout";
 import { socket } from "../lib/socket";
 import {
@@ -151,6 +152,7 @@ export default function GroupChatRoom({
   config,
 }: GroupChatRoomProps) {
   const navigate = useNavigate();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
   const userId = isAuth ? localStorage.getItem("userId") : null;
   const currentAvatar = localStorage.getItem("avatar");
@@ -187,7 +189,7 @@ export default function GroupChatRoom({
   } | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const typingSentRef = useRef(false);
-  const effectiveUsername = currentUsername || "Utilisateur";
+  const effectiveUsername = currentUsername || t("member");
 
   const editingMessage =
     (editingId && messages.find((message) => message.id === editingId)) || null;
@@ -472,7 +474,7 @@ export default function GroupChatRoom({
         meta.name.toLowerCase() !== "moi" &&
         meta.name.toLowerCase() !== "utilisateur"
           ? meta.name
-          : knownAuthorName || "Utilisateur";
+          : knownAuthorName || t("member");
 
       if (!meta.isTyping) {
         setTypingUsers((current) => current.filter((entry) => entry.key !== key));
@@ -702,7 +704,7 @@ export default function GroupChatRoom({
           setMessages((current) => upsertMessage(current, previous));
           setInput(trimmedInput);
           setEditingId(editingId);
-          setFlashMessage("Impossible de modifier ce message pour le moment.");
+          setFlashMessage(t("groupMessageEditError"));
           return;
         }
 
@@ -728,7 +730,7 @@ export default function GroupChatRoom({
         setMessages((current) => upsertMessage(current, previous));
         setInput(trimmedInput);
         setEditingId(editingId);
-        setFlashMessage("Impossible de modifier ce message pour le moment.");
+        setFlashMessage(t("groupMessageEditError"));
       } finally {
         setIsSubmitting(false);
       }
@@ -770,7 +772,7 @@ export default function GroupChatRoom({
       setInput("");
       setActiveMessageId(null);
     } catch {
-      setFlashMessage("Impossible d'envoyer le message pour le moment.");
+      setFlashMessage(t("groupMessageSendError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -778,7 +780,7 @@ export default function GroupChatRoom({
 
   async function handleDelete(message: ChatMessage) {
     if (!userId) return;
-    if (!window.confirm("Supprimer ce message pour tout le monde ?")) return;
+    if (!window.confirm(t("groupMessageDeleteConfirm"))) return;
 
     const snapshot = message;
 
@@ -803,7 +805,7 @@ export default function GroupChatRoom({
       }
     } catch {
       setMessages((current) => upsertMessage(current, snapshot));
-      setFlashMessage("Impossible de supprimer ce message pour le moment.");
+      setFlashMessage(t("groupMessageDeleteError"));
     }
   }
 
@@ -847,7 +849,7 @@ export default function GroupChatRoom({
       );
       setActiveMessageId(null);
     } catch {
-      setFlashMessage("Traduction indisponible pour le moment.");
+      setFlashMessage(t("groupTranslateError"));
     }
   }
 
@@ -909,7 +911,7 @@ export default function GroupChatRoom({
 
     setSelectedProfile({
       id: message.sender.id,
-      name: message.sender.name || "Membre",
+      name: message.sender.name || t("member"),
       avatar: message.sender.avatar,
     });
     setActiveMessageId(null);
@@ -961,13 +963,13 @@ export default function GroupChatRoom({
 
         if (response.ok) {
           closeProfileCard();
-          setFlashMessage(`Demande d'ami envoyee a ${profile.name}.`);
+          setFlashMessage(t("groupFriendRequestSent", { name: profile.name }));
           return;
         }
 
         if (response.status === 409) {
           closeProfileCard();
-          setFlashMessage(`Une demande existe deja avec ${profile.name}.`);
+          setFlashMessage(t("groupFriendRequestExists", { name: profile.name }));
           return;
         }
 
@@ -980,17 +982,17 @@ export default function GroupChatRoom({
               ? String((payload as Record<string, unknown>).error)
               : null;
 
-          throw new Error(message || "Ajout en ami indisponible pour le moment.");
+          throw new Error(message || t("groupFriendRequestUnavailable"));
         }
       }
 
-      throw new Error("Ajout en ami indisponible pour le moment.");
+      throw new Error(t("groupFriendRequestUnavailable"));
     } catch (error) {
       closeProfileCard();
       setFlashMessage(
         error instanceof Error && error.message
           ? error.message
-          : "Ajout en ami indisponible pour le moment."
+          : t("groupFriendRequestUnavailable")
       );
     }
   }
@@ -1012,10 +1014,13 @@ export default function GroupChatRoom({
     visibleTypingUsers.length === 0
       ? null
       : visibleTypingUsers.length === 1
-        ? `${visibleTypingUsers[0].name} ecrit...`
+        ? t("groupTypingOne", { name: visibleTypingUsers[0].name })
         : visibleTypingUsers.length === 2
-          ? `${visibleTypingUsers[0].name} et ${visibleTypingUsers[1].name} ecrivent...`
-          : `${visibleTypingUsers.length} personnes ecrivent...`;
+          ? t("groupTypingTwo", {
+              name1: visibleTypingUsers[0].name,
+              name2: visibleTypingUsers[1].name,
+            })
+          : t("groupTypingMany", { count: visibleTypingUsers.length });
 
   return (
     <div className="group-chat" style={config.theme}>
@@ -1025,7 +1030,7 @@ export default function GroupChatRoom({
             type="button"
             className="group-chat__back"
             onClick={() => navigate("/")}
-            aria-label="Retour a l'accueil"
+            aria-label={t("groupBackHomeAria")}
           >
             {"<"}
           </button>
@@ -1059,29 +1064,33 @@ export default function GroupChatRoom({
                 disabled={isLoadingHistory}
               >
                 {isLoadingHistory
-                  ? "Chargement..."
+                  ? t("loading")
                   : hiddenLoadedMessageCount > 0
-                    ? "Afficher plus anciens"
-                    : "Charger plus anciens"}
+                    ? t("groupShowOlder")
+                    : t("groupLoadOlder")}
               </button>
               <span>
-                {visibleMessages.length} message
-                {visibleMessages.length > 1 ? "s" : ""} affiche
-                {visibleMessages.length > 1 ? "s" : ""}
+                {visibleMessages.length === 1
+                  ? t("groupVisibleMessagesSingular", {
+                      count: visibleMessages.length,
+                    })
+                  : t("groupVisibleMessagesPlural", {
+                      count: visibleMessages.length,
+                    })}
               </span>
             </div>
           )}
 
           {note ? (
             <section className="group-chat__note">
-              <strong>{config.noteLabel || "Note ephemere"}</strong>
+              <strong>{config.noteLabel || t("groupEphemeralNote")}</strong>
               <p>{note.text}</p>
             </section>
           ) : null}
 
           {messages.length === 0 ? (
             <div className="group-chat__empty">
-              Les messages s'effacent de l'ecran apres 24h. Lance la discussion.
+              {t("groupEmpty")}
             </div>
           ) : null}
 
@@ -1111,7 +1120,7 @@ export default function GroupChatRoom({
                     className="group-chat__profile-trigger"
                     onClick={() => openProfileCard(message)}
                     disabled={!message.sender.id}
-                    aria-label={`Voir le profil de ${authorLabel}`}
+                    aria-label={t("groupViewProfileOf", { name: authorLabel })}
                   >
                     <img
                       className="group-chat__avatar"
@@ -1158,7 +1167,7 @@ export default function GroupChatRoom({
 
                     <div className="group-chat__meta">
                       {messageTime ? <span>{messageTime}</span> : null}
-                      {message.editedAt ? <span>modifie</span> : null}
+                      {message.editedAt ? <span>{t("groupEdited")}</span> : null}
                     </div>
                   </div>
 
@@ -1173,7 +1182,7 @@ export default function GroupChatRoom({
                           type="button"
                           onClick={() => startEditingMessage(message)}
                         >
-                          Modifier
+                          {t("edit")}
                         </button>
                       ) : null}
 
@@ -1183,7 +1192,7 @@ export default function GroupChatRoom({
                           className="danger"
                           onClick={() => handleDelete(message)}
                         >
-                          Supprimer
+                          {t("deleteAction")}
                         </button>
                       ) : null}
 
@@ -1192,7 +1201,7 @@ export default function GroupChatRoom({
                           type="button"
                           onClick={() => handleTranslate(message)}
                         >
-                          Traduire
+                          {t("translateAction")}
                         </button>
                       ) : null}
                     </div>
@@ -1232,7 +1241,7 @@ export default function GroupChatRoom({
                 type="button"
                 className="group-chat__profile-close"
                 onClick={closeProfileCard}
-                aria-label="Fermer la fiche profil"
+                aria-label={t("groupCloseProfileAria")}
               >
                 ×
               </button>
@@ -1243,7 +1252,7 @@ export default function GroupChatRoom({
                 alt={selectedProfile.name}
               />
               <h3>{selectedProfile.name}</h3>
-              <p>Que veux-tu faire avec cette personne ?</p>
+              <p>{t("groupProfilePrompt")}</p>
 
               <div className="group-chat__profile-actions">
                 <button
@@ -1251,7 +1260,7 @@ export default function GroupChatRoom({
                   onClick={() => void openPrivateChatFromProfile(selectedProfile)}
                   disabled={isProfileActionLoading}
                 >
-                  Ecrire en prive
+                  {t("groupWritePrivate")}
                 </button>
                 <button
                   type="button"
@@ -1259,7 +1268,7 @@ export default function GroupChatRoom({
                   onClick={() => void addFriendFromProfile(selectedProfile)}
                   disabled={isProfileActionLoading}
                 >
-                  Ajouter en ami
+                  {t("groupAddFriend")}
                 </button>
                 <button
                   type="button"
@@ -1267,7 +1276,7 @@ export default function GroupChatRoom({
                   onClick={() => readStoriesFromProfile(selectedProfile)}
                   disabled={isProfileActionLoading}
                 >
-                  Lire ses histoires
+                  {t("groupReadStories")}
                 </button>
               </div>
             </div>
@@ -1277,9 +1286,9 @@ export default function GroupChatRoom({
         <footer className="group-chat__footer">
           {editingMessage ? (
             <div className="group-chat__editing">
-              <span>Modification du message en cours.</span>
+              <span>{t("groupEditing")}</span>
               <button type="button" onClick={cancelEditing}>
-                Annuler
+                {t("cancel")}
               </button>
             </div>
           ) : null}
@@ -1291,7 +1300,7 @@ export default function GroupChatRoom({
               onChange={handleInputChange}
               onKeyDown={handleInputKeyDown}
               placeholder={
-                isAuth ? config.placeholder : "Connexion requise pour participer"
+                isAuth ? config.placeholder : t("typingDisabled")
               }
               disabled={!isAuth || isSubmitting}
             />
@@ -1302,7 +1311,7 @@ export default function GroupChatRoom({
               onClick={() => void handleSend()}
               disabled={!isAuth || !input.trim() || isSubmitting}
             >
-              {editingId ? "OK" : "Envoyer"}
+              {editingId ? t("ok") : t("send")}
             </button>
           </div>
         </footer>

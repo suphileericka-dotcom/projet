@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useLang } from "../hooks/useLang";
 
-/* =====================
-   API BASE
-===================== */
-const API =
-  import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api`
-    : "http://localhost:8000/api";
+const API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : "http://localhost:8000/api";
 
 type Message = {
   id: string;
@@ -22,43 +19,37 @@ type RoomChatProps = {
   isAuth: boolean;
 };
 
-/* =====================
-   COMPONENT
-===================== */
 export default function RoomChat({
   room,
   title,
   subtitle,
   isAuth,
 }: RoomChatProps) {
+  const { t } = useLang();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const streamRef = useRef<HTMLDivElement>(null);
 
   const userId = isAuth ? localStorage.getItem("userId") : null;
 
-  /* =====================
-     LOAD MESSAGES
-  ===================== */
   useEffect(() => {
     fetch(`${API}/messages?room=${room}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(
-          data.map((m: any) => ({
-            id: m.id,
-            type: m.audio_path ? "voice" : "text",
-            text: m.content ?? (m.audio_path ? "Ancien message vocal non disponible." : ""),
-            createdAt: m.created_at,
+          data.map((message: any) => ({
+            id: message.id,
+            type: message.audio_path ? "voice" : "text",
+            text:
+              message.content ??
+              (message.audio_path ? t("privateChatNoVisibleMessages") : ""),
+            createdAt: message.created_at,
           }))
         );
       })
       .catch(() => {});
-  }, [room]);
+  }, [room, t]);
 
-  /* =====================
-     AUTOSCROLL
-  ===================== */
   useEffect(() => {
     streamRef.current?.scrollTo({
       top: streamRef.current.scrollHeight,
@@ -66,9 +57,6 @@ export default function RoomChat({
     });
   }, [messages]);
 
-  /* =====================
-     SEND TEXT
-  ===================== */
   async function handleSendText() {
     if (!isAuth || !userId || !input.trim()) return;
 
@@ -79,12 +67,12 @@ export default function RoomChat({
         body: JSON.stringify({ room, userId, content: input }),
       });
 
-      if (!res.ok) throw new Error("Erreur envoi");
+      if (!res.ok) throw new Error(t("groupMessageSendError"));
 
       const saved = await res.json();
 
-      setMessages((msgs) => [
-        ...msgs,
+      setMessages((current) => [
+        ...current,
         {
           id: saved.id,
           type: "text",
@@ -94,14 +82,11 @@ export default function RoomChat({
       ]);
 
       setInput("");
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     }
   }
 
-  /* =====================
-     RENDER
-   ===================== */
   return (
     <div className="chat-root">
       <header className="chat-header">
@@ -110,19 +95,15 @@ export default function RoomChat({
       </header>
 
       <main className="chat-stream" ref={streamRef}>
-        <div className="secure-banner">
-          Un espace anonyme pour partager a ton rythme, en toute simplicite.
-        </div>
+        <div className="secure-banner">{t("burnoutBanner")}</div>
 
-        {messages.map((m) => (
-          <div key={m.id} className="message-row">
-            {m.type === "text" && (
-              <div className="bubble">{m.text}</div>
-            )}
+        {messages.map((message) => (
+          <div key={message.id} className="message-row">
+            {message.type === "text" && <div className="bubble">{message.text}</div>}
 
-            {m.type === "voice" && (
+            {message.type === "voice" && (
               <div className="bubble">
-                {m.text || "Ancien message vocal non disponible."}
+                {message.text || t("privateChatNoVisibleMessages")}
               </div>
             )}
           </div>
@@ -134,18 +115,12 @@ export default function RoomChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendText()}
-          placeholder={
-            isAuth ? "Écris ton message…" : "Connexion requise"
-          }
+          placeholder={isAuth ? t("chatPlaceholder") : t("typingDisabled")}
           disabled={!isAuth}
         />
 
-        <button
-          className="send-icon"
-          onClick={handleSendText}
-          disabled={!isAuth}
-        >
-          ➤
+        <button className="send-icon" onClick={handleSendText} disabled={!isAuth}>
+          {">"}
         </button>
       </footer>
     </div>

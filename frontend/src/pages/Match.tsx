@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "../style/match.css";
 import { API } from "../config/api";
+import { useLang } from "../hooks/useLang";
 import { buildAvatarUrl } from "../lib/avatar";
 import { buildPrivateChatPath } from "../lib/dmCheckout";
 
@@ -246,23 +247,39 @@ function getPayloadMessage(payload: unknown, fallback: string) {
   );
 }
 
-function buildUsageSummary(usage: MatchUsage | null, totalMatches: number) {
+function buildUsageSummary(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  usage: MatchUsage | null,
+  totalMatches: number
+) {
   if (usage !== null && usage.remaining !== null && usage.limit !== null) {
-    return `${usage.remaining} proposition${
-      usage.remaining > 1 ? "s" : ""
-    } restante${usage.remaining > 1 ? "s" : ""} aujourd'hui sur ${usage.limit}.`;
+    return usage.remaining === 1
+      ? t("matchRemainingSingular", {
+          count: usage.remaining,
+          limit: usage.limit,
+        })
+      : t("matchRemainingPlural", {
+          count: usage.remaining,
+          limit: usage.limit,
+        });
   }
 
   if (usage !== null && usage.used !== null && usage.limit !== null) {
-    return `${usage.used} proposition${
-      usage.used > 1 ? "s" : ""
-    } utilisee${usage.used > 1 ? "s" : ""} aujourd'hui sur ${usage.limit}.`;
+    return usage.used === 1
+      ? t("matchUsedSingular", {
+          count: usage.used,
+          limit: usage.limit,
+        })
+      : t("matchUsedPlural", {
+          count: usage.used,
+          limit: usage.limit,
+        });
   }
 
   if (totalMatches > 0) {
-    return `${totalMatches} profil${totalMatches > 1 ? "s" : ""} disponible${
-      totalMatches > 1 ? "s" : ""
-    } pour aujourd'hui.`;
+    return totalMatches === 1
+      ? t("matchAvailableSingular", { count: totalMatches })
+      : t("matchAvailablePlural", { count: totalMatches });
   }
 
   return null;
@@ -270,6 +287,7 @@ function buildUsageSummary(usage: MatchUsage | null, totalMatches: number) {
 
 export default function Match() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const token = localStorage.getItem("authToken");
   const [searchParams] = useSearchParams();
 
@@ -283,7 +301,7 @@ export default function Match() {
 
   useEffect(() => {
     if (searchParams.get("checkout") !== "cancelled") return;
-    setPaymentNotice("Paiement annule. Tu peux reessayer quand tu veux.");
+    setPaymentNotice(t("paymentCancelled"));
   }, [searchParams]);
 
   useEffect(() => {
@@ -323,7 +341,7 @@ export default function Match() {
           setUsage(extractUsage(payload));
           setCurrentIndex(0);
           setLoadError(
-            getPayloadMessage(payload, "Erreur de chargement des suggestions")
+            getPayloadMessage(payload, t("matchConnectionUnavailable"))
           );
           return;
         }
@@ -345,7 +363,7 @@ export default function Match() {
         setLoadError(
           error instanceof Error && error.message
             ? error.message
-            : "Impossible de charger les connexions."
+            : t("matchConnectionUnavailable")
         );
       }
     }
@@ -375,7 +393,7 @@ export default function Match() {
 
   const activeMatch =
     matches.length > 0 ? matches[Math.min(currentIndex, matches.length - 1)] : null;
-  const usageSummary = buildUsageSummary(usage, matches.length);
+  const usageSummary = buildUsageSummary(t, usage, matches.length);
   const resetAtLabel = formatResetAt(usage?.resetAt ?? null);
   const dailyLimitReached =
     usage?.code === "MATCH_DAILY_LIMIT" ||
@@ -386,32 +404,32 @@ export default function Match() {
     <div className="match-root">
       <header className="match-header">
         <button className="back-home" onClick={() => navigate("/")}>
-          Retour
+          {t("back")}
         </button>
-        <h1>Connexions humaines</h1>
-        <p>Des personnes proches de ton vecu, a decouvrir une par une.</p>
+        <h1>{t("matchHeaderTitle")}</h1>
+        <p>{t("matchHeaderDesc")}</p>
         <div className="match-meta">
-          <span>Date des suggestions : {matchDate || "-"}</span>
+          <span>{t("matchSuggestionsDate", { date: matchDate || "-" })}</span>
           <span>
             {generated === null
-              ? "Statut inconnu"
+              ? t("matchStatusUnknown")
               : generated
-                ? "Genere aujourd'hui"
-                : "Suggestions deja pretes"}
+                ? t("matchGeneratedToday")
+                : t("matchReady")}
           </span>
         </div>
       </header>
 
       {paymentNotice && (
         <section className="match-usage-panel">
-          <strong>Messagerie privee</strong>
+          <strong>{t("matchPrivateMessaging")}</strong>
           <span>{paymentNotice}</span>
         </section>
       )}
 
       {loadError && (
         <section className="match-usage-panel">
-          <strong>Connexion indisponible</strong>
+          <strong>{t("matchConnectionUnavailable")}</strong>
           <span>{loadError}</span>
         </section>
       )}
@@ -420,7 +438,7 @@ export default function Match() {
         <section className="match-usage-panel">
           <strong>{usageSummary}</strong>
           {dailyLimitReached && resetAtLabel && (
-            <span>Nouvelle proposition apres {resetAtLabel}.</span>
+            <span>{t("matchResetAfter", { date: resetAtLabel })}</span>
           )}
         </section>
       )}
@@ -428,10 +446,10 @@ export default function Match() {
       <main className="match-list">
         {!activeMatch && (
           <div className="match-empty-card">
-            <p className="empty">Aucun profil similaire pour l'instant.</p>
+            <p className="empty">{t("matchNoProfile")}</p>
             {dailyLimitReached && resetAtLabel && (
               <p className="match-empty-note">
-                La limite du jour semble atteinte. Reviens apres {resetAtLabel}.
+                {t("matchLimitReachedNote", { date: resetAtLabel })}
               </p>
             )}
           </div>
@@ -441,12 +459,14 @@ export default function Match() {
           <section className="match-viewer">
             <div className="match-progress-row">
               <span className="match-progress-pill">
-                Profil {Math.min(currentIndex, matches.length - 1) + 1} sur{" "}
-                {matches.length}
+                {t("matchProfileOf", {
+                  current: Math.min(currentIndex, matches.length - 1) + 1,
+                  total: matches.length,
+                })}
               </span>
               {matches.length > 1 && (
                 <span className="match-progress-hint">
-                  Appuie sur suivant pour voir un autre profil.
+                  {t("matchNextHint")}
                 </span>
               )}
             </div>
@@ -454,17 +474,17 @@ export default function Match() {
             <div className="match-card">
               <img
                 src={buildAvatarUrl({
-                  name: activeMatch.username || "Membre",
+                  name: activeMatch.username || t("member"),
                   avatarPath: activeMatch.avatar,
                   seed: activeMatch.id,
                   size: 128,
                 })}
                 className="avatar-lg"
-                alt={activeMatch.username || "Profil"}
+                alt={activeMatch.username || t("matchProfileFallback")}
               />
 
               <h2 className="match-name">
-                {activeMatch.username || "Profil similaire"}
+                {activeMatch.username || t("matchProfileFallback")}
               </h2>
               <p
                 className="summary"
@@ -484,7 +504,7 @@ export default function Match() {
 
               <div className="actions">
                 <button onClick={() => openPrivateChat(activeMatch)}>
-                  Message prive
+                  {t("matchPrivateMessage")}
                 </button>
 
                 <button
@@ -496,7 +516,7 @@ export default function Match() {
                   }
                   disabled={!activeMatch.common_tags[0]}
                 >
-                  Discussion liee
+                  {t("matchRelatedDiscussion")}
                 </button>
               </div>
             </div>
@@ -505,20 +525,20 @@ export default function Match() {
               <>
                 <div className="match-navigation">
                   <button className="ghost nav-btn" onClick={showPreviousProfile}>
-                    Precedent
+                    {t("previous")}
                   </button>
                   <button className="nav-btn primary" onClick={showNextProfile}>
-                    Suivant
+                    {t("next")}
                   </button>
                 </div>
 
-                <div className="match-dots" aria-label="Liste des profils proposes">
+                <div className="match-dots" aria-label={t("matchProfilesListAria")}>
                   {matches.map((match, index) => (
                     <button
                       key={match.id}
                       className={`match-dot ${index === currentIndex ? "is-active" : ""}`}
                       onClick={() => setCurrentIndex(index)}
-                      aria-label={`Voir le profil ${index + 1}`}
+                      aria-label={t("matchViewProfile", { index: index + 1 })}
                       type="button"
                     />
                   ))}

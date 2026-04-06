@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLang } from "../hooks/useLang";
+import { isValidLang, useLang } from "../hooks/useLang";
 import "../style/login.css";
 import {
   buildCountryAccessError,
@@ -12,17 +12,7 @@ import {
 } from "../config/countryAccess";
 import { POST_LOGIN_REDIRECT_KEY } from "../lib/authSession";
 
-/* =====================
-   API BASE
-===================== */
-
-const API =
-  import.meta.env.VITE_API_URL ||
-  "https://ameya-production.up.railway.app";
-
-/* =====================
-   TYPES
-===================== */
+const API = import.meta.env.VITE_API_URL || "https://ameya-production.up.railway.app";
 
 type LoginProps = {
   setIsAuth: (value: boolean) => void;
@@ -40,20 +30,17 @@ type LoginResponse = {
   error?: string;
 };
 
-/* =====================
-   COMPONENT
-===================== */
-
 export default function Login({ setIsAuth }: LoginProps) {
   const navigate = useNavigate();
-  const { t } = useLang();
+  const { t, setLang } = useLang();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
-
   const [loading, setLoading] = useState(false);
-  const [errorGlobal, setErrorGlobal] = useState<string | null>(() => consumeCountryAccessError());
+  const [errorGlobal, setErrorGlobal] = useState<string | null>(() =>
+    consumeCountryAccessError()
+  );
 
   async function resolveLoginCountry(token: string, responseCountry?: string | null) {
     if (responseCountry) {
@@ -86,7 +73,7 @@ export default function Login({ setIsAuth }: LoginProps) {
     setErrorGlobal(null);
 
     if (!identifier || !password) {
-      setErrorGlobal("Email / Nom d'utilisateur et mot de passe requis");
+      setErrorGlobal(t("loginRequiredFields"));
       return;
     }
 
@@ -109,27 +96,23 @@ export default function Login({ setIsAuth }: LoginProps) {
       try {
         data = await res.json();
       } catch {
-        throw new Error("Réponse serveur invalide");
+        throw new Error(t("invalidServerResponse"));
       }
 
-      console.log("LOGIN RESPONSE:", data);
-
       if (!res.ok) {
-        throw new Error(data?.error || "Erreur de connexion");
+        throw new Error(data?.error || t("loginError"));
       }
 
       if (!data?.token || !data?.user?.id) {
-        throw new Error("Réponse serveur invalide");
+        throw new Error(t("invalidServerResponse"));
       }
-
-      /* SESSION */
 
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userId", data.user.id);
       localStorage.setItem("username", data.user.username);
 
-      if (data.user.language) {
-        localStorage.setItem("language", data.user.language);
+      if (isValidLang(data.user.language)) {
+        setLang(data.user.language);
       }
 
       const resolvedCountry = await resolveLoginCountry(data.token, data.user.country);
@@ -162,14 +145,11 @@ export default function Login({ setIsAuth }: LoginProps) {
       }
 
       navigate("/");
-
     } catch (err) {
-      console.error("LOGIN ERROR:", err);
-
       if (err instanceof Error) {
         setErrorGlobal(err.message);
       } else {
-        setErrorGlobal("Erreur serveur");
+        setErrorGlobal(t("serverError"));
       }
     } finally {
       setLoading(false);
@@ -179,22 +159,16 @@ export default function Login({ setIsAuth }: LoginProps) {
   return (
     <div className="login-page">
       <div className="login-container">
-
         <div className="login-header">
-          <button onClick={() => navigate(-1)}>←</button>
+          <button onClick={() => navigate(-1)}>{"<"}</button>
           <h1>{t("login")}</h1>
         </div>
 
         <h2>{t("welcome")}</h2>
 
-        {errorGlobal && (
-          <div className="login-error">
-            {errorGlobal}
-          </div>
-        )}
+        {errorGlobal && <div className="login-error">{errorGlobal}</div>}
 
         <form onSubmit={handleLogin}>
-
           <input
             placeholder={t("emailOrUsername")}
             value={identifier}
@@ -221,11 +195,9 @@ export default function Login({ setIsAuth }: LoginProps) {
           </label>
 
           <button type="submit" disabled={loading}>
-            {loading ? "Connexion..." : t("login")}
+            {loading ? t("loginLoading") : t("login")}
           </button>
-
         </form>
-
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ import {
 import "../style/privateChat.css";
 import { API } from "../config/api";
 import { buildCountryAccessError } from "../config/countryAccess";
+import { useLang } from "../hooks/useLang";
 import { buildAvatarUrl } from "../lib/avatar";
 import { socket } from "../lib/socket";
 import {
@@ -34,8 +35,7 @@ const EDIT_WINDOW_MS = 20 * 60 * 1000;
 const AUTH_SESSION_INVALID_ERROR = "AUTH_SESSION_INVALID";
 const COUNTRY_NOT_ALLOWED = "COUNTRY_NOT_ALLOWED";
 const DM_ACCESS_REQUIRED = "DM_ACCESS_REQUIRED";
-const DEFAULT_PAYMENT_SELECTION_MESSAGE =
-  "Choisis d'abord la formule qui debloque ce chat prive avant d'ouvrir Stripe.";
+const DEFAULT_PAYMENT_SELECTION_MESSAGE = "";
 const ACTIVE_DM_ACCESS_STATUSES = new Set([
   "active",
   "paid",
@@ -198,21 +198,8 @@ function sortThreads(items: Thread[]) {
   });
 }
 
-function buildThreadPreview(thread: Thread) {
-  if (!isRecent(thread.lastAt)) {
-    return "Les messages s'effacent apres 24h.";
-  }
-
-  const trimmedMessage = thread.lastMessage?.trim();
-  return trimmedMessage || "Commencez votre discussion.";
-}
-
 function findThreadByTargetUserId(items: Thread[], targetUserId: string) {
   return items.find((thread) => thread.otherUserId === targetUserId) ?? null;
-}
-
-function getDisplayThreadName(thread: Thread) {
-  return thread.otherName.trim() || "Conversation privee";
 }
 
 function getPayloadRecord(payload: unknown) {
@@ -916,6 +903,7 @@ function buildDmMessageCandidates(threadId: string, messageId: string) {
 }
 
 export default function PrivateChat() {
+  const { t } = useLang();
   const navigate = useNavigate();
   const { targetUserId: routeTargetUserId } = useParams();
   const [searchParams] = useSearchParams();
@@ -942,12 +930,12 @@ export default function PrivateChat() {
   const [mobilePanel, setMobilePanel] = useState<"threads" | "chat">("threads");
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [banner, setBanner] = useState<string | null>(
-    paid ? "Paiement confirme. Ouverture de la conversation..." : null
+    paid ? t("privateChatOpeningConversation") : null
   );
   const [paymentSelectionTargetUserId, setPaymentSelectionTargetUserId] =
     useState<string | null>(null);
   const [paymentSelectionMessage, setPaymentSelectionMessage] =
-    useState<string>(DEFAULT_PAYMENT_SELECTION_MESSAGE);
+    useState<string>(t("privateChatDefaultPaymentMessage"));
   const [paymentSelectionLoadingId, setPaymentSelectionLoadingId] =
     useState<DmPaymentOptionId | null>(null);
 
@@ -979,14 +967,12 @@ export default function PrivateChat() {
     !!targetUserId && activeThread?.otherUserId === targetUserId;
   const visibleMessages = useMemo(() => messages, [messages]);
   const effectiveUsername =
-    localStorage.getItem("username")?.trim() || "Utilisateur";
+    localStorage.getItem("username")?.trim() || t("member");
   const isPaymentSelectionOpen = !!paymentSelectionTargetUserId;
   const archiveCountLabel =
     threads.length === 0
-      ? "Aucune conversation"
-      : `${threads.length} conversation${threads.length > 1 ? "s" : ""} archivee${
-          threads.length > 1 ? "s" : ""
-        }`;
+      ? t("privateChatNoThreads")
+      : `${threads.length} ${t("privateChatConversations").toLowerCase()}`;
   const editingMessage =
     (editingId && messages.find((message) => message.id === editingId)) || null;
   const visibleTypingUsers = typingUsers.filter(
@@ -996,8 +982,20 @@ export default function PrivateChat() {
     visibleTypingUsers.length === 0
       ? null
       : visibleTypingUsers.length === 1
-        ? `${visibleTypingUsers[0].name} ecrit...`
-        : `${visibleTypingUsers.length} personnes ecrivent...`;
+        ? t("groupTypingOne", { name: visibleTypingUsers[0].name })
+        : t("groupTypingMany", { count: visibleTypingUsers.length });
+
+  function getThreadName(thread: Thread) {
+    return thread.otherName.trim() || t("privateConversationFallback");
+  }
+
+  function getThreadPreviewLabel(thread: Thread) {
+    if (!isRecent(thread.lastAt)) {
+      return t("privateChatThreadExpiredPreview");
+    }
+
+    return thread.lastMessage?.trim() || t("privateChatThreadStartPreview");
+  }
 
   const redirectToLoginForRefresh = useCallback(() => {
     rememberPostLoginRedirect();
@@ -1023,19 +1021,19 @@ export default function PrivateChat() {
   const openPaymentSelection = useCallback(
     (nextTargetUserId: string, message?: string) => {
       setPaymentSelectionTargetUserId(nextTargetUserId);
-      setPaymentSelectionMessage(message || DEFAULT_PAYMENT_SELECTION_MESSAGE);
+      setPaymentSelectionMessage(message || t("privateChatDefaultPaymentMessage"));
       setPaymentSelectionLoadingId(null);
       setBanner(null);
     },
-    []
+    [t]
   );
 
   const closePaymentSelection = useCallback(() => {
     if (paymentSelectionLoadingId) return;
 
     setPaymentSelectionTargetUserId(null);
-    setPaymentSelectionMessage(DEFAULT_PAYMENT_SELECTION_MESSAGE);
-  }, [paymentSelectionLoadingId]);
+    setPaymentSelectionMessage(t("privateChatDefaultPaymentMessage"));
+  }, [paymentSelectionLoadingId, t]);
 
   const loadThreads = useCallback(
     async (preferredThreadId?: string | null) => {
@@ -1069,7 +1067,7 @@ export default function PrivateChat() {
           setBanner(
             buildBackendErrorMessage(
               payload,
-              "Impossible de charger les discussions privees."
+              t("matchConnectionUnavailable")
             )
           );
           return threadsRef.current;
@@ -1119,7 +1117,7 @@ export default function PrivateChat() {
         setBanner(
           error instanceof Error && error.message
             ? error.message
-            : "Impossible de charger les discussions privees."
+            : t("matchConnectionUnavailable")
         );
         return threadsRef.current;
       } finally {
@@ -1164,7 +1162,7 @@ export default function PrivateChat() {
           setBanner(
             buildBackendErrorMessage(
               payload,
-              "Impossible de charger les messages prives."
+              t("privateChatConversationLoading")
             )
           );
           setMessages([]);
@@ -1333,7 +1331,7 @@ export default function PrivateChat() {
       throw new Error(
         buildBackendErrorMessage(
           payload,
-          "Impossible de verifier l'acces au chat prive."
+          t("matchConnectionUnavailable")
         )
       );
     },
@@ -1373,7 +1371,7 @@ export default function PrivateChat() {
         throw new Error(
           buildBackendErrorMessage(
             payPayload,
-            "Impossible de lancer le paiement du chat prive."
+            t("matchConnectionUnavailable")
           )
         );
       }
@@ -1383,7 +1381,7 @@ export default function PrivateChat() {
         throw new Error("Lien de paiement introuvable.");
       }
 
-      setBanner("Redirection vers le paiement...");
+      setBanner(t("privateChatRedirecting"));
       window.location.href = paymentUrl;
     },
     [token]
@@ -1394,7 +1392,7 @@ export default function PrivateChat() {
       if (!paymentSelectionTargetUserId || paymentSelectionLoadingId) return;
 
       setPaymentSelectionLoadingId(optionId);
-      setBanner("Preparation du paiement...");
+      setBanner(t("loading"));
 
       try {
         await startDmPaymentCheckout(paymentSelectionTargetUserId, optionId);
@@ -1402,7 +1400,7 @@ export default function PrivateChat() {
         const message =
           error instanceof Error && error.message
             ? error.message
-            : "Impossible de lancer le paiement du chat prive.";
+            : t("matchConnectionUnavailable");
 
         if (message === AUTH_SESSION_INVALID_ERROR) {
           redirectToLoginForRefresh();
@@ -1492,7 +1490,7 @@ export default function PrivateChat() {
       }
 
       throw new Error(
-        buildBackendErrorMessage(payload, "Impossible d'ouvrir le chat prive.")
+        buildBackendErrorMessage(payload, t("matchConnectionUnavailable"))
       );
     },
     [checkDmAccess, myUserId, openPaymentSelection, token]
@@ -1504,8 +1502,8 @@ export default function PrivateChat() {
     setIsOpeningTarget(true);
     setBanner(
       paid
-        ? "Paiement confirme. Ouverture de la conversation..."
-        : "Ouverture de la conversation privee..."
+        ? t("privateChatOpeningConversation")
+        : t("privateChatOpeningChat")
     );
 
     try {
@@ -1528,7 +1526,7 @@ export default function PrivateChat() {
       await loadThreads(threadId);
 
       if (paid || checkoutSessionId) {
-        setBanner("Paiement confirme. La conversation est ouverte.");
+        setBanner(null);
         navigate(buildPrivateChatPath(targetUserId), { replace: true });
       } else {
         setBanner(null);
@@ -1537,7 +1535,7 @@ export default function PrivateChat() {
       const message =
         error instanceof Error && error.message
           ? error.message
-          : "Impossible d'ouvrir le chat prive.";
+          : t("matchConnectionUnavailable");
 
       if (message === AUTH_SESSION_INVALID_ERROR) {
         redirectToLoginForRefresh();
@@ -1847,14 +1845,14 @@ export default function PrivateChat() {
       setBanner(
         error instanceof Error && error.message
           ? error.message
-          : "Traduction indisponible pour le moment."
+          : t("groupTranslateError")
       );
     }
   }
 
   async function updateDmMessage(messageId: string, nextBody: string) {
     if (!token || !myUserId || !activeThreadId) {
-      throw new Error("Connexion requise.");
+      throw new Error(t("typingDisabled"));
     }
 
     let unsupported = true;
@@ -1898,7 +1896,7 @@ export default function PrivateChat() {
           throw new Error(
             buildBackendErrorMessage(
               payload,
-              "Impossible de modifier ce message prive."
+              t("privateChatEditError")
             )
           );
         }
@@ -1924,15 +1922,13 @@ export default function PrivateChat() {
     }
 
     if (unsupported) {
-      throw new Error(
-        "Le backend DM ne supporte pas encore la modification des messages prives."
-      );
+      throw new Error(t("privateChatEditError"));
     }
   }
 
   async function deleteDmMessage(messageId: string) {
     if (!token || !myUserId || !activeThreadId) {
-      throw new Error("Connexion requise.");
+      throw new Error(t("typingDisabled"));
     }
 
     let unsupported = true;
@@ -1965,20 +1961,18 @@ export default function PrivateChat() {
 
       if (!res.ok) {
         throw new Error(
-          buildBackendErrorMessage(
-            payload,
-            "Impossible de supprimer ce message prive."
-          )
-        );
+            buildBackendErrorMessage(
+              payload,
+              t("privateChatDeleteError")
+            )
+          );
       }
 
       return;
     }
 
     if (unsupported) {
-      throw new Error(
-        "Le backend DM ne supporte pas encore la suppression des messages prives."
-      );
+      throw new Error(t("privateChatDeleteError"));
     }
   }
 
@@ -2046,7 +2040,7 @@ export default function PrivateChat() {
         setBanner(
           error instanceof Error && error.message
             ? error.message
-            : "Impossible de modifier ce message prive."
+            : t("privateChatEditError")
         );
       } finally {
         setSendLoading(false);
@@ -2093,7 +2087,7 @@ export default function PrivateChat() {
 
       if (!res.ok) {
         throw new Error(
-          buildBackendErrorMessage(payload, "Message non envoye.")
+          buildBackendErrorMessage(payload, t("privateChatMessageNotSent"))
         );
       }
 
@@ -2120,7 +2114,7 @@ export default function PrivateChat() {
       setBanner(
         error instanceof Error && error.message
           ? error.message
-          : "Message non envoye"
+          : t("privateChatMessageNotSent")
       );
       setInput(text);
     } finally {
@@ -2129,7 +2123,7 @@ export default function PrivateChat() {
   }
 
   async function handleDelete(message: Msg) {
-    if (!window.confirm("Supprimer ce message prive ?")) return;
+    if (!window.confirm(t("privateChatDeleteConfirm"))) return;
 
     const snapshot = message;
     setMessages((current) => current.filter((entry) => entry.id !== message.id));
@@ -2161,7 +2155,7 @@ export default function PrivateChat() {
       setBanner(
         error instanceof Error && error.message
           ? error.message
-          : "Impossible de supprimer ce message prive."
+          : t("privateChatDeleteError")
       );
     }
   }
@@ -2170,13 +2164,11 @@ export default function PrivateChat() {
     <div className={`pc-root ${mobilePanel === "chat" ? "show-chat" : "show-threads"}`}>
       <header className="pc-topbar">
         <button className="pc-back" onClick={() => navigate("/my-space")}>
-          {"<"} Mon espace
+          {"<"} {t("privateChatBackToMySpace")}
         </button>
         <div className="pc-title">
-          <h1>Messages prives</h1>
-          <span className="pc-sub">
-            Archive des discussions et messages qui s'effacent apres 24h.
-          </span>
+          <h1>{t("privateChatMessagesTitle")}</h1>
+          <span className="pc-sub">{t("privateChatArchiveSubtitle")}</span>
         </div>
       </header>
 
@@ -2200,8 +2192,8 @@ export default function PrivateChat() {
           >
             <div className="pc-paywall-head">
               <div>
-                <span className="pc-paywall-kicker">Chat prive</span>
-                <h2 id="pc-paywall-title">Choisis ton acces avant Stripe</h2>
+                <span className="pc-paywall-kicker">{t("privateChatPaywallKicker")}</span>
+                <h2 id="pc-paywall-title">{t("privateChatPaywallTitle")}</h2>
               </div>
               <button
                 type="button"
@@ -2209,7 +2201,7 @@ export default function PrivateChat() {
                 onClick={closePaymentSelection}
                 disabled={!!paymentSelectionLoadingId}
               >
-                Plus tard
+                {t("later")}
               </button>
             </div>
 
@@ -2228,16 +2220,28 @@ export default function PrivateChat() {
                   >
                     <div className="pc-paywall-option-head">
                       <div>
-                        <strong>{option.title}</strong>
-                        <span>{option.billingLabel}</span>
+                        <strong>
+                          {option.id === "subscription"
+                            ? t("privateChatOptionSubscriptionTitle")
+                            : t("privateChatOptionOneTimeTitle")}
+                        </strong>
+                        <span>
+                          {option.id === "subscription"
+                            ? t("privateChatOptionSubscriptionBilling")
+                            : t("privateChatOptionOneTimeBilling")}
+                        </span>
                       </div>
                       {option.featured ? (
-                        <span className="pc-paywall-badge">Illimite</span>
+                        <span className="pc-paywall-badge">{t("privateChatFeaturedBadge")}</span>
                       ) : null}
                     </div>
 
                     <div className="pc-paywall-price">{option.priceLabel}</div>
-                    <p>{option.description}</p>
+                    <p>
+                      {option.id === "subscription"
+                        ? t("privateChatOptionSubscriptionDescription")
+                        : t("privateChatOptionOneTimeDescription")}
+                    </p>
 
                     <button
                       type="button"
@@ -2245,7 +2249,9 @@ export default function PrivateChat() {
                       onClick={() => void handlePaymentSelection(option.id)}
                       disabled={!!paymentSelectionLoadingId}
                     >
-                      {isLoading ? "Redirection..." : `Choisir ${option.priceLabel}`}
+                      {isLoading
+                        ? t("privateChatRedirecting")
+                        : t("privateChatChooseOption", { price: option.priceLabel })}
                     </button>
                   </article>
                 );
@@ -2258,39 +2264,33 @@ export default function PrivateChat() {
       <div className="pc-layout">
         <aside className="pc-sidebar">
           <div className="pc-sidebar-head">
-            <div className="pc-sidebar-title">Archive DM</div>
+            <div className="pc-sidebar-title">{t("privateChatArchiveTitle")}</div>
             <div className="pc-sidebar-actions">
               <button className="pc-home-link" onClick={() => navigate("/match")}>
-                Profils
+                {t("privateChatProfiles")}
               </button>
               <button className="pc-home-link" onClick={() => navigate("/private-chat")}>
-                Archive
+                {t("privateChatArchiveAction")}
               </button>
             </div>
           </div>
 
           <div className="pc-archive-card">
-            <span className="pc-archive-kicker">Messages 24h</span>
+            <span className="pc-archive-kicker">{t("privateChatArchiveKicker")}</span>
             <strong>
-              {isOpeningTarget ? "Ouverture du chat..." : archiveCountLabel}
+              {isOpeningTarget ? t("privateChatOpeningChat") : archiveCountLabel}
             </strong>
-            <span>
-              Les profils restent archives ici et le texte visible des messages
-              disparait apres 24h.
-            </span>
+            <span>{t("privateChatArchiveDescription")}</span>
           </div>
 
-          {threadsLoading && <div className="pc-empty">Chargement des discussions...</div>}
+          {threadsLoading && <div className="pc-empty">{t("privateChatThreadsLoading")}</div>}
 
           {!threadsLoading && threads.length === 0 && (
-            <div className="pc-empty">
-              Aucune conversation pour le moment. Lance un chat prive depuis un profil
-              pour le retrouver ensuite ici.
-            </div>
+            <div className="pc-empty">{t("privateChatNoThreads")}</div>
           )}
 
           {threads.map((thread) => {
-            const threadName = getDisplayThreadName(thread);
+            const threadName = getThreadName(thread);
 
             return (
               <button
@@ -2321,7 +2321,7 @@ export default function PrivateChat() {
                       {threadName}
                       <span className={`pc-dot ${thread.online ? "on" : "off"}`} />
                     </div>
-                    <div className="pc-thread-last">{buildThreadPreview(thread)}</div>
+                    <div className="pc-thread-last">{getThreadPreviewLabel(thread)}</div>
                   </div>
                 </div>
 
@@ -2340,35 +2340,32 @@ export default function PrivateChat() {
                     className="pc-chat-back"
                     onClick={() => setMobilePanel("threads")}
                   >
-                    {"<"} Conversations
+                    {"<"} {t("privateChatConversations")}
                   </button>
                   <img
                     className="pc-avatar pc-avatar-lg"
                     src={buildAvatarUrl({
-                      name: getDisplayThreadName(activeThread),
+                      name: getThreadName(activeThread),
                       avatarPath: activeThread.otherAvatar,
                       seed: activeThread.otherUserId || activeThread.id,
                       size: 96,
                     })}
-                    alt={getDisplayThreadName(activeThread)}
+                    alt={getThreadName(activeThread)}
                   />
                   <div className="pc-chat-user">
-                    <strong>{getDisplayThreadName(activeThread)}</strong>
-                    <span>Messages ephemeres: suppression visuelle apres 24h.</span>
+                    <strong>{getThreadName(activeThread)}</strong>
+                    <span>{t("privateChatEphemeralHint")}</span>
                   </div>
                 </div>
               </div>
 
               <div className="pc-stream" ref={streamRef}>
                 {messagesLoading && (
-                  <div className="pc-empty">Chargement de la conversation...</div>
+                  <div className="pc-empty">{t("privateChatConversationLoading")}</div>
                 )}
 
                 {!messagesLoading && visibleMessages.length === 0 && (
-                  <div className="pc-empty">
-                    Il n'y a pas encore de message visible ici. Les messages de plus de
-                    24h disparaissent de l'ecran.
-                  </div>
+                  <div className="pc-empty">{t("privateChatNoVisibleMessages")}</div>
                 )}
 
                 {!messagesLoading &&
@@ -2404,7 +2401,7 @@ export default function PrivateChat() {
                               {formatMessageTime(message.createdAt) ? (
                                 <span>{formatMessageTime(message.createdAt)}</span>
                               ) : null}
-                              {message.editedAt ? <span>modifie</span> : null}
+                              {message.editedAt ? <span>{t("groupEdited")}</span> : null}
                             </div>
                           </button>
 
@@ -2415,7 +2412,7 @@ export default function PrivateChat() {
                                   type="button"
                                   onClick={() => startEditingMessage(message)}
                                 >
-                                  Modifier
+                                  {t("edit")}
                                 </button>
                               ) : null}
 
@@ -2425,7 +2422,7 @@ export default function PrivateChat() {
                                   className="danger"
                                   onClick={() => void handleDelete(message)}
                                 >
-                                  Supprimer
+                                  {t("deleteAction")}
                                 </button>
                               ) : null}
 
@@ -2434,7 +2431,7 @@ export default function PrivateChat() {
                                   type="button"
                                   onClick={() => void translateMessage(message)}
                                 >
-                                  Traduire
+                                  {t("translateAction")}
                                 </button>
                               ) : null}
                             </div>
@@ -2459,9 +2456,9 @@ export default function PrivateChat() {
               <footer className="pc-input-wrap">
                 {editingMessage ? (
                   <div className="pc-editing">
-                    <span>Modification du message prive en cours.</span>
+                    <span>{t("privateChatEditing")}</span>
                     <button type="button" onClick={cancelEditing}>
-                      Annuler
+                      {t("cancel")}
                     </button>
                   </div>
                 ) : null}
@@ -2477,7 +2474,7 @@ export default function PrivateChat() {
                         void send();
                       }
                     }}
-                    placeholder="Ecris un message prive..."
+                    placeholder={t("privateChatPlaceholder")}
                   />
                   <button onClick={() => void send()} disabled={sendLoading}>
                     {sendLoading ? "..." : editingId ? "OK" : ">"}
@@ -2490,14 +2487,14 @@ export default function PrivateChat() {
               <strong>
                 {targetUserId
                   ? isOpeningTarget
-                    ? "Ouverture de la conversation..."
-                    : "Ce chat n'est pas encore ouvert."
-                  : "Choisis une conversation dans l'archive."}
+                    ? t("privateChatOpeningConversation")
+                    : t("privateChatNotOpen")
+                  : t("privateChatChooseConversation")}
               </strong>
               <span>
                 {targetUserId
-                  ? "Si l'acces n'est pas encore actif, on te proposera d'abord le choix entre le paiement unique et l'abonnement."
-                  : "Tu retrouveras ici le profil, l'historique recent et les messages encore visibles pendant 24h."}
+                  ? t("privateChatAccessChoiceHint")
+                  : t("privateChatArchiveHint")}
               </span>
               <div className="pc-empty-actions">
                 {targetUserId && !isOpeningTarget ? (
@@ -2505,14 +2502,14 @@ export default function PrivateChat() {
                     className="pc-home-link"
                     onClick={() => void openTargetConversation()}
                   >
-                    {isPaymentSelectionOpen ? "Reouvrir le choix" : "Demarrer ce chat"}
+                    {t("privateChatStartThisChat")}
                   </button>
                 ) : null}
                 <button className="pc-home-link" onClick={() => navigate("/match")}>
-                  Voir les profils
+                  {t("privateChatViewProfiles")}
                 </button>
                 <button className="pc-home-link" onClick={() => navigate("/my-space")}>
-                  Gerer amities
+                  {t("privateChatManageFriends")}
                 </button>
               </div>
             </div>

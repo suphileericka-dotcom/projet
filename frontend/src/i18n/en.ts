@@ -1,7 +1,29 @@
-export default {
-  /* =====================
-     AUTH
-  ===================== */
+const en = {
+  back: "Back",
+  loading: "Loading...",
+  save: "Save",
+  saveChanges: "Save changes",
+  savingChanges: "Saving...",
+  cancel: "Cancel",
+  close: "Close",
+  open: "Open",
+  later: "Later",
+  install: "Install",
+  choose: "Choose",
+  previous: "Previous",
+  next: "Next",
+  update: "Update",
+  send: "Send",
+  edit: "Edit",
+  deleteAction: "Delete",
+  translateAction: "Translate",
+  viewAll: "View all",
+  member: "Member",
+  someone: "Someone",
+  you: "You",
+  ai: "AI",
+  system: "System",
+  ok: "OK",
 
   login: "Sign in",
   register: "Create account",
@@ -11,49 +33,371 @@ export default {
   password: "Password",
   rememberMe: "Remember me",
   typingDisabled: "Login required to participate",
-
-  /* =====================
-     HOME / APP
-  ===================== */
+  username: "Username",
+  email: "Email",
+  confirmPassword: "Confirm password",
+  city: "City",
+  chooseSituation: "Choose a situation",
+  acceptTerms: "I accept the terms",
+  alreadyHaveAccount: "Already have an account?",
+  chooseLanguage: "Choose a language",
+  french: "French",
+  english: "English",
+  spanish: "Spanish",
+  german: "German",
+  italian: "Italian",
+  loginLoading: "Signing in...",
+  registerLoading: "Creating account...",
+  loginRequiredFields: "Email / username and password are required",
+  invalidServerResponse: "Invalid server response",
+  loginError: "Login error",
+  serverError: "Server error",
+  passwordMismatch: "Passwords do not match",
+  acceptConditionsError: "You must accept the terms",
+  registerError: "Registration error",
+  cannotReachServer: "Unable to reach the server",
 
   stories: "Stories",
   storiesDesc: "Discover stories shared by others",
-
   myStory: "My story",
   myStoryDesc: "Write and share your personal story",
-
   mySpace: "My space",
-  mySpaceDesc: "Your private and safe personal area",
-
+  mySpaceDesc: "Your private and secure personal area",
   connections: "Human connections",
   connectionsDesc: "People going through similar situations",
-
   journal: "Guided journal",
   journalDesc: "Write safely with guidance",
-
-  /* =====================
-     DISCUSSION SPACES
-  ===================== */
+  countryVerification: "Checking country...",
 
   burnoutTitle: "Burnout",
   burnoutDesc: "Exhaustion, overload, loss of meaning",
-
   solitudeTitle: "Loneliness",
-  solitudeDesc: "You are not alone anymore",
-
+  solitudeDesc: "No longer staying alone",
   ruptureTitle: "Breakup",
-  ruptureDesc: "Rebuild yourself",
-
+  ruptureDesc: "Rebuilding after a separation",
   expatriationTitle: "Expatriation",
-  expatriationDesc: "Living abroad, adapting",
-
+  expatriationDesc: "Living far away, adapting",
   changementTitle: "Life change",
-  changementDesc: "Life transitions",
+  changementDesc: "Important life transitions",
 
-  /* =====================
-     ACTIONS
-  ===================== */
+  installAriaLabel: "Install Espace Ameya",
+  installKicker: "Mobile app",
+  installTitle: "Install the app",
+  installDescription:
+    "Add Espace Ameya to your home screen to open it like a real app.",
+  installHelper:
+    "You will then be able to launch it directly from your phone without going through the browser again.",
+  installReadyHelper:
+    "The browser is ready: tap the button to start installation.",
+  installAndroidTitle: "Add the app on Android",
+  installAndroidDescription:
+    "Open the browser menu then choose Install app or Add to home screen.",
+  installIosTitle: "Add the app on iPhone",
+  installIosDescription:
+    "In Safari, tap Share then Add to Home Screen to install Espace Ameya.",
+  installIosBrowserTitle: "Open this site in Safari",
+  installIosBrowserDescription:
+    "On iPhone, installation goes through Safari. Open this site in Safari, then tap Share and Add to Home Screen.",
 
-  send: "Send",
-  edit: "Edit",
+  chatPlaceholder: "Share what you feel...",
+  burnoutSubtitle: "A space to breathe and put down the overload",
+  burnoutBanner:
+    "A space to talk about exhaustion, overload and find a little air again.",
+  solitudeSubtitle: "A space to no longer stay alone",
+  solitudeBanner: "A space to talk without staying alone with the silence.",
+  solitudeNoteLabel: "My note (24h)",
+  ruptureSubtitle: "A caring space to rebuild yourself",
+  ruptureBanner: "A space to put down the pain and move forward after a breakup.",
+  expatriationSubtitle:
+    "A space to share departure, distance and adaptation",
+  expatriationBanner:
+    "A space to talk about departure, distance and adapting.",
+  expatriationPlaceholder: "Share your feelings about living abroad...",
+  changementSubtitle: "A space to go through change at your own pace",
+  changementBanner: "A space to go through change at your own pace.",
+  changementPlaceholder: "Share what you are going through...",
+
+  infoTitle: "About",
+  infoHeroTitle: "An anonymous support space",
+  infoHeroBody:
+    "A place to write, talk, publish your story and create bonds respectfully without exposing your identity publicly.",
+  infoWhatYouCanDoTitle: "What you can do here",
+  infoFeatureGroupChat: "Join thematic group discussion spaces.",
+  infoFeatureStoryDrafts: "Write drafts and publish your story if you want.",
+  infoFeatureMySpace:
+    "Open your personal space with your stats, friends, DMs and recent stories.",
+  infoFeatureMatches:
+    "Receive daily matches with profiles close to your experience.",
+  infoFeatureJournal: "Use the guided journal with occasional AI insight.",
+  infoGroupDiscussionsTitle: "Group discussions",
+  infoGroupDiscussionsItem1:
+    "Conversations happen by theme: burnout, loneliness, breakup, expatriation and life change.",
+  infoGroupDiscussionsItem2:
+    "Group chat stays separate from private conversations.",
+  infoGroupDiscussionsItem3:
+    "The expected tone is simple: respect, kindness and discretion.",
+  infoPrivateConnectionsTitle: "Private connections",
+  infoPrivateConnectionsBody:
+    "Private conversations go through the DM system. They can be opened with someone depending on the access rules set by the platform.",
+  infoPrivateAccessFriends: "Access if you are friends.",
+  infoPrivateAccessOneTime: "Or a one-time DM unlock at 4.99 EUR.",
+  infoPrivateAccessSubscription:
+    "Or unlimited DM subscription at 9.75 EUR if enabled.",
+  infoOneTimeDmTitle: "One-time DM",
+  infoOneTimeDmDesc: "Unlock one private conversation with one person.",
+  infoSubscriptionTitle: "DM subscription",
+  infoSubscriptionDesc:
+    "Unlimited access to DMs depending on subscription status.",
+  infoStoriesDraftsTitle: "Stories and drafts",
+  infoStoriesDraftsItem1:
+    "You can save a story as a draft before publishing.",
+  infoStoriesDraftsItem2: "Drafts are managed in My story.",
+  infoStoriesDraftsItem3:
+    "Published stories live in the public Stories space.",
+  infoStoriesDraftsItem4:
+    "A publication can be deleted from the stories page.",
+  infoMySpaceTitle: "My space",
+  infoMySpaceBody:
+    "My space brings together your profile, friends, received and sent requests, recent DMs, recent stories, journal, daily matches and the status of your unlocks or subscriptions.",
+  infoLanguagesTitle: "Languages and understanding",
+  infoLanguagesBody1:
+    "The interface keeps evolving, but the goal remains to make exchanges easier between people who do not always speak the same language.",
+  infoLanguagesBody2:
+    "Some wording may still evolve with future product updates.",
+  infoImportantTitle: "Important",
+  infoImportantBody1:
+    "This application is not a medical service and does not replace advice from a health professional.",
+  infoImportantBody2:
+    "In case of immediate danger, acute distress or risk for you or someone else, contact a loved one, a professional or emergency services without delay.",
+  infoBackHome: "Back to home",
+  infoFooterMotto: "Anonymity - Respect - Human bonds",
+
+  storiesHeaderTitle: "Stories",
+  storiesHeaderDesc: "Discover and support shared stories",
+  storiesOfAuthor: "Stories by {{name}}",
+  storiesOfThisPerson: "Stories by this person",
+  storiesFoundSingular: "{{count}} story found.",
+  storiesFoundPlural: "{{count}} stories found.",
+  storiesNoPublishedYet: "No published story yet.",
+  storiesPublishedBanner: 'Your story "{{title}}" is now published.',
+  storiesSearchPlaceholder: "Search a story...",
+  storiesDisplayedSingular: "{{shown}} of {{total}} story displayed",
+  storiesDisplayedPlural: "{{shown}} of {{total}} stories displayed",
+  storiesStatusLiked: "Liked",
+  storiesStatusSupport: "Support",
+  storiesReadStory: "Read the story",
+  storiesLoadMore: "View more stories",
+  storiesNoResults: "No story matches your search.",
+  storiesNoAuthorResults: "This person has not published a story yet.",
+  storiesDeleteConfirm: "Delete this story?",
+  storiesDeleteError: "Deleting the story failed.",
+  storiesDeleteSuccess: "Story deleted.",
+  storiesReconnectDelete: "Sign in again to delete this story.",
+  storiesSupportAction: "Support",
+  storiesSupportedAction: "Supported",
+  storiesChatAction: "Chat",
+  storiesLoadError: "Unable to load stories.",
+  storyWithoutTitle: "Untitled",
+
+  myStoryHeaderDesc:
+    "Write freely here. You can save a draft or publish directly when your text feels ready.",
+  myDrafts: "My drafts",
+  myDraftsNone: "No drafts",
+  myDraftActiveHint:
+    "Active draft. Clicking Publish will send the version currently shown in the editor.",
+  storyTitlePlaceholder: "Title (required)",
+  storyBodyPlaceholder: "Write your story...",
+  storyTitleRequiredError: "Add a title before continuing.",
+  storyTagRequiredError: "Add at least one tag before continuing.",
+  storyBodyShortError:
+    "Write a little more so your story feels complete.",
+  myDraftsLoadError: "Unable to load drafts right now.",
+  myDraftLoadedInfo: "Draft loaded. You can edit or publish it.",
+  draftDeleteConfirm: "Delete this draft?",
+  draftRemovedFromEditor: "The deleted draft was removed from the editor.",
+  draftSaveError: "Error while saving the draft.",
+  draftSavedSuccess:
+    "Draft saved. You can keep editing or publish directly.",
+  publishInProgress: "Publishing...",
+  publishPrepareError: "Unable to prepare publication.",
+  publishError: "Error while publishing.",
+  publishAction: "Publish",
+  updateDraftAction: "Update draft",
+  saveDraftAction: "Save draft",
+
+  mySpaceLoading: "Loading dashboard...",
+  mySpaceHeaderDesc: "Manage your posts and personal information.",
+  myProfile: "My profile",
+  changePhoto: "Change photo",
+  usernameLabel: "Username",
+  emailLabel: "Email address",
+  changePassword: "Change password",
+  storiesStat: "Stories",
+  friendsStat: "Friends",
+  messagesStat: "Messages",
+  matchesTodayStat: "Today's matches",
+  pendingMessagesSummarySingular:
+    "{{count}} received message waiting for your reply",
+  pendingMessagesSummaryPlural:
+    "{{count}} received messages waiting for your reply",
+  pendingMessagesNone: "No pending messages. Open private chat",
+  accountSecurity: "Account security",
+  accountSecurityDesc: "Enter your current password to set the new one.",
+  oldPasswordPlaceholder: "Current password",
+  newPasswordPlaceholder: "New password",
+  updatePassword: "Update",
+  updatingPassword: "Updating...",
+  profileUpdated: "Profile updated!",
+  profileSaveError: "Save error",
+  networkError: "Network error",
+  passwordUpdated: "Password changed successfully",
+  passwordSaveError: "Password error",
+  serverUnavailable: "Server unavailable",
+
+  matchHeaderTitle: "Human connections",
+  matchHeaderDesc:
+    "People close to what you have lived, to discover one by one.",
+  matchSuggestionsDate: "Suggestions date: {{date}}",
+  matchStatusUnknown: "Unknown status",
+  matchGeneratedToday: "Generated today",
+  matchReady: "Suggestions already ready",
+  matchPrivateMessaging: "Private messaging",
+  matchConnectionUnavailable: "Connection unavailable",
+  paymentCancelled: "Payment cancelled. You can try again anytime.",
+  matchResetAfter: "Next suggestion after {{date}}.",
+  matchNoProfile: "No similar profile for now.",
+  matchLimitReachedNote:
+    "Today's limit seems reached. Come back after {{date}}.",
+  matchProfileOf: "Profile {{current}} of {{total}}",
+  matchNextHint: "Tap next to see another profile.",
+  matchPrivateMessage: "Private message",
+  matchRelatedDiscussion: "Related discussion",
+  matchProfilesListAria: "Suggested profiles list",
+  matchViewProfile: "View profile {{index}}",
+  matchAvailableSingular: "{{count}} profile available today.",
+  matchAvailablePlural: "{{count}} profiles available today.",
+  matchRemainingSingular: "{{count}} suggestion left today out of {{limit}}.",
+  matchRemainingPlural: "{{count}} suggestions left today out of {{limit}}.",
+  matchUsedSingular: "{{count}} suggestion used today out of {{limit}}.",
+  matchUsedPlural: "{{count}} suggestions used today out of {{limit}}.",
+  matchProfileFallback: "Similar profile",
+
+  journalSessionMissing:
+    "Session not found. Sign in again to open your journal.",
+  journalLoadDiscussionsError: "Unable to load discussions.",
+  journalLoadCurrentError: "Unable to load this discussion.",
+  journalDeleteConfirm: "Delete this discussion?",
+  journalDeleteError: "Unable to delete this discussion right now.",
+  journalWriteBeforeSend: "Write a message before sending it.",
+  journalContinueAfterLogin:
+    "Session not found. Sign in again to continue.",
+  journalLimitReachedAfter: "Limit reached, try again after {{date}}.",
+  journalUnavailable: "The journal is temporarily unavailable.",
+  journalSendError: "Unable to send the message right now.",
+  journalInsightError: "Unable to send the analysis right now.",
+  journalWriteBeforeInsight: "Write your message before asking for analysis.",
+  journalNewDiscussion: "New discussion",
+  journalNewShort: "New",
+  journalAiKicker: "AI journal",
+  journalDiscussionsTitle: "Discussions",
+  journalArchivesHere: "Your archives appear here.",
+  journalArchiveCountSingular: "1 discussion",
+  journalArchiveCountPlural: "{{count}} discussions",
+  journalArchiveEmptyTitle: "No archived discussion.",
+  journalArchiveEmptyDesc:
+    "As soon as you start an exchange, it appears here with the title provided by the backend.",
+  journalOpenDiscussion: "Open discussion",
+  journalContinueHint: "Find your exchange and continue it here.",
+  journalCurrentContinue: "Write your first message below to begin.",
+  journalEmptyTitle: "New discussion.",
+  journalPlaceholder:
+    "Describe what you feel, what worries you, or the question you would like to explore...",
+  journalSendAction: "Send",
+  journalSending: "Sending...",
+  journalInsightAction: "One-off insight",
+  journalInsightLoading: "Analyzing...",
+  journalWarningLimit: "Limit reached, try again after {{date}}.",
+
+  groupBackHomeAria: "Back to home",
+  groupShowOlder: "Show older",
+  groupLoadOlder: "Load older",
+  groupVisibleMessagesSingular: "{{count}} message shown",
+  groupVisibleMessagesPlural: "{{count}} messages shown",
+  groupEphemeralNote: "Ephemeral note",
+  groupEmpty: "Messages disappear from the screen after 24h. Start the talk.",
+  groupEdited: "edited",
+  groupCloseProfileAria: "Close profile card",
+  groupProfilePrompt: "What do you want to do with this person?",
+  groupWritePrivate: "Write privately",
+  groupAddFriend: "Add friend",
+  groupReadStories: "Read stories",
+  groupEditing: "Editing message in progress.",
+  groupFriendRequestSent: "Friend request sent to {{name}}.",
+  groupFriendRequestExists: "A request already exists with {{name}}.",
+  groupFriendRequestUnavailable: "Friend request is unavailable right now.",
+  groupMessageEditError: "Unable to edit this message right now.",
+  groupMessageDeleteConfirm: "Delete this message for everyone?",
+  groupMessageDeleteError: "Unable to delete this message right now.",
+  groupMessageSendError: "Unable to send the message right now.",
+  groupTranslateError: "Translation unavailable right now.",
+  groupTypingOne: "{{name}} is typing...",
+  groupTypingTwo: "{{name1}} and {{name2}} are typing...",
+  groupTypingMany: "{{count}} people are typing...",
+  groupViewProfileOf: "View {{name}}'s profile",
+
+  privateChatDefaultPaymentMessage:
+    "Choose the option that unlocks this private chat before opening Stripe.",
+  privateChatThreadExpiredPreview: "Messages disappear after 24h.",
+  privateChatThreadStartPreview: "Start your conversation.",
+  privateConversationFallback: "Private conversation",
+  privateChatMessagesTitle: "Private messages",
+  privateChatArchiveSubtitle:
+    "Archive of conversations and messages that disappear after 24h.",
+  privateChatBackToMySpace: "My space",
+  privateChatPaywallKicker: "Private chat",
+  privateChatPaywallTitle: "Choose your access before Stripe",
+  privateChatFeaturedBadge: "Unlimited",
+  privateChatRedirecting: "Redirecting...",
+  privateChatArchiveTitle: "DM archive",
+  privateChatProfiles: "Profiles",
+  privateChatArchiveAction: "Archive",
+  privateChatArchiveKicker: "24h messages",
+  privateChatOpeningChat: "Opening chat...",
+  privateChatArchiveDescription:
+    "Profiles stay archived here and visible message text disappears after 24h.",
+  privateChatThreadsLoading: "Loading conversations...",
+  privateChatNoThreads:
+    "No conversation yet. Start a private chat from a profile to find it here later.",
+  privateChatConversations: "Conversations",
+  privateChatEphemeralHint: "Ephemeral messages: hidden after 24h.",
+  privateChatConversationLoading: "Loading conversation...",
+  privateChatNoVisibleMessages:
+    "There is no visible message here yet. Messages older than 24h disappear from the screen.",
+  privateChatEditing: "Editing private message in progress.",
+  privateChatPlaceholder: "Write a private message...",
+  privateChatOpeningConversation: "Opening conversation...",
+  privateChatNotOpen: "This chat is not open yet.",
+  privateChatChooseConversation: "Choose a conversation in the archive.",
+  privateChatAccessChoiceHint:
+    "If access is not active yet, you will first be offered the choice between one-time payment and subscription.",
+  privateChatArchiveHint:
+    "You will find the profile, recent history and messages still visible for 24h here.",
+  privateChatStartThisChat: "Start this chat",
+  privateChatViewProfiles: "View profiles",
+  privateChatManageFriends: "Manage friendships",
+  privateChatDeleteConfirm: "Delete this private message?",
+  privateChatMessageNotSent: "Message not sent.",
+  privateChatDeleteError: "Unable to delete this private message.",
+  privateChatEditError: "Unable to edit this private message.",
+  privateChatOptionOneTimeTitle: "Single chat",
+  privateChatOptionOneTimeBilling: "One-time payment",
+  privateChatOptionOneTimeDescription:
+    "Unlock this private conversation with this profile only.",
+  privateChatOptionSubscriptionTitle: "Unlimited DMs",
+  privateChatOptionSubscriptionBilling: "Monthly subscription",
+  privateChatOptionSubscriptionDescription:
+    "Enable unlimited access to private chats as long as the subscription stays active.",
+  privateChatChooseOption: "Choose {{price}}",
 };
+
+export default en;

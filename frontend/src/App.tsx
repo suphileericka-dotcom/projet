@@ -294,7 +294,7 @@ export default function App() {
 
   const privateRouteFallback =
     isAuth && accessCheckPending ? (
-      <div className="app-container">Verification du pays...</div>
+      <div className="app-container">{t("countryVerification")}</div>
     ) : (
       <Navigate to="/login" />
     );
@@ -508,34 +508,31 @@ function InstallBanner({
   onDismiss: () => void;
   onInstall: () => Promise<void>;
 }) {
-  let title = "Installe l'application";
-  let description =
-    "Ajoute Espace Ameya a ton ecran d'accueil pour l'ouvrir comme une vraie app.";
-  let helper =
-    "Tu pourras ensuite la lancer directement depuis ton telephone, sans repasser par le navigateur.";
+  const { t } = useLang();
+
+  let title = t("installTitle");
+  let description = t("installDescription");
+  let helper = t("installHelper");
   let primaryLabel: string | null = null;
 
   if (variant === "android-ready") {
-    primaryLabel = "Installer";
-    helper = "Le navigateur est pret : touche le bouton pour lancer l'installation.";
+    primaryLabel = t("install");
+    helper = t("installReadyHelper");
   } else if (variant === "android-manual") {
-    title = "Ajoute l'app sur Android";
-    description =
-      "Ouvre le menu du navigateur puis choisis Installer l'application ou Ajouter a l'ecran d'accueil.";
+    title = t("installAndroidTitle");
+    description = t("installAndroidDescription");
   } else if (variant === "ios-safari") {
-    title = "Ajoute l'app sur iPhone";
-    description =
-      "Dans Safari, touche Partager puis Sur l'ecran d'accueil pour installer Espace Ameya.";
+    title = t("installIosTitle");
+    description = t("installIosDescription");
   } else if (variant === "ios-browser") {
-    title = "Ouvre ce site dans Safari";
-    description =
-      "Sur iPhone, l'installation passe par Safari. Ouvre ce site dans Safari, puis touche Partager et Sur l'ecran d'accueil.";
+    title = t("installIosBrowserTitle");
+    description = t("installIosBrowserDescription");
   }
 
   return (
-    <section className="install-banner" aria-label="Installer Espace Ameya">
+    <section className="install-banner" aria-label={t("installAriaLabel")}>
       <div className="install-banner-copy">
-        <span className="install-banner-kicker">Application mobile</span>
+        <span className="install-banner-kicker">{t("installKicker")}</span>
         <h2>{title}</h2>
         <p>{description}</p>
         <p className="install-banner-helper">{helper}</p>
@@ -549,7 +546,7 @@ function InstallBanner({
         )}
 
         <button className="install-banner-secondary" onClick={onDismiss}>
-          Plus tard
+          {t("later")}
         </button>
       </div>
     </section>

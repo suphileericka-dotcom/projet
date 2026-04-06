@@ -1,59 +1,414 @@
-export default {
-  /* =====================
-     AUTH
-  ===================== */
+const es = {
+  back: "Volver",
+  loading: "Cargando...",
+  save: "Guardar",
+  saveChanges: "Guardar cambios",
+  savingChanges: "Guardando...",
+  cancel: "Cancelar",
+  close: "Cerrar",
+  open: "Abrir",
+  later: "Mas tarde",
+  install: "Instalar",
+  choose: "Elegir",
+  previous: "Anterior",
+  next: "Siguiente",
+  update: "Actualizar",
+  send: "Enviar",
+  edit: "Editar",
+  deleteAction: "Eliminar",
+  translateAction: "Traducir",
+  viewAll: "Ver todo",
+  member: "Miembro",
+  someone: "Alguien",
+  you: "Tu",
+  ai: "IA",
+  system: "Sistema",
+  ok: "OK",
 
-  login: "Iniciar sesión",
+  login: "Iniciar sesion",
   register: "Crear cuenta",
-  logout: "Cerrar sesión",
+  logout: "Cerrar sesion",
   welcome: "Bienvenido",
   emailOrUsername: "Correo o nombre de usuario",
-  password: "Contraseña",
-  rememberMe: "Recuérdame",
-  typingDisabled: "Inicia sesión para participar",
-
-  /* =====================
-     HOME / APP
-  ===================== */
+  password: "Contrasena",
+  rememberMe: "Recordarme",
+  typingDisabled: "Inicia sesion para participar",
+  username: "Nombre de usuario",
+  email: "Correo",
+  confirmPassword: "Confirmar contrasena",
+  city: "Ciudad",
+  chooseSituation: "Elegir una situacion",
+  acceptTerms: "Acepto las condiciones",
+  alreadyHaveAccount: "Ya tienes cuenta?",
+  chooseLanguage: "Elegir idioma",
+  french: "Frances",
+  english: "Ingles",
+  spanish: "Espanol",
+  german: "Aleman",
+  italian: "Italiano",
+  loginLoading: "Conexion...",
+  registerLoading: "Creando cuenta...",
+  loginRequiredFields: "Correo / nombre de usuario y contrasena obligatorios",
+  invalidServerResponse: "Respuesta del servidor invalida",
+  loginError: "Error de conexion",
+  serverError: "Error del servidor",
+  passwordMismatch: "Las contrasenas no coinciden",
+  acceptConditionsError: "Debes aceptar las condiciones",
+  registerError: "Error durante el registro",
+  cannotReachServer: "No se puede contactar con el servidor",
 
   stories: "Historias",
   storiesDesc: "Descubre historias compartidas por otras personas",
-
   myStory: "Mi historia",
   myStoryDesc: "Escribe y comparte tu historia personal",
-
   mySpace: "Mi espacio",
   mySpaceDesc: "Tu espacio personal y seguro",
-
   connections: "Conexiones humanas",
-  connectionsDesc: "Personas que viven situaciones similares",
-
+  connectionsDesc: "Personas que viven situaciones parecidas",
   journal: "Diario guiado",
-  journalDesc: "Escribe con acompañamiento y seguridad",
-
-  /* =====================
-     ESPACIOS DE DISCUSIÓN
-  ===================== */
+  journalDesc: "Escribe con seguridad y acompanamiento",
+  countryVerification: "Verificando el pais...",
 
   burnoutTitle: "Agotamiento",
-  burnoutDesc: "Cansancio, sobrecarga, pérdida de sentido",
-
+  burnoutDesc: "Cansancio, sobrecarga, perdida de sentido",
   solitudeTitle: "Soledad",
-  solitudeDesc: "No estar solo/a",
-
+  solitudeDesc: "No quedarse solo(a)",
   ruptureTitle: "Ruptura",
-  ruptureDesc: "Reconstruirse después de una separación",
-
-  expatriationTitle: "Expatriación",
-  expatriationDesc: "Vivir en el extranjero y adaptarse",
-
+  ruptureDesc: "Reconstruirse despues de una separacion",
+  expatriationTitle: "Expatriacion",
+  expatriationDesc: "Vivir lejos y adaptarse",
   changementTitle: "Cambio de vida",
   changementDesc: "Transiciones importantes de la vida",
 
-  /* =====================
-     ACTIONS
-  ===================== */
+  installAriaLabel: "Instalar Espace Ameya",
+  installKicker: "Aplicacion movil",
+  installTitle: "Instala la aplicacion",
+  installDescription:
+    "Anade Espace Ameya a tu pantalla de inicio para abrirla como una aplicacion real.",
+  installHelper:
+    "Despues podras abrirla directamente desde tu telefono sin volver a pasar por el navegador.",
+  installReadyHelper:
+    "El navegador esta listo: toca el boton para iniciar la instalacion.",
+  installAndroidTitle: "Anade la app en Android",
+  installAndroidDescription:
+    "Abre el menu del navegador y elige Instalar la aplicacion o Anadir a la pantalla de inicio.",
+  installIosTitle: "Anade la app en iPhone",
+  installIosDescription:
+    "En Safari, toca Compartir y luego Anadir a pantalla de inicio para instalar Espace Ameya.",
+  installIosBrowserTitle: "Abre este sitio en Safari",
+  installIosBrowserDescription:
+    "En iPhone, la instalacion pasa por Safari. Abre este sitio en Safari y luego toca Compartir y Anadir a pantalla de inicio.",
 
-  send: "Enviar",
-  edit: "Editar",
+  chatPlaceholder: "Expresa lo que sientes...",
+  burnoutSubtitle: "Un espacio para respirar y soltar la sobrecarga",
+  burnoutBanner:
+    "Un espacio para hablar del cansancio, la sobrecarga y recuperar un poco de aire.",
+  solitudeSubtitle: "Un espacio para no quedarse solo o sola",
+  solitudeBanner: "Un espacio para hablar sin quedarse solo frente al silencio.",
+  solitudeNoteLabel: "Mi nota (24h)",
+  ruptureSubtitle: "Un espacio amable para reconstruirse",
+  ruptureBanner: "Un espacio para soltar el dolor y avanzar tras la ruptura.",
+  expatriationSubtitle:
+    "Un espacio para compartir la partida, la distancia y la adaptacion",
+  expatriationBanner:
+    "Un espacio para hablar de la partida, la distancia y la adaptacion.",
+  expatriationPlaceholder: "Comparte lo que sientes en la expatriacion...",
+  changementSubtitle: "Un espacio para atravesar el cambio a tu ritmo",
+  changementBanner: "Un espacio para atravesar el cambio a tu ritmo.",
+  changementPlaceholder: "Comparte lo que estas viviendo...",
+
+  infoTitle: "Acerca de",
+  infoHeroTitle: "Un espacio de apoyo anonimo",
+  infoHeroBody:
+    "Un lugar para escribir, hablar, publicar tu historia y crear vinculos con respeto, sin exponer tu identidad publicamente.",
+  infoWhatYouCanDoTitle: "Lo que puedes hacer aqui",
+  infoFeatureGroupChat: "Participar en espacios tematicos de discusion en grupo.",
+  infoFeatureStoryDrafts: "Escribir borradores y publicar tu historia si quieres.",
+  infoFeatureMySpace:
+    "Consultar tu espacio personal con tus estadisticas, amigos, DM e historias recientes.",
+  infoFeatureMatches:
+    "Recibir coincidencias del dia con perfiles cercanos a tu experiencia.",
+  infoFeatureJournal:
+    "Usar el diario guiado con una orientacion puntual de IA.",
+  infoGroupDiscussionsTitle: "Discusiones de grupo",
+  infoGroupDiscussionsItem1:
+    "Los intercambios se hacen por tema: agotamiento, soledad, ruptura, expatriacion y cambio de vida.",
+  infoGroupDiscussionsItem2:
+    "El chat de grupo sigue separado de las conversaciones privadas.",
+  infoGroupDiscussionsItem3:
+    "El tono esperado es simple: respeto, amabilidad y discrecion.",
+  infoPrivateConnectionsTitle: "Conexiones privadas",
+  infoPrivateConnectionsBody:
+    "Las conversaciones privadas pasan por el sistema DM. Pueden abrirse con una persona segun las reglas de acceso previstas por la plataforma.",
+  infoPrivateAccessFriends: "Acceso si sois amigos.",
+  infoPrivateAccessOneTime: "O desbloqueo puntual de un DM por 4,99 EUR.",
+  infoPrivateAccessSubscription:
+    "O suscripcion de DM ilimitados por 9,75 EUR si esta activada.",
+  infoOneTimeDmTitle: "DM puntual",
+  infoOneTimeDmDesc: "Desbloquea una conversacion privada con una persona.",
+  infoSubscriptionTitle: "Suscripcion DM",
+  infoSubscriptionDesc:
+    "Acceso ilimitado a los DM segun el estado de la suscripcion.",
+  infoStoriesDraftsTitle: "Historias y borradores",
+  infoStoriesDraftsItem1:
+    "Puedes guardar una historia como borrador antes de publicarla.",
+  infoStoriesDraftsItem2: "Los borradores se gestionan en Mi historia.",
+  infoStoriesDraftsItem3:
+    "Las historias publicadas viven en el espacio publico Stories.",
+  infoStoriesDraftsItem4:
+    "Una publicacion puede eliminarse desde la pagina de historias.",
+  infoMySpaceTitle: "Mi espacio",
+  infoMySpaceBody:
+    "Mi espacio reune tu perfil, tus amigos, las solicitudes recibidas y enviadas, tus DM recientes, tus historias recientes, tu diario, tus coincidencias del dia y el estado de tus desbloqueos o suscripciones.",
+  infoLanguagesTitle: "Idiomas y comprension",
+  infoLanguagesBody1:
+    "La interfaz sigue evolucionando, pero el objetivo sigue siendo facilitar los intercambios entre personas que no siempre hablan el mismo idioma.",
+  infoLanguagesBody2:
+    "Algunas formulaciones todavia pueden cambiar con las proximas actualizaciones del producto.",
+  infoImportantTitle: "Importante",
+  infoImportantBody1:
+    "Esta aplicacion no es un servicio medico y no sustituye la opinion de un profesional de la salud.",
+  infoImportantBody2:
+    "En caso de peligro inmediato, angustia aguda o riesgo para ti o para otra persona, contacta sin demora con un ser querido, un profesional o los servicios de emergencia.",
+  infoBackHome: "Volver al inicio",
+  infoFooterMotto: "Anonimato - Respeto - Vinculos humanos",
+
+  storiesHeaderTitle: "Historias",
+  storiesHeaderDesc: "Descubre y apoya los testimonios",
+  storiesOfAuthor: "Historias de {{name}}",
+  storiesOfThisPerson: "Historias de esta persona",
+  storiesFoundSingular: "{{count}} historia encontrada.",
+  storiesFoundPlural: "{{count}} historias encontradas.",
+  storiesNoPublishedYet: "Todavia no hay historias publicadas.",
+  storiesPublishedBanner: 'Tu historia "{{title}}" ya esta publicada.',
+  storiesSearchPlaceholder: "Buscar una historia...",
+  storiesDisplayedSingular: "{{shown}} de {{total}} historia mostrada",
+  storiesDisplayedPlural: "{{shown}} de {{total}} historias mostradas",
+  storiesStatusLiked: "Me gusta",
+  storiesStatusSupport: "Apoyo",
+  storiesReadStory: "Leer la historia",
+  storiesLoadMore: "Ver mas historias",
+  storiesNoResults: "Ninguna historia coincide con tu busqueda.",
+  storiesNoAuthorResults: "Esta persona todavia no ha publicado una historia.",
+  storiesDeleteConfirm: "Eliminar esta historia?",
+  storiesDeleteError: "La eliminacion de la historia fallo.",
+  storiesDeleteSuccess: "Historia eliminada.",
+  storiesReconnectDelete: "Vuelve a iniciar sesion para eliminar esta historia.",
+  storiesSupportAction: "Apoyar",
+  storiesSupportedAction: "Apoyado",
+  storiesChatAction: "Chat",
+  storiesLoadError: "No se pueden cargar las historias.",
+  storyWithoutTitle: "Sin titulo",
+
+  myStoryHeaderDesc:
+    "Escribe libremente aqui. Puedes guardar un borrador o publicar directamente cuando tu texto este listo.",
+  myDrafts: "Mis borradores",
+  myDraftsNone: "Ningun borrador",
+  myDraftActiveHint:
+    "Borrador activo. Un clic en Publicar enviara la version mostrada en el editor.",
+  storyTitlePlaceholder: "Titulo (obligatorio)",
+  storyBodyPlaceholder: "Escribe tu historia...",
+  storyTitleRequiredError: "Anade un titulo antes de continuar.",
+  storyTagRequiredError: "Anade al menos una etiqueta antes de continuar.",
+  storyBodyShortError:
+    "Escribe un poco mas para que tu historia este completa.",
+  myDraftsLoadError: "No se pueden cargar los borradores ahora mismo.",
+  myDraftLoadedInfo: "Borrador cargado. Puedes modificarlo o publicarlo.",
+  draftDeleteConfirm: "Eliminar este borrador?",
+  draftRemovedFromEditor:
+    "El borrador eliminado se retiro del editor.",
+  draftSaveError: "Error al guardar el borrador.",
+  draftSavedSuccess:
+    "Borrador guardado. Puedes seguir modificando o publicar directamente.",
+  publishInProgress: "Publicando...",
+  publishPrepareError: "No se puede preparar la publicacion.",
+  publishError: "Error al publicar.",
+  publishAction: "Publicar",
+  updateDraftAction: "Actualizar borrador",
+  saveDraftAction: "Guardar borrador",
+
+  mySpaceLoading: "Cargando el panel...",
+  mySpaceHeaderDesc: "Gestiona tus publicaciones y tu informacion personal.",
+  myProfile: "Mi perfil",
+  changePhoto: "Cambiar la foto",
+  usernameLabel: "Nombre de usuario",
+  emailLabel: "Correo electronico",
+  changePassword: "Cambiar la contrasena",
+  storiesStat: "Historias",
+  friendsStat: "Amigos",
+  messagesStat: "Mensajes",
+  matchesTodayStat: "Coincidencias del dia",
+  pendingMessagesSummarySingular:
+    "{{count}} mensaje recibido en espera de respuesta",
+  pendingMessagesSummaryPlural:
+    "{{count}} mensajes recibidos en espera de respuesta",
+  pendingMessagesNone: "Ningun mensaje pendiente. Abrir chat privado",
+  accountSecurity: "Seguridad de la cuenta",
+  accountSecurityDesc:
+    "Introduce tu contrasena actual para definir la nueva.",
+  oldPasswordPlaceholder: "Contrasena actual",
+  newPasswordPlaceholder: "Nueva contrasena",
+  updatePassword: "Actualizar",
+  updatingPassword: "Actualizando...",
+  profileUpdated: "Perfil actualizado!",
+  profileSaveError: "Error al guardar",
+  networkError: "Error de red",
+  passwordUpdated: "Contrasena cambiada con exito",
+  passwordSaveError: "Error de contrasena",
+  serverUnavailable: "Servidor no disponible",
+
+  matchHeaderTitle: "Conexiones humanas",
+  matchHeaderDesc:
+    "Personas cercanas a lo que has vivido, para descubrir una a una.",
+  matchSuggestionsDate: "Fecha de sugerencias: {{date}}",
+  matchStatusUnknown: "Estado desconocido",
+  matchGeneratedToday: "Generado hoy",
+  matchReady: "Sugerencias ya listas",
+  matchPrivateMessaging: "Mensajeria privada",
+  matchConnectionUnavailable: "Conexion no disponible",
+  paymentCancelled: "Pago cancelado. Puedes volver a intentarlo cuando quieras.",
+  matchResetAfter: "Nueva sugerencia despues de {{date}}.",
+  matchNoProfile: "Ningun perfil parecido por ahora.",
+  matchLimitReachedNote:
+    "Parece que se alcanzo el limite de hoy. Vuelve despues de {{date}}.",
+  matchProfileOf: "Perfil {{current}} de {{total}}",
+  matchNextHint: "Pulsa siguiente para ver otro perfil.",
+  matchPrivateMessage: "Mensaje privado",
+  matchRelatedDiscussion: "Discusion relacionada",
+  matchProfilesListAria: "Lista de perfiles propuestos",
+  matchViewProfile: "Ver perfil {{index}}",
+  matchAvailableSingular: "{{count}} perfil disponible hoy.",
+  matchAvailablePlural: "{{count}} perfiles disponibles hoy.",
+  matchRemainingSingular:
+    "{{count}} propuesta restante hoy de {{limit}}.",
+  matchRemainingPlural:
+    "{{count}} propuestas restantes hoy de {{limit}}.",
+  matchUsedSingular: "{{count}} propuesta usada hoy de {{limit}}.",
+  matchUsedPlural: "{{count}} propuestas usadas hoy de {{limit}}.",
+  matchProfileFallback: "Perfil parecido",
+
+  journalSessionMissing:
+    "Sesion no encontrada. Vuelve a iniciar sesion para abrir tu diario.",
+  journalLoadDiscussionsError: "No se pueden cargar las discusiones.",
+  journalLoadCurrentError: "No se puede cargar esta discusion.",
+  journalDeleteConfirm: "Eliminar esta discusion?",
+  journalDeleteError: "No se puede eliminar esta discusion por ahora.",
+  journalWriteBeforeSend: "Escribe un mensaje antes de enviarlo.",
+  journalContinueAfterLogin:
+    "Sesion no encontrada. Vuelve a iniciar sesion para continuar.",
+  journalLimitReachedAfter: "Limite alcanzado, vuelve a intentarlo despues de {{date}}.",
+  journalUnavailable: "El diario no esta disponible en este momento.",
+  journalSendError: "No se puede enviar el mensaje por ahora.",
+  journalInsightError: "No se puede enviar el analisis por ahora.",
+  journalWriteBeforeInsight:
+    "Escribe tu mensaje antes de pedir un analisis.",
+  journalNewDiscussion: "Nueva discusion",
+  journalNewShort: "Nuevo",
+  journalAiKicker: "Diario IA",
+  journalDiscussionsTitle: "Discusiones",
+  journalArchivesHere: "Tus archivos aparecen aqui.",
+  journalArchiveCountSingular: "1 discusion",
+  journalArchiveCountPlural: "{{count}} discusiones",
+  journalArchiveEmptyTitle: "Ninguna discusion archivada.",
+  journalArchiveEmptyDesc:
+    "En cuanto empiezas un intercambio, se guarda aqui con el titulo proporcionado por el backend.",
+  journalOpenDiscussion: "Abrir discusion",
+  journalContinueHint: "Encuentra tu intercambio y continua aqui.",
+  journalCurrentContinue:
+    "Escribe tu primer mensaje abajo para empezar.",
+  journalEmptyTitle: "Nueva discusion.",
+  journalPlaceholder:
+    "Describe lo que sientes, lo que te preocupa, o la pregunta que te gustaria explorar...",
+  journalSendAction: "Enviar",
+  journalSending: "Enviando...",
+  journalInsightAction: "Analisis puntual",
+  journalInsightLoading: "Analizando...",
+  journalWarningLimit:
+    "Limite alcanzado, vuelve a intentarlo despues de {{date}}.",
+
+  groupBackHomeAria: "Volver al inicio",
+  groupShowOlder: "Mostrar mas antiguos",
+  groupLoadOlder: "Cargar mas antiguos",
+  groupVisibleMessagesSingular: "{{count}} mensaje mostrado",
+  groupVisibleMessagesPlural: "{{count}} mensajes mostrados",
+  groupEphemeralNote: "Nota efimera",
+  groupEmpty:
+    "Los mensajes desaparecen de la pantalla despues de 24h. Inicia la conversacion.",
+  groupEdited: "editado",
+  groupCloseProfileAria: "Cerrar la ficha de perfil",
+  groupProfilePrompt: "Que quieres hacer con esta persona?",
+  groupWritePrivate: "Escribir en privado",
+  groupAddFriend: "Agregar amigo",
+  groupReadStories: "Leer sus historias",
+  groupEditing: "Modificacion del mensaje en curso.",
+  groupFriendRequestSent: "Solicitud de amistad enviada a {{name}}.",
+  groupFriendRequestExists: "Ya existe una solicitud con {{name}}.",
+  groupFriendRequestUnavailable:
+    "La solicitud de amistad no esta disponible por ahora.",
+  groupMessageEditError: "No se puede editar este mensaje por ahora.",
+  groupMessageDeleteConfirm: "Eliminar este mensaje para todos?",
+  groupMessageDeleteError: "No se puede eliminar este mensaje por ahora.",
+  groupMessageSendError: "No se puede enviar el mensaje por ahora.",
+  groupTranslateError: "Traduccion no disponible por ahora.",
+  groupTypingOne: "{{name}} esta escribiendo...",
+  groupTypingTwo: "{{name1}} y {{name2}} estan escribiendo...",
+  groupTypingMany: "{{count}} personas estan escribiendo...",
+  groupViewProfileOf: "Ver el perfil de {{name}}",
+
+  privateChatDefaultPaymentMessage:
+    "Elige primero la formula que desbloquea este chat privado antes de abrir Stripe.",
+  privateChatThreadExpiredPreview: "Los mensajes desaparecen despues de 24h.",
+  privateChatThreadStartPreview: "Empieza la conversacion.",
+  privateConversationFallback: "Conversacion privada",
+  privateChatMessagesTitle: "Mensajes privados",
+  privateChatArchiveSubtitle:
+    "Archivo de conversaciones y mensajes que desaparecen despues de 24h.",
+  privateChatBackToMySpace: "Mi espacio",
+  privateChatPaywallKicker: "Chat privado",
+  privateChatPaywallTitle: "Elige tu acceso antes de Stripe",
+  privateChatFeaturedBadge: "Ilimitado",
+  privateChatRedirecting: "Redireccion...",
+  privateChatArchiveTitle: "Archivo DM",
+  privateChatProfiles: "Perfiles",
+  privateChatArchiveAction: "Archivo",
+  privateChatArchiveKicker: "Mensajes 24h",
+  privateChatOpeningChat: "Abriendo chat...",
+  privateChatArchiveDescription:
+    "Los perfiles permanecen archivados aqui y el texto visible de los mensajes desaparece despues de 24h.",
+  privateChatThreadsLoading: "Cargando conversaciones...",
+  privateChatNoThreads:
+    "Ninguna conversacion por ahora. Inicia un chat privado desde un perfil para encontrarlo aqui despues.",
+  privateChatConversations: "Conversaciones",
+  privateChatEphemeralHint:
+    "Mensajes efimeros: desaparicion visual despues de 24h.",
+  privateChatConversationLoading: "Cargando la conversacion...",
+  privateChatNoVisibleMessages:
+    "Todavia no hay mensajes visibles aqui. Los mensajes de mas de 24h desaparecen de la pantalla.",
+  privateChatEditing: "Modificacion del mensaje privado en curso.",
+  privateChatPlaceholder: "Escribe un mensaje privado...",
+  privateChatOpeningConversation: "Abriendo la conversacion...",
+  privateChatNotOpen: "Este chat todavia no esta abierto.",
+  privateChatChooseConversation: "Elige una conversacion en el archivo.",
+  privateChatAccessChoiceHint:
+    "Si el acceso todavia no esta activo, primero te propondremos elegir entre el pago unico y la suscripcion.",
+  privateChatArchiveHint:
+    "Aqui encontraras el perfil, el historial reciente y los mensajes visibles durante 24h.",
+  privateChatStartThisChat: "Iniciar este chat",
+  privateChatViewProfiles: "Ver perfiles",
+  privateChatManageFriends: "Gestionar amistades",
+  privateChatDeleteConfirm: "Eliminar este mensaje privado?",
+  privateChatMessageNotSent: "Mensaje no enviado.",
+  privateChatDeleteError: "No se puede eliminar este mensaje privado.",
+  privateChatEditError: "No se puede editar este mensaje privado.",
+  privateChatOptionOneTimeTitle: "Chat unico",
+  privateChatOptionOneTimeBilling: "Pago unico",
+  privateChatOptionOneTimeDescription:
+    "Desbloquea esta conversacion privada solo con este perfil.",
+  privateChatOptionSubscriptionTitle: "DM ilimitados",
+  privateChatOptionSubscriptionBilling: "Suscripcion mensual",
+  privateChatOptionSubscriptionDescription:
+    "Activa el acceso ilimitado a los chats privados mientras la suscripcion siga activa.",
+  privateChatChooseOption: "Elegir {{price}}",
 };
+
+export default es;
