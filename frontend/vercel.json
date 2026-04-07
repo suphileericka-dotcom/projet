@@ -1,11 +1,16 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://ameya-production.up.railway.app/api/$1"
+      "source": "/api/:path*",
+      "destination": "https://ameya-production.up.railway.app/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:path((?!.*\\.).*)",
       "destination": "/index.html"
     }
   ]
